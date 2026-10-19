@@ -11,7 +11,7 @@ export async function POST(request:Request){
  const chunks=await auth.supabase.from('file_chunks').select('id').in('file_id',fileIds).eq('user_id',auth.user.id);
  if(chunks.error)return dbError(chunks.error,'load_failed');
  try{
-  const draft=validateDraft(body.draft,new Set((chunks.data??[]).map(c=>c.id)));
+  const draft=validateDraft(body.draft,new Set([...fileIds,...(chunks.data??[]).map(c=>c.id)]));
   draft.items=draft.items.map(i=>({...i,id:i.id??crypto.randomUUID()}));
   const {data,error}=await auth.supabase.rpc('confirm_syllabus',{p_file:body.fileId,p_draft:draft});
   if(error)return dbError(error,'confirm_failed',409);return json({courseId:data});

@@ -1,17 +1,23 @@
 import {beforeEach,it,expect,vi} from 'vitest';
 import {fakeSupabase} from '@/test/fake-supabase';
-const s=vi.hoisted(()=>({fake:null as ReturnType<typeof import('@/test/fake-supabase').fakeSupabase>|null,extract:vi.fn(),locked:false,denied:false}));
+const s=vi.hoisted(()=>({fake:null as ReturnType<typeof import('@/test/fake-supabase').fakeSupabase>|null,extract:vi.fn(),pdf:vi.fn(),locked:false,denied:false}));
 vi.mock('@/lib/api',async original=>({...await original<typeof import('@/lib/api')>(),requireAppUser:async()=>s.denied?{error:Response.json({error:'waitlisted'},{status:403})}:{user:{id:'u'},supabase:s.fake!.client}}));
 vi.mock('@/lib/courses/extract',()=>({extractSyllabus:s.extract}));
+vi.mock('@/lib/courses/pdf',()=>({prepareSyllabusPdf:s.pdf}));
 vi.mock('@/lib/supabase/admin',()=>({createAdminClient:()=>({rpc:async(name:string)=>{if(name==='claim_syllabus'){if(s.locked)return{data:false};s.locked=true;return{data:true};}s.locked=false;return{data:null};}})}));
 import {POST} from './route';
 const id='11111111-1111-4111-8111-111111111111';
 const req=()=>new Request('http://localhost/api/courses/import',{method:'POST',body:JSON.stringify({fileId:id})});
-beforeEach(()=>{vi.clearAllMocks();s.locked=false;s.denied=false;s.fake=fakeSupabase({files:[{id,user_id:'u',status:'ready',visual_pages:[]}],file_chunks:[{id:'chunk',file_id:id,user_id:'u',content:'Synthetic syllabus'}]});s.extract.mockResolvedValue({name:'Synthetic',items:[]});});
+beforeEach(()=>{vi.clearAllMocks();s.pdf.mockReset();s.locked=false;s.denied=false;s.fake=fakeSupabase({files:[{id,user_id:'u',mime:'application/pdf',storage_path:'u/syllabus.pdf',status:'ready',visual_pages:[]}],file_chunks:[{id:'chunk',file_id:id,user_id:'u',content:'Synthetic syllabus'}]});s.extract.mockResolvedValue({name:'Synthetic',items:[]});s.pdf.mockResolvedValue({documents:[{name:'syllabus.pdf',mime:'application/pdf',data:'synthetic'}],sources:[{id,page:2,content:'Visual page 2'}],pageCount:1});});
 it('guards waitlist and ownership before spending',async()=>{s.denied=true;expect((await POST(req())).status).toBe(403);s.denied=false;s.fake!.db.files[0].user_id='v';expect((await POST(req())).status).toBe(404);expect(s.extract).not.toHaveBeenCalled();});
 it('claims the file before extraction and reuses a saved draft without a new charge',async()=>{expect((await POST(req())).status).toBe(200);expect((await POST(req())).status).toBe(200);expect(s.extract).toHaveBeenCalledTimes(1);});
 it('blocks a concurrent import before it spends',async()=>{let release!:()=>void;const gate=new Promise<void>(r=>{release=r;});s.extract.mockImplementation(async()=>{await gate;return{name:'Synthetic',items:[]};});const first=POST(req());for(let i=0;i<20&&!s.locked;i++)await Promise.resolve();expect(s.locked).toBe(true);expect((await POST(req())).status).toBe(409);release();expect((await first).status).toBe(200);expect(s.extract).toHaveBeenCalledTimes(1);});
-it('rejects unreadable pages without attempting partial extraction',async()=>{s.fake!.db.files[0].visual_pages=[2];expect((await POST(req())).status).toBe(422);expect(s.extract).not.toHaveBeenCalled();});
+it('includes visual PDF pages instead of rejecting an otherwise readable syllabus',async()=>{s.fake!.db.files[0].visual_pages=[2];expect((await POST(req())).status).toBe(200);expect(s.pdf).toHaveBeenCalledTimes(1);expect(s.extract.mock.calls[0][3].pageCount).toBe(1);});
+it('imports a fully scanned PDF without text chunks',async()=>{s.fake!.db.files[0].status='needs_ocr';s.fake!.db.file_chunks=[];expect((await POST(req())).status).toBe(200);expect(s.extract.mock.calls[0][1]).toEqual([]);expect(s.pdf).toHaveBeenCalledTimes(1);});
+it('checks ownership before downloading a visual PDF',async()=>{s.fake!.db.files[0].visual_pages=[1];s.fake!.db.files[0].user_id='someone-else';expect((await POST(req())).status).toBe(404);expect(s.pdf).not.toHaveBeenCalled();expect(s.extract).not.toHaveBeenCalled();});
+it('does not spend or save a partial draft when PDF preparation fails and releases the lease',async()=>{s.fake!.db.files[0].status='needs_ocr';s.pdf.mockRejectedValue(new Error('syllabus_pdf_unreadable'));const r=await POST(req());expect(r.status).toBe(422);expect(await r.json()).toEqual({error:'syllabus_pdf_unreadable'});expect(s.extract).not.toHaveBeenCalled();expect(s.fake!.db.syllabus_drafts).toEqual([]);expect(s.locked).toBe(false);});
+it('does not download or attach PDFs on the text-only path',async()=>{expect((await POST(req())).status).toBe(200);expect(s.pdf).not.toHaveBeenCalled();expect(s.extract.mock.calls[0][3]).toBeUndefined();});
+it('still rejects failed files before spending',async()=>{s.fake!.db.files[0].status='failed';expect((await POST(req())).status).toBe(422);expect(s.extract).not.toHaveBeenCalled();});
 it('rejects stale course snapshots before extraction can overwrite completed work',async()=>{
  const courseId='22222222-2222-4222-8222-222222222222';s.fake!.db.projects.push({id:courseId,user_id:'u',updated_at:'2026-10-17T12:00:00Z'});
  const r=await POST(new Request('http://localhost/api/courses/import',{method:'POST',body:JSON.stringify({fileId:id,courseId,version:'2026-10-17T11:00:00Z'})}));

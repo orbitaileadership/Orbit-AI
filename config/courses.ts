@@ -1,1 +1,1 @@
-export const COURSES = { model: 'openai-luna', maxInputTokens: 8_000, maxOutput: 4_000, maxChunks: 120, maxItems: 80, timeoutMs: 90_000 };
+export const COURSES = { model: 'openai-luna', maxInputTokens: 8_000, maxOutput: 4_000, maxChunks: 120, maxItems: 80, timeoutMs: 90_000, maxVisualPages: 20, visualPageTokens: 2_000, maxPdfBytes: 20 * 1024 * 1024 };
