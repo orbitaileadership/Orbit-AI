@@ -124,6 +124,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   const [orbitMode, setOrbitMode] = useState(false);
   const [convs, setConvs] = useState<Record<ProviderId, ConvSummary[] | null>>(() => perProvider<ConvSummary[] | null>(() => null));
   const [projects, setProjects] = useState<Record<ProviderId, Project[]>>(() => perProvider<Project[]>(() => []));
+  const [courseProjects, setCourseProjects] = useState<Project[]>([]);
   const [activeIds, setActiveIds] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [projectFilter, setProjectFilter] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [draftModels, setDraftModels] = useState<Record<ProviderId, string>>(() =>
@@ -260,7 +261,9 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   }
   const chatSettings: ChatSettings = settings[msgKey] ?? { mode: "chat", courseOnly: false };
   const setChatSettings = (patch: Partial<ChatSettings>) => setSettings((prev) => ({ ...prev, [msgKey]: { ...chatSettings, ...patch } }));
-  const activeProject = projects[provider].find((p) => p.id === (active?.projectId ?? filter)) ?? null;
+  const currentProjectId = active?.projectId ?? filter;
+  const activeProject = projects[provider].find(p => p.id === currentProjectId) ?? courseProjects.find(p => p.id === currentProjectId) ?? null;
+  const activeProjectIsFolder = projects[provider].some(p => p.id === activeProject?.id);
   const imageModel = IMAGE_MODELS[provider];
 
   // ---------------------------------------------------------------- loading
@@ -354,6 +357,15 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     }).catch(()=>alertLine("Could not open the course chat. Please try again."));
     return()=>{cancelled=true;};
   },[courseLaunch,ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    void fetch('/api/courses').then(async response => {
+      if (response.ok && !cancelled) { const data = await response.json(); if (!cancelled) setCourseProjects(data.courses); }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [ready, courseLaunch]);
 
   useEffect(() => {
     const refresh = (event: Event) => {
@@ -500,6 +512,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   }
 
   function openCourse(p: Project) {
+    if (!projects[provider].some(folder => folder.id === p.id)) { onCourses?.(); return; }
     setProjectDialog({ editing: p });
     loadCourseFiles(p.id);
   }
@@ -542,7 +555,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     setProjects((prev) => Object.fromEntries(PROVIDERS.map((pv) => [pv, prev[pv].filter((p) => p.id !== id)])) as Record<ProviderId, Project[]>);
     setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).map((c) => (c.projectId === id ? { ...c, projectId: null } : c)) }));
     setProjectFilter((prev) => ({ ...prev, [provider]: null }));
-    window.dispatchEvent(new Event("orbit:folders-changed"));
+    window.dispatchEvent(new CustomEvent("orbit:folders-changed", { detail: { deletedId: id } }));
     setProjectDialog(null);
   }
 
@@ -587,6 +600,11 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       setCourseFiles((prev) => ({ ...prev, [projectId]: files }));
     }
   }, []);
+
+  const activeProjectId = activeProject?.id;
+  useEffect(() => {
+    if (activeProjectId) void loadCourseFiles(activeProjectId);
+  }, [activeProjectId, loadCourseFiles]);
 
   async function uploadCourseFiles(projectId: string, list: File[]) {
     for (const f of list.slice(0, 20)) {
@@ -1406,7 +1424,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
             <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
           </button>
           {activeProject && (
-            <button onClick={() => openCourse(activeProject)} title="Folder settings and files"
+            <button onClick={() => openCourse(activeProject)} title={activeProjectIsFolder ? "Folder settings and files" : "Course workspace"}
               className="flex min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink">
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden className="shrink-0"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
               <span className="truncate">{activeProject.name}</span>
@@ -1418,6 +1436,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
               <select value={active.projectId ?? ""} onChange={(e) => moveToProject(active.id, e.target.value || null)}
                 className="rounded-full border border-line bg-surface-100 px-2.5 py-1 text-xs text-ink outline-none">
                 <option value="">None</option>
+                {activeProject && !activeProjectIsFolder && <option value={activeProject.id}>Course: {activeProject.name}</option>}
                 {projects[provider].map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </label>
@@ -1446,17 +1465,17 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                   <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="shrink-0 text-ink-muted"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
                   <span className="font-medium">{activeProject.name}</span>
                   <span className="text-xs text-ink-subtle">
-                    {courseFiles[activeProject.id] ? `${courseFiles[activeProject.id].length} folder file${courseFiles[activeProject.id].length === 1 ? "" : "s"}` : "Loading files…"}
+                    {courseFiles[activeProject.id] ? `${courseFiles[activeProject.id].length} ${activeProjectIsFolder ? "folder" : "course"} file${courseFiles[activeProject.id].length === 1 ? "" : "s"}` : "Loading files…"}
                     {activeProject.instructions.trim() ? " · has instructions" : ""}
                   </span>
                   <button onClick={() => openCourse(activeProject)} className="ml-auto rounded-full border border-line-strong px-3 py-1 text-xs font-medium hover:bg-surface-300">
-                    {courseFiles[activeProject.id]?.length ? "Manage files" : "Add folder files"}
+                    {!activeProjectIsFolder ? "Open course workspace" : courseFiles[activeProject.id]?.length ? "Manage files" : "Add folder files"}
                   </button>
                 </div>
                 {courseFiles[activeProject.id]?.length ? (
                   <p className="mt-1.5 truncate text-xs text-ink-subtle">Answers can cite: {courseFiles[activeProject.id].map((f) => f.name).join(", ")}</p>
                 ) : (
-                  <p className="mt-1.5 text-xs text-ink-subtle">Add lecture slides, readings or assignment specs and every chat in this folder can quote them by page.</p>
+                  <p className="mt-1.5 text-xs text-ink-subtle">Add lecture slides, readings or assignment specs and every chat in this {activeProjectIsFolder ? "folder" : "course"} can quote them by page.</p>
                 )}
               </div>
             )}

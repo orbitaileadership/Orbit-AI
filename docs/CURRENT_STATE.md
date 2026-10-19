@@ -43,4 +43,4 @@ The original launch target was October 19, 2026. A target date, passing tests an
 
 ## Local work awaiting release — course folders
 
-`folders-course-navigation` adds pinned/recent folders to standard chat and Orbit, folder membership within courses, and a course Folders tab. Existing courses/chat/file links are preserved. Requires reviewed migration `0018_course_folders.sql` before deployment; not applied to shared services. See `handoffs/2026-10-19-course-folders.md` for validation and remaining staging checks.
+`folders-course-navigation` adds pinned/recent folders to standard chat and Orbit, folder membership within courses, and a course Folders tab. Existing courses/chat/file links are preserved. Requires reviewed migration `0018_course_folders.sql` to enable folders; not applied to shared services. Existing courses remain available if code is deployed before that migration. Push/merge to main was authorized by Jake; independent review and final checks passed (513 tests). See `handoffs/2026-10-19-course-folders.md` for validation and remaining staging checks.
