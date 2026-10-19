@@ -4,6 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { vector } from "@electric-sql/pglite-pgvector";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { TokenUsageReport } from '@/lib/analytics/report';
 
 const U="11111111-1111-4111-8111-111111111111", V="22222222-2222-4222-8222-222222222222", C="33333333-3333-4333-8333-333333333333";
 let db:PGlite;
@@ -158,5 +159,62 @@ describe('public waitlist isolation',()=>{
   expect((await db.query('select * from waitlist_interest')).rows).toHaveLength(0);
   await expect(db.exec(`select join_waitlist('attack@example.ca','Western University','other')`)).rejects.toThrow(/permission denied/);
   await db.exec('reset role');
+ });
+});
+
+describe('token growth analytics SQL',()=>{
+ const user='aaaaaaaa-1111-4111-8111-111111111111',chat='aaaaaaaa-2222-4222-8222-222222222222';
+ const first='aaaaaaaa-3333-4333-8333-333333333333',second='aaaaaaaa-4444-4444-8444-444444444444';
+ const report=async(days=30,model:string|null='analytics-fixture',filterUser:string|null=user)=>(await db.query<{r:TokenUsageReport}>(`select orbit_token_usage_report($1,$2,$3) r`,[days,model,filterUser])).rows[0].r;
+ it('groups retries under the question and compares depth using provider-reported tokens, not estimates',async()=>{
+  await db.exec(`insert into auth.users values('${user}','synthetic-analytics@uwo.ca',now());
+   insert into conversations(id,user_id,provider,model_id) values('${chat}','${user}','openai','analytics-fixture');
+   insert into messages(id,user_id,conversation_id,role,content) values('${first}','${user}','${chat}','user','PRIVATE SYNTHETIC SENTINEL'),('${second}','${user}','${chat}','user','PRIVATE SYNTHETIC SENTINEL');`);
+  const add=async(key:string,message:string|null,input:number|null,output:number|null,prompt:number,history:number,state='settled',age=0)=>{
+   const metadata=message?{usageContext:{version:1,userMessageId:message,promptTokens:prompt,historyTokens:history,hasFiles:prompt<256,hasTools:prompt>1024,content:'PRIVATE SYNTHETIC SENTINEL'}}:{};
+   await db.query(`insert into ledger(user_id,request_id,model_id,kind,reserved_micros,actual_usd_micros,conversation_id,operation,state,input_tokens,output_tokens,cached_tokens,metadata,created_at) values($1,$2,'analytics-fixture','text',100,case when $3='settled' then 50 end,$4,'chat',$3,$5,$6,20,$7,now()-make_interval(days=>$8))`,[user,key,state,chat,input,output,JSON.stringify(metadata),age]);
+  };
+  await add('analytics-first',first,100,30,100,0);
+  await add('analytics-retry',first,150,20,100,0);
+  await add('analytics-second',second,600,60,2048,400);
+  await add('analytics-unknown',null,null,null,0,0,'uncertain');
+  await add('analytics-legacy',null,50,5,0,0);
+  await add('analytics-old',null,9000,90,100,0,'settled',40);
+  const r=await report();
+  expect(r.summary).toMatchObject({calls:5,measured_calls:4,unknown_usage_calls:1,input_tokens:900,output_tokens:115,questions:2,measured_questions:2,annotated_calls:3});
+  expect(r.growth).toHaveLength(2);
+  expect(r.growth[0]).toMatchObject({depth:'1',questions:1,calls:2,mean_input_tokens:250,mean_output_tokens:50,mean_history_tokens:0});
+  expect(r.growth[1]).toMatchObject({depth:'2–5',questions:1,mean_input_tokens:600,mean_history_tokens:400});
+  expect(r.complexity).toEqual(expect.arrayContaining([expect.objectContaining({prompt_band:'Short (≤256)',workload:'Files',questions:1}),expect.objectContaining({prompt_band:'Long (>1,024)',workload:'Tools',questions:1})]));
+  expect(r.users[0]).toMatchObject({user_id:user,input_tokens:900,output_tokens:115,calls:5});
+  expect(JSON.stringify(r)).not.toContain('PRIVATE SYNTHETIC SENTINEL');
+ });
+ it('filters users/models/time and never counts pending usage as zero-cost measured questions',async()=>{
+  expect((await report(7,'different-model')).summary.calls).toBe(0);
+  expect((await report(7,'analytics-fixture',V)).summary.calls).toBe(0);
+  expect((await report(90)).summary.calls).toBe(6);
+  await db.query(`insert into ledger(user_id,request_id,model_id,reserved_micros,conversation_id,operation,state,metadata) values($1,'analytics-pending','analytics-fixture',100,$2,'chat','reserved',$3)`,[user,chat,JSON.stringify({usageContext:{version:1,userMessageId:second,promptTokens:2048,historyTokens:400}})]);
+  const r=await report();expect(r.summary.unknown_usage_calls).toBe(2);
+  expect(r.growth).toHaveLength(1);expect(r.summary.measured_questions).toBe(1);
+ });
+ it('omits malformed metadata and prevents false cross-user/cross-chat message linkage',async()=>{
+  await db.query(`insert into ledger(user_id,request_id,model_id,reserved_micros,conversation_id,operation,state,input_tokens,output_tokens,metadata) values($1,'analytics-malformed','analytics-fixture',1,$2,'chat','settled',5,5,$3),($1,'analytics-wrong-owner','analytics-fixture',1,$2,'chat','settled',5,5,$4)`,[user,chat,JSON.stringify({usageContext:{version:1,userMessageId:first,promptTokens:'bad',historyTokens:'bad'}}),JSON.stringify({usageContext:{version:1,userMessageId:C,promptTokens:100,historyTokens:0}})]);
+  await expect(report()).resolves.toBeDefined();
+ });
+ it('excludes question chains split by the date window or a model filter, including hidden unknown usage',async()=>{
+  await db.query(`insert into ledger(user_id,request_id,model_id,reserved_micros,conversation_id,operation,state,input_tokens,output_tokens,metadata,created_at) values($1,'analytics-boundary','analytics-fixture',100,$2,'chat','settled',9000,90,$3,now()-interval '40 days')`,[user,chat,JSON.stringify({usageContext:{version:1,userMessageId:first,promptTokens:100,historyTokens:0}})]);
+  const narrow=await report();expect(narrow.growth).toHaveLength(0);expect(narrow.summary.partial_questions).toBe(1);
+  expect((await report(90)).growth[0].mean_input_tokens).toBe(9255);
+  await db.query(`insert into ledger(user_id,request_id,model_id,reserved_micros,conversation_id,operation,state,metadata) values($1,'analytics-other-model','other-analytics-model',100,$2,'chat','uncertain',$3)`,[user,chat,JSON.stringify({usageContext:{version:1,userMessageId:first,promptTokens:100,historyTokens:0}})]);
+  const filtered=await report(90);expect(filtered.growth).toHaveLength(0);expect(filtered.summary.partial_questions).toBe(1);
+  const allModels=await report(90,null);expect(allModels.growth).toHaveLength(0);expect(allModels.summary.unknown_usage_calls).toBe(3);
+ });
+ it('denies students and anonymous users, but allows service-only aggregation',async()=>{
+  for(const role of ['anon','authenticated']){
+   await db.exec(`set role ${role}`);
+   await expect(db.exec(`select orbit_token_usage_report(30,null,null)`)).rejects.toThrow(/permission denied/);
+   await db.exec('reset role');
+  }
+  await db.exec('set role service_role');expect((await report()).summary.calls).toBeGreaterThan(0);await db.exec('reset role');
  });
 });

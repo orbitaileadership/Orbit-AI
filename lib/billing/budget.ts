@@ -3,6 +3,7 @@ import { ECONOMICS } from "@/config/economics";
 import { getModel, type ProviderId } from "@/config/models";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Usage } from "@/lib/providers/types";
+import type { UsageContext } from '@/lib/analytics/context';
 
 // SQL v2 functions from migration 0009. No paid call may fall back to the legacy functions.
 export type ReserveResult =
@@ -10,6 +11,7 @@ export type ReserveResult =
   | { ok: false; reason: "budget" | "global_stop" | "duplicate" | "trial_expired" | "fx_not_configured" | "error"; remaining?: number };
 
 export type CallMetadata = {
+  usageContext?: UsageContext;
   conversationId?: string; provider?: ProviderId | "tavily" | "elevenlabs"; operation?: "syllabus" | "chat" | "summary" | "embedding" | "search" | "image" | "transcription" | "speech" | "orbit_vote" | "orbit_specialist" | "orbit_answer";
   inputEstimate?: number; contextTarget?: number; historyDropped?: boolean; retrievedCount?: number; latencyMs?: number; finishReason?: string; qualityVersion?: string; unitCostUsdMicros?: number;
 };

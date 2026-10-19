@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireAnalyticsAdmin } from "@/lib/analytics/admin";
-import { loadAnalyticsReport, type Metric } from "@/lib/analytics/report";
+import { loadAnalyticsReport, validAnalyticsFilters, type Metric } from "@/lib/analytics/report";
+import { TokenUsage } from '@/components/analytics-token-usage';
 export const dynamic = "force-dynamic";
 const number=(v:Metric|undefined)=>v==null?"No data":Number(v).toLocaleString("en-CA",{maximumFractionDigits:2});
 const money=(v:Metric|undefined,currency="USD")=>v==null?"No data":`${currency} ${(Number(v)/1e6).toFixed(2)}`;
@@ -14,15 +15,20 @@ function Table({title,rows,columns}:{title:string;rows:Record<string,Metric>[];c
     {!rows.length?<p className="text-ink-muted">No data yet.</p>:<table className="w-full text-left text-sm"><thead><tr>{columns.map(([key,label])=><th key={key} className="p-2 text-ink-muted">{label}</th>)}</tr></thead>
       <tbody>{rows.map((row,i)=><tr key={i} className="border-t border-line">{columns.map(([key,,format])=><td key={key} className="p-2 tabular-nums">{format(row[key])}</td>)}</tr>)}</tbody></table>}</section>;
 }
-export default async function AnalyticsPage() {
+export default async function AnalyticsPage({searchParams}:{searchParams?:Promise<Record<string,string|string[]|undefined>>}) {
   const auth=await requireAnalyticsAdmin(); if("error" in auth) notFound();
-  const report=await loadAnalyticsReport().catch(()=>null);
+  const params=await searchParams??{};
+  const days=Number(params.days??30),model=typeof params.model==='string'?params.model:undefined,user=typeof params.user==='string'?params.user:undefined;
+  if(Array.isArray(params.days)||Array.isArray(params.model)||Array.isArray(params.user)||!validAnalyticsFilters(days,model,user))return <main className="p-8 text-ink">Invalid analytics filters. <a href="/admin/analytics" className="underline">Reset filters</a></main>;
+  const report=await loadAnalyticsReport(days,model,user).catch(()=>null);
   if(!report) return <main className="p-8 text-ink">Analytics unavailable. Apply migrations 0009–0011 and check the server configuration.</main>;
   const f=report.financial,p=report.product,c=report.context;
   const completeFx=Number(f.costs_without_fx)===0 && Number(f.legacy_cost_rows)===0 && Number(f.uncertain_calls)===0 && Number(f.reserved_usd_micros)===0;
   const contribution=completeFx && Number(f.revenue_cad_micros)>0?Number(f.revenue_cad_micros)-Number(f.fees_cad_micros)-Number(f.api_cad_micros):null;
   const text=(v:Metric)=>v==null?"No data":String(v);
-  return <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 text-ink"><h1 className="text-3xl font-semibold">Orbit analytics</h1>
+  return <main className="mx-auto min-w-0 max-w-6xl space-y-6 px-4 py-8 text-ink"><h1 className="text-3xl font-semibold">Orbit analytics</h1>
+    <TokenUsage report={report.tokenUsage} days={days} model={model} user={user}/>
+    <details className="min-w-0 space-y-6"><summary className="cursor-pointer text-xl font-semibold">Financial, engagement & operational reports</summary>
     <p className="text-ink-muted">Last {report.days} days · Live usage only in engagement metrics. Provider costs are calculated from reported usage and versioned rates, pending invoice reconciliation. Payments remain disabled.</p>
     <div className="grid gap-6 lg:grid-cols-3">
     <Panel title="Financial" items={[["Net revenue",money(f.revenue_cad_micros,"CAD")],["Recorded API cost",money(f.api_usd_micros)],["API cost with known FX",money(f.api_cad_micros,"CAD")],
@@ -39,6 +45,7 @@ export default async function AnalyticsPage() {
     <Table title="Cost by provider, model and operation" rows={report.models} columns={[["provider","Provider",text],["model_id","Model",text],["operation","Operation",text],["calls","Calls",number],["cost_usd_micros","Recorded cost",money],["unknown_cost_calls","Unknown cost calls",number]]}/>
     <Table title="Feature adoption" rows={report.features} columns={[["feature","Feature",text],["users","Users",number],["uses","Uses",number]]}/>
     <Table title="User spending (top 200, IDs only)" rows={report.users} columns={[["user_id","User ID",text],["api_usd_micros","API cost",money],["allowance_utilization","Allowance charged",percent],["reserved_micros","Reserved USD",money]]}/>
+    </details>
     <p className="text-sm text-ink-muted">Contribution excludes hosting, retrieval/database compute, support, refunds outside this window and acquisition costs. Retrieval usage measures inclusion, not answer quality. Compare identical synthetic benchmarks before claiming quality or cost savings.</p>
   </main>;
 }

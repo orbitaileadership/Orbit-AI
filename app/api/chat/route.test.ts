@@ -78,6 +78,25 @@ beforeEach(() => {
 });
 
 describe("POST /api/chat", () => {
+  it('derives private token analytics on the server and keeps retries linked to the same question',async()=>{
+    state.live=true;
+    const first=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-default',content:'PRIVATE SYNTHETIC PROMPT',usageContext:{promptTokens:999999,content:'DO NOT STORE'}})));
+    const captured=vi.mocked(budget.reserve).mock.calls[0][5]!.usageContext!;
+    expect(captured).toMatchObject({version:1,phase:'initial',historyTokens:0,hasFiles:false,hasTools:false});
+    expect(captured.promptTokens).toBeLessThan(100);
+    expect(captured.userMessageId).toBe(state.fake!.db.messages[0].id);
+    expect(JSON.stringify(captured)).not.toMatch(/PRIVATE|DO NOT STORE|content/);
+    await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-default',conversationId:first[0].conversationId,retry:true})));
+    expect(vi.mocked(budget.reserve).mock.calls[1][5]!.usageContext).toMatchObject({userMessageId:captured.userMessageId,phase:'retry'});
+  });
+
+  it('measures retained history for later questions without treating the latest question as history',async()=>{
+    state.live=true;
+    const first=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-default',content:'First synthetic question'})));
+    await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-default',conversationId:first[0].conversationId,content:'Next question'})));
+    expect(vi.mocked(budget.reserve).mock.calls[1][5]!.usageContext!.historyTokens).toBeGreaterThan(0);
+    expect(vi.mocked(budget.reserve).mock.calls[1][5]!.usageContext!.userMessageId).not.toBe(vi.mocked(budget.reserve).mock.calls[0][5]!.usageContext!.userMessageId);
+  });
   it("rejects a model from another app", async () => {
     const res = await POST(req({ provider: "anthropic", modelId: "openai-default", content: "hi" }));
     expect(res.status).toBe(400);

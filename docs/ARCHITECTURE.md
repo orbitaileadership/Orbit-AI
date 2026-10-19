@@ -124,3 +124,7 @@ Text input has a 48k estimated-token ceiling (expanded from 8k), with up to 240 
 Validation for the syllabus PDF fix: 480 tests across 63 files, lint, route type generation/TypeScript and the webpack production build passed. Synthetic tests cover scanned PDFs without text chunks, mixed-page ordering and page mapping, corrupt/missing/oversized documents, budget denial before provider dispatch, source review, confirmation, course status edits, and foreign owner/course rejection. Independent review found no remaining blockers. Real-model extraction quality and a signed-in browser upload still require live validation; no paid provider calls were performed. Rollback: revert the syllabus PDF fix commit; no schema change is involved.
 
 The expanded syllabus limits retain the combined text + visual pages + output check against the configured model context and reserve the complete estimated cost before dispatch. Large syllabi can require more allowance; there is no truncation or automatic paid retry. Expanded-limit validation: 484 tests across 63 files, lint, production TypeScript compilation and webpack build passed. No live provider calls were made.
+
+## Token usage dashboard
+
+See [TOKEN_USAGE_ANALYTICS.md](TOKEN_USAGE_ANALYTICS.md) for the plan, definitions, metadata privacy contract, scope and rollout of the standard-chat token growth report (migration 0017). Existing finance/product reports and billing safeguards are preserved.

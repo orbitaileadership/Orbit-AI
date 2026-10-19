@@ -3,6 +3,7 @@ import { RESPONSE_QUALITY_VERSION } from "@/config/quality";
 import { fitToolContext } from "@/lib/chat/tool-context";
 import { CONTEXT } from "@/config/context";
 import { trackEvent } from "@/lib/analytics/events";
+import { usageContext } from '@/lib/analytics/context';
 import { retrieveRelevant } from "@/lib/chat/retrieval";
 import { randomUUID, createHash } from "node:crypto";
 import { FOLDER_ACCESS, PDF_INPUT, getModel, isProvider } from "@/config/models";
@@ -378,7 +379,11 @@ export async function POST(request: Request): Promise<Response> {
     return json({error: videos.length ? "video_too_large" : "context_too_large",conversationId:conversation.id},413);
   }
   const callMetadata = {conversationId:conversation.id,provider,operation:"chat" as const,inputEstimate:inputTokens,
-    contextTarget,historyDropped:ctx.dropped,retrievedCount:retrieval.count};
+    contextTarget,historyDropped:ctx.dropped,retrievedCount:retrieval.count,
+    usageContext:usageContext({userMessageId,question,turns:ctx.turns,system,
+      toolTokens:runTokens+(tools?estimateTokens(JSON.stringify(tools))+400:0),
+      visualTokens:[...images.values()].flat().length*IMAGE_TOKENS+material.visualTokens,
+      hasFiles:material.hasFiles,hasTools:Boolean(tools?.length||run?.steps.length),retry:Boolean(retry),continuation:Boolean(run)})};
 
   // ---- reservation (live only)
   let maxOutput = voice ? Math.min(model.maxOutputTokens, VOICE_MAX_OUTPUT) : model.maxOutputTokens;
