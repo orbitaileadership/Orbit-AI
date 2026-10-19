@@ -32,7 +32,17 @@ describe('budgeted syllabus extraction',()=>{
  });
  it('reserves before dispatch and bills an explicit operation',async()=>{await extractSyllabus('u',chunks,new AbortController().signal);expect(state.reserve.mock.calls[0][5].operation).toBe('syllabus');expect(state.reserve.mock.invocationCallOrder[0]).toBeLessThan(state.stream.mock.invocationCallOrder[0]);expect(state.settle.mock.calls[0][1]).toBe('settled');});
  it('never calls a provider without a budget reservation',async()=>{state.reserve.mockResolvedValue({ok:false,reason:'budget'});await expect(extractSyllabus('u',chunks,new AbortController().signal)).rejects.toThrow('budget');expect(state.stream).not.toHaveBeenCalled();});
- it('rejects over-limit syllabi without truncation or spending',async()=>{await expect(extractSyllabus('u',[{...chunks[0],content:'long '.repeat(20000)}],new AbortController().signal)).rejects.toThrow('syllabus_too_large');expect(state.reserve).not.toHaveBeenCalled();});
+ it('accepts long text syllabi above the old limit and reserves their full estimated cost',async()=>{
+  await extractSyllabus('u',[{...chunks[0],content:'long '.repeat(24000)}],new AbortController().signal);
+  expect(state.reserve.mock.calls[0][5].inputEstimate).toBeGreaterThan(40_000);
+  expect(state.stream.mock.calls[0][0].maxOutput).toBe(8_000);
+  expect(state.stream.mock.calls[0][0].history[0].content).toContain('long '.repeat(24000));
+ });
+ it('still rejects text plus visual pages that exceed model capacity before reserving or spending',async()=>{
+  await expect(extractSyllabus('u',[{...chunks[0],content:'long '.repeat(24000)}],new AbortController().signal,{documents:[],sources:[],pageCount:10})).rejects.toThrow('syllabus_too_large');
+  expect(state.reserve).not.toHaveBeenCalled();expect(state.stream).not.toHaveBeenCalled();
+ });
+ it('rejects over-limit syllabi without truncation or spending',async()=>{await expect(extractSyllabus('u',[{...chunks[0],content:'long '.repeat(100000)}],new AbortController().signal)).rejects.toThrow('syllabus_too_large');expect(state.reserve).not.toHaveBeenCalled();});
  it('keeps unknown dispatched costs reserved and rejects incomplete JSON',async()=>{state.stream.mockImplementation(async function*(){yield{delta:'{}'};});await expect(extractSyllabus('u',chunks,new AbortController().signal)).rejects.toThrow('extraction_incomplete');expect(state.settle.mock.calls[0][1]).toBe('uncertain');});
  it('does not simulate a real syllabus in demo mode',async()=>{state.live=false;await expect(extractSyllabus('u',chunks,new AbortController().signal)).rejects.toThrow('extraction_not_enabled');expect(state.reserve).not.toHaveBeenCalled();});
 });
