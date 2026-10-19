@@ -1,0 +1,25 @@
+import {beforeEach,it,expect,vi} from 'vitest';
+const rpc=vi.hoisted(()=>vi.fn());
+vi.mock('@/lib/supabase/admin',()=>({createAdminClient:()=>({rpc})}));
+import {POST} from './route';
+const request=(body:unknown,origin='https://orbit.test')=>new Request('https://orbit.test/api/waitlist',{method:'POST',headers:{origin,'content-type':'application/json','x-vercel-forwarded-for':'192.0.2.1'},body:JSON.stringify(body)});
+const body={email:'Synthetic@Example.ca',institution:'waterloo',consent:true};
+beforeEach(()=>{vi.stubEnv('SUPABASE_SECRET_KEY','synthetic-secret');vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL','https://example.supabase.co');rpc.mockReset();rpc.mockResolvedValue({data:true,error:null});});
+it('records interest without creating an account or granting access',async()=>{expect((await POST(request(body))).status).toBe(200);expect(rpc).toHaveBeenCalledWith('join_waitlist',expect.objectContaining({p_email:'synthetic@example.ca',p_institution:'University of Waterloo'}));expect(JSON.stringify(rpc.mock.calls)).not.toContain('192.0.2.1');});
+it('requires consent and validates the institution',async()=>{expect((await POST(request({...body,consent:false}))).status).toBe(400);expect((await POST(request({...body,institution:'fake'}))).status).toBe(400);expect(rpc).not.toHaveBeenCalled();});
+it('blocks cross-origin posts and oversized input',async()=>{expect((await POST(request(body,'https://other.test'))).status).toBe(403);expect((await POST(request({x:'a'.repeat(4000)}))).status).toBe(413);expect(rpc).not.toHaveBeenCalled();});
+it('never claims success when persistence is unavailable',async()=>{rpc.mockResolvedValue({error:{code:'42P01'}});expect((await POST(request(body))).status).toBe(503);});
+it('honors the database rate limit without exposing duplicate emails',async()=>{rpc.mockResolvedValue({data:false});expect((await POST(request(body))).status).toBe(429);});
+
+it('records a manual Canadian institution without creating an account', async () => {
+ expect((await POST(request({...body,institution:'other',school:'  McGill University  '}))).status).toBe(200);
+ expect(rpc).toHaveBeenCalledWith('join_waitlist',expect.objectContaining({p_institution:'McGill University'}));
+});
+it('ignores forged display names for configured institutions', async () => {
+ expect((await POST(request({...body,school:'Forged name'}))).status).toBe(200);
+ expect(rpc).toHaveBeenCalledWith('join_waitlist',expect.objectContaining({p_institution:'University of Waterloo'}));
+});
+it.each(['', ' ', 'x', '123', '<script>bad</script>', 'Bad\nName', 'a'.repeat(121)])('rejects invalid manual institution %j before persistence', async (school) => {
+ expect((await POST(request({...body,institution:'other',school}))).status).toBe(400);
+ expect(rpc).not.toHaveBeenCalled();
+});

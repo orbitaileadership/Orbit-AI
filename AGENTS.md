@@ -1,5 +1,7 @@
 # AGENTS.md — Orbit AI
 
+For Orbit engineering work, follow [docs/ENGINEERING_PROTOCOL.md](docs/ENGINEERING_PROTOCOL.md). Apply its intake, scope, validation, and reporting rules proportionally to the task.
+
 Read this first in every AI session. Also read `docs/PRODUCT_SPEC.md`, `docs/ARCHITECTURE.md`, and `docs/TASKS.md`. If anything here conflicts with a direct instruction from Noah, follow Noah and update this file.
 
 ## What this is
@@ -138,3 +140,7 @@ Read `docs/ORBIT_MODE.md`. Orbit is a separate conversation mode, not a provider
 self-votes are server-rejected. Three collaboration requests allow one specialist, then one lead. All paid phases reserve
 and settle separately; no silent degraded panel or provider substitution. Text-only preview; feature flag
 `ORBIT_MODE_ENABLED=on` and migration 0014 are required. Do not claim optimal routing or improved accuracy without evaluation.
+
+## Shared courses and public landing (Jake, October 17)
+Jake approved a provider-independent Courses workspace. Migration0015 preserves existing project IDs/files/chats while making courses shared. Read docs/COURSE_WORKSPACE.md before editing import/context flows. Extraction is one reserved/settled call, not an Orbit vote; dates remain reviewable, edits and revisions must not overwrite concurrent student changes.
+Signed-out home now shows the public landing. Canadian institution waitlist interest (0016), collected at /signup, is separate from auth and app eligibility; exact verified @uwo.ca remains required for app/model access. Read docs/PUBLIC_LANDING.md. Do not claim university SSO, confirmed pricing, or approved legal/contact details.
