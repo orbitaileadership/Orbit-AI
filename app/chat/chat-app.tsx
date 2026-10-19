@@ -12,6 +12,7 @@ import { ProviderLogo } from "@/components/provider-logo";
 import { OrbitChat } from "@/components/orbit-chat";
 import { ModelMenu } from "@/components/model-menu";
 import { ToolsMenu, type ConnectedApp, type StudyMode } from "@/components/tools-menu";
+import { FolderBrowser } from "@/components/folder-browser";
 import { ProjectDialog } from "@/components/project-dialog";
 import { FileChip } from "@/components/file-chip";
 import { SourceList, type Source } from "@/components/answer-text";
@@ -325,7 +326,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       for (const r of [c, p]) {
         if (r && !r.ok) {
           const e = (await r.clone().json().catch(() => ({}))) as { message?: string };
-          alertLine(e.message ?? "Couldn't load your chats and courses. Refresh to try again.");
+          alertLine(e.message ?? "Couldn't load your chats and folders. Refresh to try again.");
           break;
         }
       }
@@ -348,11 +349,34 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       if(cancelled)return;
       setConvs(prev=>({...prev,[p]:c.conversations??[]}));setProjects(prev=>({...prev,[p]:projects.projects??[]}));
       setProvider(p);setOrbitMode(false);setPage("chat");setImageMode(false);setPending([]);
-      setProjectFilter(prev=>({...prev,[p]:courseLaunch.course.id}));setActiveIds(prev=>({...prev,[p]:courseLaunch.conversationId??null}));
+      setProjectFilter(prev=>({...prev,[p]:(courseLaunch.folder?.id ?? courseLaunch.course.id)}));setActiveIds(prev=>({...prev,[p]:courseLaunch.conversationId??null}));
       setInput(courseLaunch.prompt+(courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
     }).catch(()=>alertLine("Could not open the course chat. Please try again."));
     return()=>{cancelled=true;};
   },[courseLaunch,ready]);
+
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      const detail = (event as CustomEvent<{ deletedId?: string; filesFor?: string }>).detail;
+      if (detail?.deletedId) {
+        const id = detail.deletedId;
+        setProjectFilter(prev => Object.fromEntries(PROVIDERS.map(p => [p, prev[p] === id ? null : prev[p]])) as Record<ProviderId, string | null>);
+        setConvs(prev => Object.fromEntries(PROVIDERS.map(p => [p, prev[p]?.map(c => c.projectId === id ? { ...c, projectId: null } : c) ?? null])) as Record<ProviderId, ConvSummary[] | null>);
+      }
+      if (detail?.filesFor) {
+        const id = detail.filesFor;
+        void fetch(`/api/files?projectId=${id}`).then(async response => {
+          if (response.ok) { const data = await response.json(); setCourseFiles(prev => ({ ...prev, [id]: data.files })); }
+        }).catch(() => {});
+      }
+      void fetch('/api/projects').then(async response => {
+      if (!response.ok) return;
+      const data = await response.json();
+      setProjects(perProvider<Project[]>(() => data.projects));
+    }).catch(() => {}); };
+    window.addEventListener('orbit:folders-changed', refresh);
+    return () => window.removeEventListener('orbit:folders-changed', refresh);
+  }, []);
 
   // Load an opened chat's messages once.
   useEffect(() => {
@@ -470,7 +494,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     setProjectFilter((prev) => ({ ...prev, [provider]: id }));
     if (id) {
       newChat();
-      if (!courseFiles[id]) loadCourseFiles(id);
+      loadCourseFiles(id);
     }
     setSidebarOpen(false);
   }
@@ -489,7 +513,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     });
     if (!res.ok) {
       const e = (await res.json().catch(() => ({}))) as { message?: string };
-      alertLine(e.message ?? "Couldn't save the course. Try again.");
+      alertLine(e.message ?? "Couldn't save the folder. Try again.");
       return;
     }
     const { project } = (await res.json()) as { project: Project };
@@ -505,18 +529,20 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       openCourse(project);
       return;
     }
+    window.dispatchEvent(new Event("orbit:folders-changed"));
     setProjectDialog(null);
   }
 
   async function deleteProject(id: string) {
     const res = await fetch(`/api/projects/${id}`, { method: "DELETE" });
     if (!res.ok) {
-      alertLine("Couldn't delete the course. Try again.");
+      alertLine("Couldn't delete the folder. Try again.");
       return;
     }
     setProjects((prev) => Object.fromEntries(PROVIDERS.map((pv) => [pv, prev[pv].filter((p) => p.id !== id)])) as Record<ProviderId, Project[]>);
     setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).map((c) => (c.projectId === id ? { ...c, projectId: null } : c)) }));
     setProjectFilter((prev) => ({ ...prev, [provider]: null }));
+    window.dispatchEvent(new Event("orbit:folders-changed"));
     setProjectDialog(null);
   }
 
@@ -1213,7 +1239,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   const remaining = usage?.live ? usage.allowance - usage.spent - usage.reserved : 0;
   const usedPct = usage?.live && usage.allowance > 0 ? Math.min(100, ((usage.spent + usage.reserved) / usage.allowance) * 100) : 0;
 
-  if (orbitMode) return <OrbitChat onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
+  if (orbitMode) return <OrbitChat userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
 
   return (
     <div data-theme={provider} className="flex h-dvh bg-surface-000 font-ui text-ink">
@@ -1274,43 +1300,13 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
-          {/* Projects */}
-          <div className="mt-5 flex items-center justify-between px-3">
-            <p className="text-sm text-ink-subtle">Courses</p>
-            <button onClick={() => setProjectDialog({})} aria-label="New course" className="grid h-6 w-6 place-items-center rounded-full text-ink-subtle hover:bg-surface-200 hover:text-ink">
-              <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
-            </button>
-          </div>
-          <div className="mt-1 space-y-0.5">
-            {projects[provider].length === 0 && (
-              <button onClick={() => setProjectDialog({})} className={`w-full px-3 py-2 text-left text-sm text-ink-subtle hover:bg-surface-200 ${theme.itemClass}`}>
-                + Add a course
-              </button>
-            )}
-            {projects[provider].map((p) => {
-              const on = filter === p.id;
-              return (
-                <div key={p.id} className={`group flex items-center ${theme.itemClass} ${on ? "bg-surface-300 font-medium" : "hover:bg-surface-200"}`}>
-                  <button
-                    onClick={() => selectCourse(on ? null : p.id)}
-                    aria-pressed={on}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 text-left text-[15px]">
-                    <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0 text-ink-muted">
-                      <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" />
-                    </svg>
-                    <span className="truncate">{p.name}</span>
-                  </button>
-                  <button onClick={() => openCourse(p)} aria-label={`${p.name} settings and files`} title="Course settings and files"
-                    className="py-1 pl-1.5 pr-3 text-ink-subtle transition hover:text-ink focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><circle cx="3.5" cy="8" r="1.2" fill="currentColor" /><circle cx="8" cy="8" r="1.2" fill="currentColor" /><circle cx="12.5" cy="8" r="1.2" fill="currentColor" /></svg>
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+          <FolderBrowser userId={userId} disabled={busy} onOpen={folder => {
+            setProjects(prev => Object.fromEntries(PROVIDERS.map(p => [p, [folder, ...prev[p].filter(f => f.id !== folder.id)]])) as Record<ProviderId, Project[]>);
+            selectCourse(folder.id);
+          }}/>
 
           {/* Chats */}
-          <p className="mt-5 px-3 text-sm text-ink-subtle">{filter ? "Chats in this course" : "Recents"}</p>
+          <div className="mt-5 flex items-center justify-between px-3 text-sm text-ink-subtle"><p>{filter ? "Chats in this folder" : "Recents"}</p>{filter && <button className="text-xs underline hover:text-ink" onClick={() => selectCourse(null)}>All chats</button>}</div>
           <nav className="mt-1 space-y-0.5" aria-label={`${theme.appName} chats`}>
             {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}
             {appConvs !== null && visibleConvs.length === 0 && <p className="px-3 py-2 text-sm text-ink-subtle">No chats yet.</p>}
@@ -1410,7 +1406,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
             <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
           </button>
           {activeProject && (
-            <button onClick={() => openCourse(activeProject)} title="Course settings and files"
+            <button onClick={() => openCourse(activeProject)} title="Folder settings and files"
               className="flex min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink">
               <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden className="shrink-0"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
               <span className="truncate">{activeProject.name}</span>
@@ -1418,7 +1414,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
           )}
           {active && projects[provider].length > 0 && (
             <label className="ml-auto hidden items-center gap-1.5 text-xs text-ink-subtle sm:flex">
-              Course
+              Folder
               <select value={active.projectId ?? ""} onChange={(e) => moveToProject(active.id, e.target.value || null)}
                 className="rounded-full border border-line bg-surface-100 px-2.5 py-1 text-xs text-ink outline-none">
                 <option value="">None</option>
@@ -1450,17 +1446,17 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                   <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="shrink-0 text-ink-muted"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
                   <span className="font-medium">{activeProject.name}</span>
                   <span className="text-xs text-ink-subtle">
-                    {courseFiles[activeProject.id] ? `${courseFiles[activeProject.id].length} course file${courseFiles[activeProject.id].length === 1 ? "" : "s"}` : "Loading files…"}
+                    {courseFiles[activeProject.id] ? `${courseFiles[activeProject.id].length} folder file${courseFiles[activeProject.id].length === 1 ? "" : "s"}` : "Loading files…"}
                     {activeProject.instructions.trim() ? " · has instructions" : ""}
                   </span>
                   <button onClick={() => openCourse(activeProject)} className="ml-auto rounded-full border border-line-strong px-3 py-1 text-xs font-medium hover:bg-surface-300">
-                    {courseFiles[activeProject.id]?.length ? "Manage files" : "Add course files"}
+                    {courseFiles[activeProject.id]?.length ? "Manage files" : "Add folder files"}
                   </button>
                 </div>
                 {courseFiles[activeProject.id]?.length ? (
                   <p className="mt-1.5 truncate text-xs text-ink-subtle">Answers can cite: {courseFiles[activeProject.id].map((f) => f.name).join(", ")}</p>
                 ) : (
-                  <p className="mt-1.5 text-xs text-ink-subtle">Add lecture slides, readings or assignment specs and every chat in this course can quote them by page.</p>
+                  <p className="mt-1.5 text-xs text-ink-subtle">Add lecture slides, readings or assignment specs and every chat in this folder can quote them by page.</p>
                 )}
               </div>
             )}

@@ -40,3 +40,7 @@ Seeded October 19, 2026. Update after verified changes; this snapshot will age.
 4. Reconcile stale setup/product/task notes, final public notices/contact details, and launch acceptance with current code and owner approvals.
 
 The original launch target was October 19, 2026. A target date, passing tests and a successful deployment do not by themselves establish launch readiness.
+
+## Local work awaiting release — course folders
+
+`folders-course-navigation` adds pinned/recent folders to standard chat and Orbit, folder membership within courses, and a course Folders tab. Existing courses/chat/file links are preserved. Requires reviewed migration `0018_course_folders.sql` before deployment; not applied to shared services. See `handoffs/2026-10-19-course-folders.md` for validation and remaining staging checks.

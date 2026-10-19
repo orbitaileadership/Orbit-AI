@@ -7,13 +7,16 @@ import { FileChip } from "./file-chip";
 
 // Create / edit a course: name, instructions every chat in it follows, and reusable course files
 // (lectures, slides, assignment specs) that answers can quote with page references.
-export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete, onUpload, onDeleteFile, uploading }: {
+export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete, onUpload, onDeleteFile, uploading, courses, defaultCourseId, error }: {
   open: boolean;
-  initial?: { name: string; instructions: string };
+  error?: string;
+  courses?: { id: string; name: string }[];
+  defaultCourseId?: string;
+  initial?: { name: string; instructions: string; parent_course_id?: string | null };
   files?: UploadedFile[];
   uploading?: string[]; // names currently uploading
   onClose: () => void;
-  onSave: (v: { name: string; instructions: string }) => Promise<void>;
+  onSave: (v: { name: string; instructions: string; courseId?: string | null }) => Promise<void>;
   onDelete?: () => Promise<void>;
   onUpload?: (files: File[]) => void;
   onDeleteFile?: (id: string) => void;
@@ -22,6 +25,7 @@ export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete,
   const fileInput = useRef<HTMLInputElement>(null);
   const [name, setName] = useState("");
   const [instructions, setInstructions] = useState("");
+  const [courseId, setCourseId] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -29,12 +33,13 @@ export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete,
     const d = ref.current;
     if (!d) return;
     if (open && !d.open) {
+      setCourseId(initial?.parent_course_id ?? defaultCourseId ?? "");
       setName(initial?.name ?? "");
       setInstructions(initial?.instructions ?? "");
       setConfirmDelete(false);
       d.showModal();
     } else if (!open && d.open) d.close();
-  }, [open, initial]);
+  }, [open, initial, defaultCourseId]);
 
   return (
     <dialog
@@ -49,15 +54,16 @@ export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete,
           e.preventDefault();
           if (!name.trim()) return;
           setSaving(true);
-          await onSave({ name: name.trim(), instructions });
-          setSaving(false);
+          try { await onSave({ name: name.trim(), instructions, ...(courses ? { courseId: courseId || null } : {}) }); } finally { setSaving(false); }
         }}
       >
-        <h2 className="text-lg font-medium">{initial ? "Course settings" : "New course"}</h2>
-        <p className="mt-1 text-sm text-ink-muted">Keep a course together: its files and instructions work in every chat inside it, in this app only.</p>
+        <h2 className="text-lg font-medium">{initial ? "Folder settings" : "New folder"}</h2>
+        <p className="mt-1 text-sm text-ink-muted">Group related chats and files in a folder. A course can contain multiple folders.</p>
+        {error && <p role="alert" className="mt-3 text-sm text-danger">{error}</p>}
         <label htmlFor="project-name" className="mt-5 block text-sm font-medium">Name</label>
-        <input id="project-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required placeholder="e.g. STATS 2244"
+        <input id="project-name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} required placeholder="e.g. Assignment 1"
           className="mt-1.5 w-full rounded-xl border border-line-strong bg-surface-000 px-3.5 py-2.5 outline-none focus:border-brand" />
+        {courses && <label className="mt-4 block text-sm font-medium">Course <span className="font-normal text-ink-subtle">(optional)</span><select aria-label="Folder course" value={courseId} onChange={e => setCourseId(e.target.value)} className="mt-1.5 w-full rounded-xl border border-line bg-surface-000 px-3 py-2.5"><option value="">No course</option>{courses.map(course => <option key={course.id} value={course.id}>{course.name}</option>)}</select></label>}
         <label htmlFor="project-instructions" className="mt-4 block text-sm font-medium">Instructions <span className="font-normal text-ink-subtle">(optional)</span></label>
         <textarea id="project-instructions" value={instructions} onChange={(e) => setInstructions(e.target.value)} maxLength={8000} rows={4}
           placeholder="e.g. I'm in second-year stats. Use the course notation and explain step by step."
@@ -66,7 +72,7 @@ export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete,
         {initial && onUpload && (
           <div className="mt-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Course files</p>
+              <p className="text-sm font-medium">Folder files</p>
               <button type="button" onClick={() => fileInput.current?.click()} className="rounded-full border border-line-strong px-3 py-1 text-xs font-medium hover:bg-surface-300">
                 + Add files
               </button>
@@ -89,15 +95,15 @@ export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete,
           {onDelete && (
             <button type="button" onClick={() => (confirmDelete ? onDelete() : setConfirmDelete(true))}
               className={`rounded-full px-4 py-2 text-sm text-danger hover:bg-danger-surface ${confirmDelete ? "bg-danger-surface font-medium" : ""}`}>
-              {confirmDelete ? "Delete course and its files?" : "Delete course"}
+              {confirmDelete ? "Delete folder and its files?" : "Delete folder"}
             </button>
           )}
           <button type="button" onClick={onClose} className="ml-auto rounded-full px-4 py-2 text-sm font-medium hover:bg-surface-300">Cancel</button>
           <button type="submit" disabled={saving || !name.trim()} className="rounded-full bg-brand px-5 py-2 text-sm font-medium text-on-brand transition hover:bg-brand-strong disabled:opacity-40">
-            {saving ? "Saving…" : initial ? "Save" : "Create course"}
+            {saving ? "Saving…" : initial ? "Save" : "Create folder"}
           </button>
         </div>
-        {!initial && <p className="mt-3 text-xs text-ink-subtle">You can add course files after creating it.</p>}
+        {!initial && <p className="mt-3 text-xs text-ink-subtle">You can add folder files after creating it.</p>}
       </form>
     </dialog>
   );

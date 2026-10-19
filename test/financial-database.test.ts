@@ -218,3 +218,36 @@ describe('token growth analytics SQL',()=>{
   await db.exec('set role service_role');expect((await report()).summary.calls).toBeGreaterThan(0);await db.exec('reset role');
  });
 });
+
+describe('course folders', () => {
+ const course='81818181-8181-4181-8181-818181818181';
+ const other='82828282-8282-4282-8282-828282828282';
+ const folder='83838383-8383-4383-8383-838383838383';
+ const second='84848484-8484-4484-8484-848484848484';
+ it('keeps courses and multiple folders distinct, preserving existing chat/file links', async () => {
+  await db.exec(`insert into public.projects(id,user_id,provider,name) values('${course}','${U}',null,'Synthetic course'),('${other}','${V}',null,'Other course');
+   insert into public.projects(id,user_id,provider,name,is_folder,parent_course_id) values('${folder}','${U}',null,'Assignment 1',true,'${course}'),('${second}','${U}',null,'Assignment 2',true,'${course}');
+   update public.conversations set project_id='${folder}' where id='${C}';`);
+  expect((await db.query(`select id from public.projects where parent_course_id='${course}'`)).rows).toHaveLength(2);
+  expect((await db.query(`select project_id from public.conversations where id='${C}'`)).rows[0]).toMatchObject({project_id:folder});
+ });
+ it('rejects cross-owner, nested-folder and course-to-folder conversions at the database boundary',async()=>{
+  await expect(db.exec(`update public.projects set parent_course_id='${other}' where id='${folder}'`)).rejects.toThrow(/folder_course_owner_mismatch/);
+  await expect(db.exec(`update public.projects set parent_course_id='${second}' where id='${folder}'`)).rejects.toThrow(/folder_course_owner_mismatch/);
+  await expect(db.exec(`update public.projects set is_folder=true where id='${course}'`)).rejects.toThrow(/project_identity_immutable/);
+ });
+ it('isolates folder updates through RLS and persists pins and visits',async()=>{
+  await db.exec(`set role authenticated; select set_config('app.user_id','${V}',false);`);
+  expect((await db.query(`update public.projects set pinned_at=now() where id='${folder}' returning id`)).rows).toHaveLength(0);
+  await db.exec(`select set_config('app.user_id','${U}',false); update public.projects set pinned_at=now(),last_opened_at=now() where id='${folder}'; reset role;`);
+  expect((await db.query(`select pinned_at is not null as pinned,last_opened_at is not null as visited from public.projects where id='${folder}'`)).rows[0]).toEqual({pinned:true,visited:true});
+ });
+ it('detaches folders when their course is deleted without deleting folder chats or files',async()=>{
+  const file='85858585-8585-4585-8585-858585858585';
+  await db.exec(`insert into public.files(id,user_id,name,mime,size_bytes,storage_path,kind,project_id) values('${file}','${U}','synthetic.txt','text/plain',12,'${U}/${file}/synthetic.txt','document','${folder}');
+    delete from public.projects where id='${course}';`);
+  expect((await db.query(`select parent_course_id from public.projects where id='${folder}'`)).rows[0]).toEqual({parent_course_id:null});
+  expect((await db.query(`select project_id from public.conversations where id='${C}'`)).rows[0]).toEqual({project_id:folder});
+  expect((await db.query(`select project_id from public.files where id='${file}'`)).rows[0]).toEqual({project_id:folder});
+ });
+});

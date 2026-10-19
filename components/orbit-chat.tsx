@@ -1,5 +1,6 @@
 "use client";
 
+import { FolderBrowser } from "./folder-browser";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PROVIDERS, getModel, type ProviderId } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
@@ -11,7 +12,7 @@ import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Decision } from "@/lib/orbit/voting";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; status?: string; model_id?: string; orbit_details?: Decision };
-type Chat = { id: string; title: string };
+type Chat = { id: string; title: string; projectId: string | null };
 const PHASES: Record<string,string> = {voting:"Four AIs are voting…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
 const ERRORS: Record<string,string> = {
   orbit_not_enabled:"Orbit mode is in preview. The team needs to enable it before live use.",
@@ -37,7 +38,8 @@ function Routing({ decision }: { decision: Decision }) {
   </details>;
 }
 
-export function OrbitChat({ onSelectProvider, onCourses, courseLaunch }: { onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
+export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId }: { userId: string; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
+  const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
   const [course,setCourse]=useState<{id:string;name:string}|null>(null);
   const [chats,setChats]=useState<Chat[]>([]), [active,setActive]=useState<string|null>(null);
   const [messages,setMessages]=useState<Message[]>([]), [input,setInput]=useState("");
@@ -50,6 +52,17 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch }: { onSel
     if(list.ok) setChats((await list.json()).conversations??[]);
     if(usage.ok){const u=await usage.json();if(u.live)setRemaining(u.allowance-u.spent-u.reserved);}
   },[]);
+  useEffect(() => {
+    const changed = (event: Event) => {
+      const id = (event as CustomEvent<{ deletedId?: string }>).detail?.deletedId;
+      if (!id) return;
+      setCourse(current => current?.id === id ? null : current);
+      setFolderFilter(current => current?.id === id ? null : current);
+      void refresh().catch(() => setError("Could not refresh Orbit chats."));
+    };
+    window.addEventListener('orbit:folders-changed', changed);
+    return () => window.removeEventListener('orbit:folders-changed', changed);
+  }, [refresh]);
   // Loads remote data; state updates happen after the fetch responses.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{refresh().catch(()=>setError("Could not load Orbit chats."));return()=>controller.current?.abort();},[refresh]);
@@ -66,12 +79,13 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch }: { onSel
   useEffect(()=>{
     if(!courseLaunch)return;
     // A deliberate workspace navigation opens a draft or saved course conversation.
-    setCourse({id:courseLaunch.course.id,name:courseLaunch.course.name}); // eslint-disable-line react-hooks/set-state-in-effect
+    setCourse({id:courseLaunch.folder?.id??courseLaunch.course.id,name:courseLaunch.folder?.name??courseLaunch.course.name}); // eslint-disable-line react-hooks/set-state-in-effect
+    setFolderFilter(courseLaunch.folder??null);
     if(courseLaunch.conversationId){void openChat(courseLaunch.conversationId);return;}
     view.current++;setActive(null);setMessages([]);setDecision(null);setDropped(false);setLoading(false);
     setInput(courseLaunch.prompt+(courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
   },[courseLaunch]);
-  function newChat(){setCourse(null);view.current++;setLoading(false);setActive(null);setMessages([]);setDecision(null);setDropped(false);setError("");setSidebar(false);}
+  function newChat(){setCourse(folderFilter);view.current++;setLoading(false);setActive(null);setMessages([]);setDecision(null);setDropped(false);setError("");setSidebar(false);}
   async function deleteChat() {
     if(!active||!window.confirm("Delete this Orbit conversation and its saved history?"))return;
     setLoading(true);
@@ -117,10 +131,10 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch }: { onSel
       {PROVIDERS.map(p=><button key={p} disabled={busy} onClick={()=>onSelectProvider(p)} className="flex flex-col items-center gap-1 rounded-xl p-2 text-[11px] text-ink-muted hover:bg-surface-200 disabled:opacity-50"><ProviderLogo provider={p} size={24}/>{THEMES[p].appName}</button>)}
     </nav>
     {sidebar&&<button aria-label="Close chats" onClick={()=>setSidebar(false)} className="fixed inset-0 z-20 bg-surface-000/80 md:hidden"/>}
-    <aside className={`${sidebar?"flex":"hidden"} fixed inset-y-0 left-0 z-30 w-64 shrink-0 flex-col border-r border-line bg-surface-100 p-4 md:static md:flex`}>
-      <Wordmark/><button onClick={onCourses} disabled={busy} className="mt-3 rounded-xl border border-line px-3 py-2 text-left text-sm">Courses workspace ↗</button><p className="mt-1 text-xs text-ink-muted">Orbit mode · Preview</p>
+    <aside className={`${sidebar?"flex":"hidden"} fixed inset-y-0 left-0 z-30 w-64 shrink-0 flex-col border-r border-line bg-surface-100 p-4 md:static md:flex overflow-y-auto`}>
+      <Wordmark/><button onClick={onCourses} disabled={busy} className="mt-3 rounded-xl border border-line px-3 py-2 text-left text-sm">Courses workspace ↗</button><p className="mt-1 text-xs text-ink-muted">Orbit mode · Preview</p><FolderBrowser userId={userId} disabled={busy||loading} onOpen={folder=>{view.current++;setSidebar(false);setLoading(false);setError('');setFolderFilter({id:folder.id,name:folder.name});setCourse({id:folder.id,name:folder.name});setActive(null);setMessages([]);setInput('');setDecision(null);setDropped(false);}}/>
       <button onClick={newChat} disabled={busy} className="my-5 rounded-xl border border-line px-4 py-2 text-left hover:bg-surface-200 disabled:opacity-50">＋ New Orbit chat</button>
-      <div className="flex-1 space-y-1 overflow-y-auto">{chats.map(c=><button key={c.id} onClick={()=>openChat(c.id)} disabled={busy||loading} className={`w-full truncate rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-200 ${active===c.id?"bg-surface-300":""}`}>{c.title}</button>)}{!chats.length&&<p className="px-3 text-sm text-ink-subtle">Your Orbit conversations appear here.</p>}</div>
+      <div className="flex-1 space-y-1 overflow-y-auto">{folderFilter&&<div className="px-3 text-xs text-ink-muted">Chats in {folderFilter.name}<button className="ml-2 underline" onClick={()=>setFolderFilter(null)}>All chats</button></div>}{chats.filter(c=>!folderFilter||c.projectId===folderFilter.id).map(c=><button key={c.id} onClick={()=>openChat(c.id)} disabled={busy||loading} className={`w-full truncate rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-200 ${active===c.id?"bg-surface-300":""}`}>{c.title}</button>)}{!chats.length&&<p className="px-3 text-sm text-ink-subtle">Your Orbit conversations appear here.</p>}</div>
       <p className="mt-4 text-xs leading-5 text-ink-muted">Your question and selected context go to all four providers. Routing and collaboration count toward your allowance.</p>
     </aside>
     <main className="flex min-w-0 flex-1 flex-col">
@@ -147,7 +161,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch }: { onSel
         </div>
       </div>
       <form onSubmit={e=>{e.preventDefault();void send();}} className="mx-auto w-full max-w-3xl px-4 pb-4">
-        {course&&<p className="mb-2 text-xs text-ink-muted">Course: {course.name} · Selected course text goes to all four AIs.</p>}
+        {course&&<p className="mb-2 text-xs text-ink-muted">{course.name} · Selected text goes to all four AIs.</p>}
         <div className="rounded-3xl border border-line-strong bg-surface-100 p-3 shadow-composer"><textarea aria-label="Message Orbit" placeholder="Ask Orbit anything…" maxLength={24000} rows={3} value={input} disabled={busy||loading} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} className="w-full resize-none bg-transparent px-2 py-1 text-base outline-none disabled:opacity-50"/><div className="flex items-center justify-between gap-3"><span className="px-2 text-xs text-ink-muted">4 votes · up to 1 specialist · 1 lead answer</span>{busy?<button type="button" onClick={()=>controller.current?.abort()} className="rounded-full border border-line px-4 py-2 text-sm">Stop</button>:<button disabled={!input.trim()||loading} className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-on-brand disabled:opacity-40">Send</button>}</div></div>
         <p className="mt-2 text-center text-[11px] leading-4 text-ink-subtle">Orbit can make mistakes. Four-model routing adds time and usage; it has not yet been shown to outperform an individual model.</p>
       </form>

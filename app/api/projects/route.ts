@@ -1,36 +1,36 @@
-import { isProvider } from "@/config/models";
-import { dbError, json, requireAppUser } from "@/lib/api";
+import { dbError, isUuid, json, requireAppUser } from '@/lib/api';
+import { FOLDER_COLUMNS } from '@/lib/folders/types';
 
-// Courses (stored as "projects"). Each app has its own courses; they never cross over.
-// GET  /api/projects?provider=… → this app's courses
-// POST /api/projects { provider, name, instructions? }
+// Folders retain project IDs so existing chat/file ownership paths are reused.
 export async function GET(request: Request) {
   const auth = await requireAppUser();
-  if ("error" in auth) return auth.error;
-  const provider = new URL(request.url).searchParams.get("provider");
-  if (!isProvider(provider)) return json({ error: "bad_request" }, 400);
-  const { data, error } = await auth.supabase
-    .from("projects")
-    .select("id, name, instructions, updated_at")
-    .eq("user_id", auth.user.id)
-    .order("updated_at", { ascending: false });
-  if (error) return dbError(error, "load_failed");
+  if ('error' in auth) return auth.error;
+  const courseId = new URL(request.url).searchParams.get('courseId');
+  if (courseId && !isUuid(courseId)) return json({ error: 'bad_request' }, 400);
+  let query = auth.supabase.from('projects').select(FOLDER_COLUMNS).eq('user_id', auth.user.id).eq('is_folder', true);
+  if (courseId) query = query.eq('parent_course_id', courseId);
+  const { data, error } = await query.order('updated_at', { ascending: false });
+  if (error) return dbError(error, 'load_failed');
   return json({ projects: data ?? [] });
 }
 
 export async function POST(request: Request) {
   const auth = await requireAppUser();
-  if ("error" in auth) return auth.error;
-  const body = (await request.json().catch(() => ({}))) as { provider?: unknown; name?: unknown; instructions?: unknown };
-  if (!isProvider(body.provider)) return json({ error: "bad_request" }, 400);
-  const name = typeof body.name === "string" ? body.name.trim().slice(0, 80) : "";
-  const instructions = typeof body.instructions === "string" ? body.instructions.slice(0, 8000) : "";
-  if (!name) return json({ error: "bad_request" }, 400);
-  const { data, error } = await auth.supabase
-    .from("projects")
-    .insert({ user_id: auth.user.id, provider: null, name, instructions })
-    .select("id, name, instructions, updated_at")
-    .single();
-  if (error) return dbError(error, "save_failed");
+  if ('error' in auth) return auth.error;
+  const body = await request.json().catch(() => ({}));
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ error: 'bad_request' }, 400);
+  const name = typeof body.name === 'string' ? body.name.trim().slice(0, 80) : '';
+  const instructions = typeof body.instructions === 'string' ? body.instructions.slice(0, 8000) : '';
+  const courseId = body.courseId ?? null;
+  if (!name || (courseId !== null && !isUuid(courseId))) return json({ error: 'bad_request' }, 400);
+  if (courseId) {
+    const course = await auth.supabase.from('projects').select('id').eq('id', courseId).eq('user_id', auth.user.id).eq('is_folder', false).maybeSingle();
+    if (course.error) return dbError(course.error, 'load_failed');
+    if (!course.data) return json({ error: 'not_found' }, 404);
+  }
+  const { data, error } = await auth.supabase.from('projects')
+    .insert({ user_id: auth.user.id, provider: null, name, instructions, is_folder: true, parent_course_id: courseId })
+    .select(FOLDER_COLUMNS).single();
+  if (error) return dbError(error, 'save_failed');
   return json({ project: data });
 }

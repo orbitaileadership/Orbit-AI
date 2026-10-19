@@ -2,7 +2,7 @@ import {validateDraft} from '@/lib/courses/parse';
 import { dbError,json,requireAppUser } from '@/lib/api';
 export async function GET(){
  const auth=await requireAppUser();if('error'in auth)return auth.error;
- const {data,error}=await auth.supabase.from('projects').select('id,name,instructions,course_data,syllabus_id,updated_at').eq('user_id',auth.user.id).order('name');
+ const {data,error}=await auth.supabase.from('projects').select('id,name,instructions,course_data,syllabus_id,updated_at').eq('user_id',auth.user.id).eq('is_folder',false).order('name');
  if(error)return dbError(error,'load_failed');return json({courses:data??[]});
 }
 

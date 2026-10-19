@@ -1,0 +1,82 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import { folderSections, type Folder } from '@/lib/folders/types';
+import { uploadFile, type UploadedFile } from '@/lib/files/upload-client';
+import { ProjectDialog } from './project-dialog';
+
+type CourseOption = { id: string; name: string };
+async function request(path: string, body?: object, method = 'POST') {
+  const response = await fetch(path, body ? { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error === 'db_setup' ? 'Folders are not available in this environment yet. Please contact the Orbit team.' : data.message ?? 'Could not load or save folders. Please try again.');
+  return data;
+}
+export function FolderBrowser({ userId, courseId, active = true, disabled = false, onOpen }: {
+  userId: string; courseId?: string; active?: boolean; disabled?: boolean; onOpen: (folder: Folder) => void;
+}) {
+  const [folders, setFolders] = useState<Folder[]>([]);
+  const [courses, setCourses] = useState<CourseOption[]>([]);
+  const [editing, setEditing] = useState<Folder | null | undefined>(undefined);
+  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [uploading, setUploading] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const dialogVersion = useRef(0);
+  useEffect(() => {
+    const refresh = () => setRevision(v => v + 1);
+    window.addEventListener('orbit:folders-changed', refresh);
+    return () => window.removeEventListener('orbit:folders-changed', refresh);
+  }, []);
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    Promise.all([request(`/api/projects${courseId ? `?courseId=${courseId}` : ''}`), request('/api/courses')])
+      .then(([data, options]) => { if (!cancelled) { setFolders(data.projects); setCourses(options.courses); setError(''); setLoading(false); } })
+      .catch(e => { if (!cancelled) { setError(e.message); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [active, courseId, revision]);
+  const changed = (detail: { deletedId?: string; filesFor?: string } = {}) => window.dispatchEvent(new CustomEvent('orbit:folders-changed', { detail }));
+  async function act(work: () => Promise<void>) {
+    setBusy(true); setError('');
+    try { await work(); } catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); } finally { setBusy(false); }
+  }
+  async function settings(folder: Folder) {
+    const version = ++dialogVersion.current;
+    setFiles([]); setEditing(folder);
+    await act(async () => {
+      const data = await request(`/api/files?projectId=${folder.id}`);
+      if (dialogVersion.current === version) setFiles(data.files);
+    });
+  }
+  const sections = folderSections(folders);
+  return <section aria-label={courseId ? 'Course folders' : 'Folders'} className="mt-5 text-sm">
+    <div className="flex items-center justify-between gap-2 px-3"><h2 className="font-medium">Folders</h2><button disabled={busy || disabled} aria-label="New folder" className="rounded-lg px-2 py-1 hover:bg-surface-200" onClick={() => { setFiles([]); setEditing(null); }}>＋</button></div>
+    {error && <p role="alert" className="my-2 px-3 text-danger">{error}<button className="ml-2 underline" onClick={() => setRevision(v => v + 1)}>Retry</button></p>}
+    {loading && <p role="status" className="px-3 py-2 text-ink-muted">Loading folders…</p>}
+    {(['pinned', 'recent'] as const).map(section => <div key={section} className="mt-3">
+      <h3 className="px-3 text-xs text-ink-subtle">{section === 'pinned' ? 'Pinned folders' : 'Recent folders'}</h3>
+      {!sections[section].length && <p className="px-3 py-2 text-xs text-ink-muted">{section === 'pinned' ? 'Pin folders to keep them here.' : 'No recent folders.'}</p>}
+      {sections[section].map(folder => <div key={folder.id} className="flex items-center rounded-xl hover:bg-surface-200">
+        <button disabled={busy || disabled} className="min-w-0 flex-1 truncate px-3 py-2.5 text-left" onClick={() => act(async () => {
+          const data = await request(`/api/projects/${folder.id}`, { opened: true }, 'PATCH'); changed(); onOpen(data.project);
+        })}>{folder.name}</button>
+        <button disabled={busy || disabled} className="rounded-lg p-2 text-ink-muted hover:text-ink" aria-label={`${folder.pinned_at ? 'Unpin' : 'Pin'} ${folder.name}`} onClick={() => act(async () => { await request(`/api/projects/${folder.id}`, { pinned: !folder.pinned_at }, 'PATCH'); changed(); })}>{folder.pinned_at ? '★' : '☆'}</button>
+        <button disabled={busy || disabled} className="rounded-lg p-2 text-ink-muted hover:text-ink" aria-label={`${folder.name} settings and files`} onClick={() => settings(folder)}>⋯</button>
+      </div>)}
+    </div>)}
+    {!folders.length && !loading && <button disabled={busy || disabled} className="px-3 py-3 text-ink-muted hover:text-ink" onClick={() => { setFiles([]); setEditing(null); }}>＋ Create a folder</button>}
+    <ProjectDialog open={editing !== undefined} initial={editing ?? undefined} courses={courses} defaultCourseId={courseId}
+      files={files} uploading={uploading} error={error} onClose={() => { dialogVersion.current++; setEditing(undefined); }}
+      onSave={async value => act(async () => { await request(editing ? `/api/projects/${editing.id}` : '/api/projects', value, editing ? 'PATCH' : 'POST'); setEditing(undefined); changed(); })}
+      onDelete={editing ? () => act(async () => { await request(`/api/projects/${editing.id}`, {}, 'DELETE'); changed({ deletedId: editing.id }); setEditing(undefined); }) : undefined}
+      onUpload={editing ? list => { const folder = editing; void act(async () => {
+        setUploading(list.map(f => f.name));
+        try { for (const file of list) { const out = await uploadFile(file, userId, folder.id); if (!('id' in out)) throw new Error(out.error); setFiles(old => [out, ...old]); changed({ filesFor: folder.id }); } }
+        finally { setUploading([]); }
+      }); } : undefined}
+      onDeleteFile={editing ? id => { void act(async () => { await request(`/api/files/${id}`, {}, 'DELETE'); setFiles(old => old.filter(f => f.id !== id)); changed({ filesFor: editing.id }); }); } : undefined}/>
+  </section>;
+}
