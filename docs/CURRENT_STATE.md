@@ -41,6 +41,11 @@ Seeded October 19, 2026. Update after verified changes; this snapshot will age.
 
 The original launch target was October 19, 2026. A target date, passing tests and a successful deployment do not by themselves establish launch readiness.
 
-## Local work awaiting release — course folders
+## Course folders — production database update verified October 19, 2026
 
-`folders-course-navigation` adds pinned/recent folders to standard chat and Orbit, folder membership within courses, and a course Folders tab. Existing courses/chat/file links are preserved. Requires reviewed migration `0018_course_folders.sql` to enable folders; not applied to shared services. Existing courses remain available if code is deployed before that migration. Push/merge to main was authorized by Jake; independent review and final checks passed (513 tests). See `handoffs/2026-10-19-course-folders.md` for validation and remaining staging checks.
+- Code merged into main at `e1b45546e53d9cae45cc043cf5e328fbfdf3a1c7`; Vercel reported deployment complete for that exact commit.
+- Jake explicitly authorized applying the folder database update. Only `0018_course_folders.sql` was applied to Supabase project `rcfnptnaoncfsavxgybc`, production main, through its existing authenticated dashboard.
+- The transaction checked project IDs and chat/file project links were unchanged. Before/after: 7 existing courses, 19 conversations, 18 files; zero folders created by the migration.
+- Verified all four folder columns, validated shape constraint, enabled ownership trigger and existing projects RLS. Anonymous/authenticated direct execution of the trigger function is blocked.
+- No prior migration was rerun, and no student content, provider settings, budget records or credentials were changed. Signed-in end-to-end folder creation/upload/chat checks remain pending.
+- See `handoffs/2026-10-19-folder-database-update.md` for evidence and rollback considerations.

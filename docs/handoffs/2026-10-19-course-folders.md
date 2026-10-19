@@ -15,3 +15,7 @@
 ## Pre-merge review — October 19, 2026
 
 Jake explicitly requested push and merge into main. Independent second-model review identified and verified fixes for schema-before-code compatibility, legacy course file/Python capabilities, and deleted-folder state across providers; no remaining merge blockers were found. Final validation: 513 tests / 69 files, lint, TypeScript and webpack production build pass. Existing course access falls back safely when 0018 is absent; folders remain unavailable until 0018 is approved and applied. The shared database remains unchanged. This merge authorization does not authorize the database migration. The branch also includes the previously approved workspace-context commit e4deeff.
+
+## Database applied — October 19, 2026
+
+Jake subsequently authorized the database update. Only 0018 was applied and verified on the existing production database; all 7 courses, 19 chats, 18 files and their project links were preserved. See `2026-10-19-folder-database-update.md`. Code commit e1b4554 was merged to main and Vercel reported deployment complete.
