@@ -118,7 +118,7 @@ Never describe work as deployed, released, production-ready, or fully tested unl
 
 ## 10. Source of truth and maintenance
 
-- `AGENTS.md`: existing technical invariants, local development conventions, and detailed feature notes.
+- `AGENTS.md`: technical invariants and local development conventions. Historical feature notes are in `docs/AGENT_FEATURE_REFERENCE.md`; start at `docs/PROJECT_INDEX.md` and `docs/CURRENT_STATE.md`.
 - `docs/PRODUCT_SPEC.md`: product promise and launch acceptance; confirm any outdated details with the product owner.
 - `docs/ARCHITECTURE.md`: relevant system boundaries; inspect real code if documentation is stale.
 - `docs/TASKS.md`: historical and planned work; **do not treat unchecked boxes as reliable proof of current state**.

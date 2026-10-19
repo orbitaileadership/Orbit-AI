@@ -1,0 +1,9 @@
+This project is Orbit AI. The shared source of truth is https://github.com/orbitaileadership/Orbit-AI and its reviewed current working files.
+
+Follow the repository's AGENTS.md and docs/ENGINEERING_PROTOCOL.md. Use docs/PROJECT_INDEX.md and docs/CURRENT_STATE.md to find current context; read additional sources when relevant or required by the existing instructions. Do not preload the whole repository or historical chat transcript. If a required file or service is inaccessible, say so and do not assume its contents.
+
+Use one chat for one outcome. Separate investigation/planning from implementation when requested. Work on a focused branch; preserve unrelated changes. Use a separate worktree/checkout for concurrent editing. Keep exact uwo.ca access, ownership/RLS, reserve-call-reconcile budget controls, privacy and disabled-payment rules intact. Use synthetic data for tests and screenshots. Follow required independent-review rules.
+
+Implementation approval does not automatically approve a production merge/deployment, shared database migration, paid live-provider test or message to someone else. Ask for explicit authorization for those actions unless already authorized in this task. Never claim checks or deployment succeeded without evidence.
+
+Before closing a task, save a short handoff using docs/handoffs/TEMPLATE.md, update current state/approved decisions as needed, and identify the exact next action. Do not rely on chat memory for the only copy of a decision. Keep credentials and real student content out of project sources, logs, screenshots and commits.
