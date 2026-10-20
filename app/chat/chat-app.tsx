@@ -21,6 +21,7 @@ import { FolderDialog } from "@/components/folder-dialog";
 import { ExportMenu, type ExportOption } from "@/components/export-menu";
 import { CopyAnswer, Markdown } from "@/components/markdown";
 import { SettingsDialog, type SettingsTab } from "@/components/settings-dialog";
+import { PendingIndicator } from "@/components/pending-indicator";
 import { AccountMenu } from "@/components/account-menu";
 import { VoiceButton } from "@/components/voice-button";
 import { SpeakButton } from "@/components/speak-button";
@@ -118,7 +119,7 @@ const STARTERS: { label: string; icon: string; text: string; mode?: StudyMode; u
   { label: "Plan my week", icon: "🗓️", text: "Help me plan my study week. My deadlines and exams are: " },
 ];
 
-export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: string; userId: string; onCourses?: () => void; courseLaunch?: (import("@/lib/courses/types").CourseLaunch & {key:number}) | null }) {
+export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunch }: { email: string; isAdmin?: boolean; userId: string; onCourses?: () => void; courseLaunch?: (import("@/lib/courses/types").CourseLaunch & {key:number}) | null }) {
   const router = useRouter();
   const [provider, setProvider] = useState<ProviderId>("openai");
   const [orbitMode, setOrbitMode] = useState(false);
@@ -1257,7 +1258,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   const remaining = usage?.live ? usage.allowance - usage.spent - usage.reserved : 0;
   const usedPct = usage?.live && usage.allowance > 0 ? Math.min(100, ((usage.spent + usage.reserved) / usage.allowance) * 100) : 0;
 
-  if (orbitMode) return <OrbitChat userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
+  if (orbitMode) return <OrbitChat isAdmin={isAdmin} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
 
   return (
     <div data-theme={provider} className="flex h-dvh bg-surface-000 font-ui text-ink">
@@ -1281,7 +1282,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
           );
         })}
         <div className="mt-auto">
-          <AccountMenu compact email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />
+          <AccountMenu compact isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />
         </div>
       </nav>
 
@@ -1386,7 +1387,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
         </div>
         {/* Phone: account at the bottom of the menu (computers have it at the bottom of the app rail) */}
         <div className="border-t border-line px-3 py-2 md:hidden">
-          <AccountMenu email={email} onSettings={() => { setSidebarOpen(false); setSettingsOpen("profile"); }} signOut={signOut} />
+          <AccountMenu isAdmin={isAdmin} email={email} onSettings={() => { setSidebarOpen(false); setSettingsOpen("profile"); }} signOut={signOut} />
         </div>
       </aside>
       {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} />}
@@ -1567,7 +1568,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                       );
                     }
                     return (
-                      <li key={m.id} className="relative">
+                      <li key={m.id} className="msg-in relative">
                         {theme.replyAvatar && m.kind === "text" && <span aria-hidden className="absolute -left-11 top-0.5 hidden lg:block"><ProviderLogo provider={provider} size={26} /></span>}
                         {switched && (
                           <div role="separator" className="mb-4 flex items-center gap-3 text-xs text-ink-subtle">
@@ -1596,7 +1597,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                           )
                         ) : (
                           <div className={`${theme.replyClass} ${m.status === "streaming" ? "md-streaming" : ""}`} aria-busy={m.status === "streaming"}>
-                            {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} /> : m.status === "streaming" && <span aria-label="Writing" className="orbit-caret inline-block h-3 w-3 rounded-full bg-ink align-middle" />}
+                            {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} /> : m.status === "streaming" && <PendingIndicator provider={provider} />}
                             {m.status === "partial" && <span className="ml-1 text-xs text-ink-subtle">{m.finishReason==="length"?"[Reply reached its output limit]":"[Incomplete reply]"}</span>}
                           </div>
                         )}
