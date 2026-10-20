@@ -20,7 +20,7 @@ import { FolderDialog } from "@/components/folder-dialog";
 import { ExportMenu, type ExportOption } from "@/components/export-menu";
 import { CopyAnswer, Markdown } from "@/components/markdown";
 import { SettingsDialog, type SettingsTab } from "@/components/settings-dialog";
-import { PendingIndicator } from "@/components/pending-indicator";
+import { ImagePending, PendingIndicator } from "@/components/pending-indicator";
 import { AppRail, AppSwitcher } from "@/components/app-rail";
 import { SidebarSection } from "@/components/sidebar-section";
 import { AccountMenu } from "@/components/account-menu";
@@ -1211,8 +1211,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M3 9v2M6.5 6.5v7M10 4v12M13.5 6.5v7M17 9v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
     </button>
   );
-  const modelMenu = imageMode || theme.headerModel ? null : <ModelMenu provider={generationProvider} value={modelId} onChange={setModel} disabled={busy} />;
-  const headerModelMenu = !imageMode && theme.headerModel ? <ModelMenu placement="header" title={theme.appName} provider={generationProvider} value={modelId} onChange={setModel} disabled={busy} /> : null;
+  const modelMenu = imageMode || theme.headerModel ? null : <ModelMenu provider={generationProvider} app={provider} value={modelId} onChange={setModel} disabled={busy} />;
+  const headerModelMenu = !imageMode && theme.headerModel ? <ModelMenu placement="header" title={theme.appName} provider={generationProvider} app={provider} value={modelId} onChange={setModel} disabled={busy} /> : null;
 
   const composer = (
     <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="relative w-full"
@@ -1581,7 +1581,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                     }
                     return (
                       <li key={m.id} className="msg-in relative">
-                        {theme.replyAvatar && m.kind === "text" && <span aria-hidden className="absolute -left-11 top-0.5 hidden lg:block"><ProviderLogo provider={provider} size={26} /></span>}
+                        {theme.replyAvatar && m.kind === "text" && <span aria-hidden className={`absolute -left-11 top-0.5 hidden lg:block ${m.status === "streaming" && !m.content ? "pending-spin" : ""}`}><ProviderLogo provider={provider} size={26} /></span>}
                         {switched && (
                           <div role="separator" className="mb-4 flex items-center gap-3 text-xs text-ink-subtle">
                             <span className="h-px flex-1 bg-line" />
@@ -1598,7 +1598,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         )}
                         {m.kind === "image" ? (
                           m.status === "streaming" ? (
-                            <div className="grid aspect-square w-full max-w-sm animate-pulse place-items-center rounded-2xl bg-surface-200 text-sm text-ink-subtle">Creating image…</div>
+                            <ImagePending />
                           ) : m.imageUrl ? (
                             <a href={m.imageUrl} target="_blank" rel="noreferrer" className="block w-full max-w-sm">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
