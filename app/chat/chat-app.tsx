@@ -22,6 +22,7 @@ import { CopyAnswer, Markdown } from "@/components/markdown";
 import { SettingsDialog, type SettingsTab } from "@/components/settings-dialog";
 import { PendingIndicator } from "@/components/pending-indicator";
 import { AppRail, AppSwitcher } from "@/components/app-rail";
+import { SidebarSection } from "@/components/sidebar-section";
 import { AccountMenu } from "@/components/account-menu";
 import { VoiceButton } from "@/components/voice-button";
 import { SpeakButton } from "@/components/speak-button";
@@ -1321,7 +1322,10 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             Search chats
             <kbd className="ml-auto hidden font-sans text-xs text-ink-subtle md:inline">{isMac ? "⌘K" : "Ctrl K"}</kbd>
           </button>
-          <button onClick={onCourses} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] hover:bg-surface-200">Courses workspace ↗</button>
+          <button onClick={onCourses} disabled={busy} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50 ${theme.itemClass}`}>
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M2.5 7.5 10 4l7.5 3.5L10 11 2.5 7.5zM5.5 9v3.6c0 1.2 2 2.4 4.5 2.4s4.5-1.2 4.5-2.4V9M17.5 7.5v4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            Courses
+          </button>
           <button onClick={() => openPlugins("plugins")} aria-current={page === "plugins" ? "page" : undefined}
             className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition ${page === "plugins" ? "bg-surface-300" : "hover:bg-surface-200"} ${theme.itemClass}`}>
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>{[[3, 3], [11, 3], [3, 11], [11, 11]].map(([x, y]) => <rect key={`${x}${y}`} x={x} y={y} width="6" height="6" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.5" />)}</svg>
@@ -1336,34 +1340,36 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           }}/>
 
           {/* Chats */}
-          <div className="mt-5 flex items-center justify-between px-3 text-sm text-ink-subtle"><p>{filter ? "Chats in this folder" : theme.recentsLabel}</p>{filter && <button className="text-xs underline hover:text-ink" onClick={() => selectCourse(null)}>All chats</button>}</div>
-          <nav className="mt-1 space-y-0.5" aria-label={`${theme.appName} chats`}>
-            {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}
-            {appConvs !== null && visibleConvs.length === 0 && <p className="px-3 py-2 text-sm text-ink-subtle">No chats yet.</p>}
-            {visibleConvs.map((c) => (
-              <div key={c.id} className={`group flex items-center ${theme.itemClass} ${c.id === activeId ? "bg-surface-300 font-medium" : "hover:bg-surface-200"}`}>
-                {renaming === c.id ? (
-                  <input autoFocus defaultValue={c.title} aria-label="Chat name"
-                    onBlur={(e) => renameChat(c.id, e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setRenaming(null); }}
-                    className="min-w-0 flex-1 rounded-lg bg-surface-000 px-3 py-2 text-[15px] outline-none ring-1 ring-brand" />
-                ) : (
-                  <button onClick={() => { setActive(c.id); setPage("chat"); setSidebarOpen(false); }} onDoubleClick={() => setRenaming(c.id)}
-                    aria-current={c.id === activeId ? "page" : undefined} className="min-w-0 flex-1 truncate px-3 py-2.5 text-left text-[15px]">
-                    {c.title || "Untitled"}
+          <SidebarSection storageKey="recents" title={filter ? `In ${(projects[provider].find(f => f.id === filter) ?? courseProjects.find(f => f.id === filter))?.name ?? "this folder"}` : theme.recentsLabel}
+            actionVisible action={filter ? <button type="button" className="rounded-lg px-2 py-1 text-xs text-ink-muted transition hover:bg-surface-300 hover:text-ink" onClick={() => selectCourse(null)}>Show all</button> : undefined}>
+            <nav className="space-y-0.5" aria-label={`${theme.appName} chats`}>
+              {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}
+              {appConvs !== null && visibleConvs.length === 0 && <p className="px-3 py-2 text-sm text-ink-subtle">No chats yet.</p>}
+              {visibleConvs.map((c) => (
+                <div key={c.id} className={`group flex items-center transition-colors ${theme.itemClass} ${c.id === activeId ? "bg-surface-300 font-medium" : "hover:bg-surface-200"}`}>
+                  {renaming === c.id ? (
+                    <input autoFocus defaultValue={c.title} aria-label="Chat name"
+                      onBlur={(e) => renameChat(c.id, e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setRenaming(null); }}
+                      className="min-w-0 flex-1 rounded-lg bg-surface-000 px-3 py-2 text-[15px] outline-none ring-1 ring-brand" />
+                  ) : (
+                    <button onClick={() => { setActive(c.id); setPage("chat"); setSidebarOpen(false); }} onDoubleClick={() => setRenaming(c.id)}
+                      aria-current={c.id === activeId ? "page" : undefined} className="min-w-0 flex-1 truncate px-3 py-2 text-left text-[15px]">
+                      {c.title || "Untitled"}
+                    </button>
+                  )}
+                  <button onClick={() => setRenaming(c.id)} aria-label={`Rename ${c.title || "chat"}`}
+                    className="px-1.5 py-1 text-ink-subtle transition hover:text-ink focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M10.5 2.5l3 3L6 13H3v-3z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
                   </button>
-                )}
-                <button onClick={() => setRenaming(c.id)} aria-label={`Rename ${c.title || "chat"}`}
-                  className="px-1.5 py-1 text-ink-subtle transition hover:text-ink focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M10.5 2.5l3 3L6 13H3v-3z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
-                </button>
-                <button onClick={() => deleteChat(c.id)} aria-label={`Delete ${c.title || "chat"}`}
-                  className="py-1 pl-1.5 pr-3 text-ink-subtle transition hover:text-danger focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-              </div>
-            ))}
-          </nav>
+                  <button onClick={() => deleteChat(c.id)} aria-label={`Delete ${c.title || "chat"}`}
+                    className="py-1 pl-1.5 pr-3 text-ink-subtle transition hover:text-danger focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  </button>
+                </div>
+              ))}
+            </nav>
+          </SidebarSection>
         </div>
 
         {/* Usage */}
