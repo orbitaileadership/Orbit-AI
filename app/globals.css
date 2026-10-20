@@ -366,3 +366,12 @@ a.md-cite:hover { color: var(--ink); }
 .pending-spin { animation: pending-spin 2.4s linear infinite; }
 .pending-line { background: linear-gradient(90deg, var(--surface-200) 20%, var(--surface-300) 50%, var(--surface-200) 80%); background-size: 200% 100%; animation: orbit-shimmer 1.4s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .msg-in, .pending-spin, .pending-line { animation: none; } }
+
+/* Orbit vote panel (components/orbit-vote-panel.tsx). */
+@keyframes orbit-vote-pulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 35%, transparent); } 50% { box-shadow: 0 0 0 8px transparent; } }
+.orbit-vote-pulse { animation: orbit-vote-pulse 1.6s ease-in-out infinite; }
+.orbit-vote-pulse:nth-child(2) { animation-delay: .2s; }
+@keyframes orbit-pop { from { transform: scale(0); } to { transform: scale(1); } }
+.orbit-pop { animation: orbit-pop .25s cubic-bezier(.3,1.6,.5,1) both; }
+.orbit-panel-in { animation: msg-in .3s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .orbit-vote-pulse, .orbit-pop, .orbit-panel-in { animation: none; } }

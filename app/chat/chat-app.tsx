@@ -1258,7 +1258,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const remaining = usage?.live ? usage.allowance - usage.spent - usage.reserved : 0;
   const usedPct = usage?.live && usage.allowance > 0 ? Math.min(100, ((usage.spent + usage.reserved) / usage.allowance) * 100) : 0;
 
-  if (orbitMode) return <OrbitChat userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
+  if (orbitMode) return <OrbitChat isAdmin={isAdmin} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
 
   return (
     <div data-theme={provider} className="flex h-dvh bg-surface-000 font-ui text-ink">

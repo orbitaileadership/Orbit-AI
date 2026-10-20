@@ -7,6 +7,7 @@ import { ORBIT } from "@/config/orbit";
 import { THEMES } from "@/config/themes";
 import { ProviderLogo } from "@/components/provider-logo";
 import { Wordmark, OrbitBackdrop } from "@/components/brand";
+import { OrbitVotePanel } from "@/components/orbit-vote-panel";
 import { Markdown } from "@/components/markdown";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Decision } from "@/lib/orbit/voting";
@@ -38,7 +39,7 @@ function Routing({ decision }: { decision: Decision }) {
   </details>;
 }
 
-export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId }: { userId: string; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
+export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLaunch, userId }: { userId: string; isAdmin?: boolean; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
   const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
   const [course,setCourse]=useState<{id:string;name:string}|null>(null);
   const [chats,setChats]=useState<Chat[]>([]), [active,setActive]=useState<string|null>(null);
@@ -141,7 +142,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId }:
       <header className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-3 sm:px-6">
         <button className="rounded-lg p-2 md:hidden" aria-label="Open chats" onClick={()=>setSidebar(true)}>☰</button>
         <span className="font-semibold">Orbit mode</span><span className="rounded-full border border-line px-2 py-0.5 text-xs text-ink-muted">Preview</span>
-        <div className="ml-auto flex items-center gap-2">{remaining!==null&&<span className="text-xs text-ink-muted">US${(Math.max(0,remaining)/1e6).toFixed(2)} left</span>}{active&&<button disabled={busy||loading} onClick={deleteChat} className="rounded-lg border border-line px-2 py-1 text-xs disabled:opacity-50">Delete chat</button>}</div>
+        <div className="ml-auto flex items-center gap-2">{remaining!==null&&<span className="text-xs text-ink-muted">US${(Math.max(0,remaining)/1e6).toFixed(2)} left</span>}{isAdmin&&<a href="/admin/analytics" className="rounded-lg border border-line px-2 py-1 text-xs hover:bg-surface-200">Analytics</a>}{active&&<button disabled={busy||loading} onClick={deleteChat} className="rounded-lg border border-line px-2 py-1 text-xs disabled:opacity-50">Delete chat</button>}</div>
         <div className="flex w-full items-center justify-end gap-3 md:hidden" aria-label="Other AI apps">{PROVIDERS.map(p=><button key={p} disabled={busy} onClick={()=>onSelectProvider(p)} aria-label={THEMES[p].appName} className="rounded-lg p-1 disabled:opacity-50"><ProviderLogo provider={p} size={18}/></button>)}</div>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
@@ -149,12 +150,13 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId }:
           {!messages.length&&!loading&&<div className="py-8 text-center sm:py-16"><OrbitBackdrop className="mx-auto mb-6 grid h-44 w-44 place-items-center"><span className="text-5xl text-brand">◎</span></OrbitBackdrop><h1 className="text-3xl font-semibold tracking-tight">Four perspectives. One conversation.</h1><p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-ink-muted">ChatGPT, Claude, Gemini and Grok vote on a lead. When three voters request collaboration, one specialist contributes before the lead answers.</p><p className="mt-3 text-xs text-ink-subtle">Text chats with selected course excerpts. Direct attachments, browsing, tools and voice come later.</p><div className="mt-7 flex flex-wrap justify-center gap-2">{["Explain why confidence intervals are often misunderstood.","Help me plan and critique an argument for my essay."].map(s=><button key={s} onClick={()=>setInput(s)} className="max-w-xs rounded-2xl border border-line px-4 py-3 text-left text-sm hover:bg-surface-100">{s}</button>)}</div></div>}
           {loading&&<p role="status" className="text-sm text-ink-muted">Opening chat…</p>}
           {dropped&&<p className="mb-5 rounded-xl border border-line p-3 text-xs text-ink-muted">Selected recent context and any available summary are used. Older history may be omitted or partially summarized. This view shows the latest {ORBIT.contextRows} saved messages.</p>}
-          {messages.map(m=><article key={m.id} className={`mb-7 ${m.role==="user"?"ml-auto max-w-[90%] rounded-2xl bg-surface-200 p-4":""}`}>
+          {messages.map(m=><article key={m.id} className={`msg-in mb-7 ${m.role==="user"?"ml-auto max-w-[90%] rounded-3xl bg-surface-200 px-5 py-3":""}`}>
             {m.role==="assistant"&&m.orbit_details&&<Routing decision={m.orbit_details}/>}
+            {m.role==="assistant"&&m.status==="streaming"&&!m.content&&<span role="status" aria-label="Writing" className="orbit-caret inline-block h-3 w-3 rounded-full bg-brand align-middle"/>}
             {m.content&&<Markdown text={hideRememberMarkers(m.content)} final={m.status!=="streaming"}/>}
             {m.role==="assistant"&&m.status==="partial"&&<p className="mt-2 text-xs text-ink-muted">Incomplete answer</p>}
           </article>)}
-          {busy&&<p role="status" aria-live="polite" className="mb-4 text-sm text-brand">{PHASES[phase]??"Working…"}</p>}
+          {busy&&<OrbitVotePanel phase={phase} decision={decision} message={PHASES[phase]??"Working…"}/>}
           {busy&&decision&&!messages.some(m=>m.orbit_details)&&<Routing decision={decision}/>}
           {error&&<p role="alert" className="mb-4 rounded-xl border border-line-strong bg-surface-100 p-4 text-sm">{error}</p>}
           <div ref={bottom}/>
