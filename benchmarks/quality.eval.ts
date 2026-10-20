@@ -9,6 +9,7 @@ import { loadEnvConfig } from "@next/env";
 import { describe, expect, it } from "vitest";
 import { defaultModelFor, getModel, PROVIDERS, type ProviderId } from "@/config/models";
 import { blindSheet, buildRequest, autoCheck, NOT_PROMPT_CASES, recordCost, summarize, type QualityCase, type RunRecord, type Variant } from "@/lib/eval/quality";
+import { evaluationAccounting } from "@/lib/eval/accounting";
 import { ADAPTERS, apiKeyFor } from "@/lib/providers";
 
 loadEnvConfig(process.cwd());
@@ -25,6 +26,7 @@ describe.skipIf(!live)("live response-quality evaluation", () => {
       .filter((m): m is NonNullable<typeof m> => Boolean(m && apiKeyFor(m.provider)));
     expect(models.length, "no API keys found for the chosen apps").toBeGreaterThan(0);
 
+    const accounting = await evaluationAccounting();
     const records: RunRecord[] = [];
     for (const model of models) {
       for (const c of cases) {
@@ -37,8 +39,11 @@ describe.skipIf(!live)("live response-quality evaluation", () => {
             let finish: RunRecord["finish"] = "unknown";
             let usage: RunRecord["usage"];
             let error: string | undefined;
+            const args = { model, system, history, maxOutput: 1_500, apiKey: apiKeyFor(model.provider)!, signal: AbortSignal.timeout(90_000) };
+            const finishAccounting = await accounting.begin(args);
+            let failure: unknown;
             try {
-              for await (const ev of ADAPTERS[model.provider].stream({ model, system, history, maxOutput: 1_500, apiKey: apiKeyFor(model.provider)!, signal: AbortSignal.timeout(90_000) })) {
+              for await (const ev of ADAPTERS[model.provider].stream(args)) {
                 if (ev.delta) {
                   first ??= Date.now() - started;
                   answer += ev.delta;
@@ -47,9 +52,11 @@ describe.skipIf(!live)("live response-quality evaluation", () => {
                 if (ev.finish) finish = ev.finish;
               }
             } catch (e) {
+              failure = e;
               finish = "error";
               error = `${(e as { code?: string }).code ?? "error"} ${(e as { status?: number }).status ?? ""}`.trim();
             }
+            await finishAccounting(usage, failure);
             const rec: RunRecord = {
               caseId: c.id, category: c.category, provider: model.provider, modelId: model.id, variant, repeat: r, answer, finish, error, usage,
               costMicros: recordCost(model, usage), firstTokenMs: first, totalMs: Date.now() - started, auto: finish === "error" ? null : autoCheck(c.id, answer),

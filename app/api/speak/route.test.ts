@@ -30,7 +30,7 @@ describe("/api/speak", () => {
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe("https://api.openai.com/v1/audio/speech");
     expect(JSON.parse(String(init!.body))).toMatchObject({ model: "gpt-4o-mini-tts", voice: "cedar" });
-    expect(budget.reserve).toHaveBeenCalledWith("u1", expect.any(String), "voice-speak", "text", 1000, { provider: "openai", operation: "speech" }); // 50 chars × $0.02 per 1,000
+    expect(budget.reserve).toHaveBeenCalledWith("u1", expect.any(String), "voice-speak", "text", 1000, expect.objectContaining({ provider: "openai", operation: "speech", costBasis: "estimated", apiModel: "gpt-4o-mini-tts" })); // 50 chars × $0.02 per 1,000
   });
 
   it("prefers ElevenLabs when its key is set", async () => {
@@ -42,12 +42,28 @@ describe("/api/speak", () => {
     expect(JSON.parse(String(init!.body))).toMatchObject({ model_id: "eleven_flash_v2_5" });
   });
 
-  it("falls back to browser voices in demo mode, and doesn't charge failures", async () => {
+  it("falls back to browser voices in demo mode, and retains ambiguous failures", async () => {
     process.env.LIVE_MODELS = "off";
     expect(await (await GET()).json()).toMatchObject({ service: "browser" });
     process.env.LIVE_MODELS = "on";
     vi.stubGlobal("fetch", vi.fn(async () => new Response("no", { status: 500 })));
     expect((await post({ text: "Hi." })).status).toBe(502);
-    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "released", 0, undefined, "speak_500");
+    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "uncertain", 0, undefined, "speak_500");
   });
+});
+
+it("retains the reservation if the provider audio body fails after headers",async()=>{
+ vi.stubGlobal("fetch",vi.fn(async()=>new Response(new ReadableStream({start(c){c.error(new Error("transport"));}}))));
+ const res=await post({text:"Synthetic speech."});
+ await expect(res.arrayBuffer()).rejects.toThrow("speech_stream_failed");
+ expect(budget.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"speech_stream_failed");
+});
+it("drains provider audio and settles after a browser cancellation",async()=>{
+ let provider:ReadableStreamDefaultController<Uint8Array>;
+ vi.stubGlobal("fetch",vi.fn(async()=>new Response(new ReadableStream<Uint8Array>({start(c){provider=c;}}))));
+ const res=await post({text:"Synthetic speech."});
+ await res.body!.cancel();
+ expect(budget.settle).not.toHaveBeenCalled();
+ provider!.enqueue(new Uint8Array([1])); provider!.close();
+ await vi.waitFor(()=>expect(budget.settle).toHaveBeenCalledWith(expect.any(String),"settled",expect.any(Number)));
 });

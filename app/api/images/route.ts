@@ -1,9 +1,10 @@
+import { failureState } from "@/lib/billing/outcome";
 import { randomUUID } from "node:crypto";
 import { IMAGE_MODELS, isProvider } from "@/config/models";
 import { isUuid, json, requireAppUser } from "@/lib/api";
 import { isProviderDisabled, overRateLimit, reserve, settle } from "@/lib/billing/budget";
 import { ADAPTERS, apiKeyFor, liveFor } from "@/lib/providers";
-import { ProviderError } from "@/lib/providers/types";
+import { ProviderError, type GeneratedImage } from "@/lib/providers/types";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // POST /api/images { provider, prompt, conversationId?, projectId? }
@@ -68,24 +69,26 @@ export async function POST(request: Request): Promise<Response> {
 
   const requestId = randomUUID();
   const price = Math.ceil(imageModel.pricePerImage! * 1_000_000);
-  const r = await reserve(user.id, requestId, imageModel.apiModel, "image", price, {provider,operation:"image",unitCostUsdMicros:price,conversationId:conversation.id});
+  const r = await reserve(user.id, requestId, imageModel.apiModel, "image", price, {provider,operation:"image",unitCostUsdMicros:price,conversationId:conversation.id,apiModel:imageModel.apiModel,unitType:"image",units:1,costBasis:"estimated"});
   if (!r.ok) {
     const code = r.reason === "global_stop" ? "paused" : r.reason === "budget" ? "budget" : "reserve_failed";
     return json({ ...base, error: code }, code === "budget" ? 402 : 503);
   }
 
-  let generated: { mime: string; bytes: Uint8Array } | null = null;
+  let generated: GeneratedImage;
   try {
     generated = await ADAPTERS[provider].generateImage!({ model: imageModel, prompt, apiKey, signal: AbortSignal.timeout(110_000) });
   } catch (e) {
     const err = e instanceof ProviderError ? e : new ProviderError("unknown");
-    // A rejected request (4xx/5xx before anything was made) isn't billed by the provider.
-    await settle(requestId, err.started ? "uncertain" : "released", 0, undefined, err.code);
+    await settle(requestId, failureState(e), 0, undefined, err.code);
     return json({ ...base, error: err.code }, 502);
   }
 
   // Generated (and billed by the provider) from here on.
-  await settle(requestId, "settled", price);
+  await settle(requestId, "settled", price, undefined, undefined, {
+    costBasis: generated.costUsdMicros != null ? "provider_reported" : "estimated",
+    providerRequestId: generated.providerRequestId, providerCostUsdMicros: generated.costUsdMicros, costInUsdTicks: generated.costInUsdTicks,
+  });
   const ext = generated.mime.includes("jpeg") ? "jpg" : generated.mime.includes("webp") ? "webp" : "png";
   const path = `${user.id}/${randomUUID()}.${ext}`;
   const { error: upErr } = await createAdminClient().storage.from("generated").upload(path, generated.bytes, { contentType: generated.mime });

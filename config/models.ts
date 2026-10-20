@@ -148,7 +148,7 @@ export const MODELS: ModelOption[] = [
   {
     id: "anthropic-default", label: "Claude Sonnet 5.5", short: "Sonnet 5.5", description: "Best balance of speed and intelligence",
     provider: "anthropic", providerLabel: "Anthropic", enabled: true,
-    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.1, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
   {
     id: "anthropic-opus", label: "Claude Opus 5.5", short: "Opus 5.5", description: "Most capable for complex work",

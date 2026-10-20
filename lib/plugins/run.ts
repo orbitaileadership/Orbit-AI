@@ -14,7 +14,7 @@ import {
 import { ConnectorError } from "@/lib/connectors/types";
 import { readZotero, searchZotero, zoteroAuth, zoteroItems } from "@/lib/connectors/zotero";
 import { PLUGIN_BY_ID, pluginOfTool, type PluginId } from "./catalog";
-import { isPublicTool } from "./public";
+import { isPublicTool } from "./public-tools";
 
 /** Research plugins run on our server (some don't allow browser calls). */
 async function viaServer(tool: string, args: Record<string, unknown>): Promise<PluginResult> {

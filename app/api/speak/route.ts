@@ -1,3 +1,5 @@
+import { failureState } from "@/lib/billing/outcome";
+import { errorForStatus } from "@/lib/providers/types";
 import { randomUUID } from "node:crypto";
 import { SPEECH } from "@/config/voice";
 import { json, requireAppUser } from "@/lib/api";
@@ -6,7 +8,7 @@ import { defaultVoice, listVoices, speechMicros, speechService, synthesize } fro
 
 // Spoken replies.
 // GET  /api/speak → { service: "elevenlabs" | "openai" | "browser", voices, defaultVoice }
-// POST /api/speak { text, voice? } → audio/mpeg (streamed). Billed by characters; failures aren't charged.
+// POST /api/speak { text, voice? } → audio/mpeg (streamed). Allowance charged by characters; ambiguous provider outcomes retain their reservation.
 export const maxDuration = 60;
 
 export async function GET() {
@@ -29,13 +31,31 @@ export async function POST(request: Request) {
 
   const id = randomUUID();
   const cost = speechMicros(s.kind, text.length);
-  const r = await reserve(auth.user.id, id, SPEECH.ledgerId, "text", cost, { provider: s.kind, operation: "speech" });
+  const r = await reserve(auth.user.id, id, SPEECH.ledgerId, "text", cost, { provider: s.kind, operation: "speech", apiModel: SPEECH[s.kind].model, unitType: "1000_characters", units: text.length / 1000, unitCostUsdMicros: speechMicros(s.kind, 1000), costBasis: "estimated" });
   if (!r.ok) return json({ error: ["budget", "trial_expired", "fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed" }, r.reason === "budget" ? 402 : 503);
-  const res = await synthesize(s, text, voice, request.signal).catch(() => null);
+  const res = await synthesize(s, text, voice, AbortSignal.timeout(30_000)).catch(() => null);
   if (!res?.ok || !res.body) {
-    await settle(id, "released", 0, undefined, `speak_${res?.status ?? "failed"}`);
+    await settle(id, res ? failureState(errorForStatus(res.status)) : "uncertain", 0, undefined, `speak_${res?.status ?? "failed"}`);
     return json({ error: "speak_failed" }, 502);
   }
-  await settle(id, "settled", cost);
-  return new Response(res.body, { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
+  const reader = res.body.getReader();
+  let clientGone = false;
+  const bodyStream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (!clientGone) { try { controller.enqueue(value); } catch { clientGone = true; } }
+        }
+        await settle(id, "settled", cost);
+        if (!clientGone) controller.close();
+      } catch {
+        await settle(id, "uncertain", 0, undefined, "speech_stream_failed");
+        if (!clientGone) controller.error(new Error("speech_stream_failed"));
+      } finally { reader.releaseLock(); }
+    },
+    cancel() { clientGone = true; },
+  });
+  return new Response(bodyStream, { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
 }
