@@ -41,7 +41,7 @@ export const MODELS: ModelOption[] = [
   {
     id: "anthropic-default", label: "Claude Sonnet 5.5", short: "Sonnet 5.5", description: "Best balance of speed and intelligence",
     provider: "anthropic", providerLabel: "Anthropic", enabled: true,
-    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.1, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
   {
     id: "anthropic-opus", label: "Claude Opus 5.5", short: "Opus 5.5", description: "Most capable for complex work",
@@ -54,7 +54,8 @@ export const MODELS: ModelOption[] = [
     apiModel: "claude-haiku-4-5-20251001", inputPrice: 1, outputPrice: 5, cachedInputPrice: 0.1, cacheWritePrice: 1.25, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
   // Further Claude models (ids and US$ prices from Anthropic's model reference, cached Oct 6 2026; cache writes = 1.25× input).
-  // The adapter sends no thinking/sampling/tool_choice settings, which every model below accepts. Re-check before launch.
+  // The adapter sends no thinking/sampling/tool_choice settings. Fable 5/5.1 always think (counted in max_tokens and billed
+  // as output) and are unavailable to zero-data-retention orgs; verify tool loops and long answers on staging before launch.
   {
     id: "anthropic-haiku-5-5", label: "Claude Haiku 5.5", short: "Haiku 5.5", description: "Fastest and cheapest",
     provider: "anthropic", providerLabel: "Anthropic", enabled: true,

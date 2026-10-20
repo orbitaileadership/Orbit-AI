@@ -54,6 +54,7 @@ export function ModelMenu({ provider, app, value, onChange, disabled, placement 
     const onDown = (e: PointerEvent) => { if (!root.current?.contains(e.target as Node)) { setOpen(false); setSub(null); } };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") { if (sub) setSub(null); else setOpen(false); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // leave browser shortcuts (Ctrl/Cmd+1 tab switching) alone
       const n = Number(e.key);
       if (!sub && n >= 1 && n <= main.length && !(e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLInputElement)) {
         onChange(main[n - 1].id); setOpen(false);
