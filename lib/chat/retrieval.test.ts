@@ -10,7 +10,8 @@ function client(enabled=true){
  return {from:()=>query,rpc:async()=>({data:[{source_id:'old',source_kind:'message',content:'0.15 M saline',similarity:0.9}],error:null})} as unknown as SupabaseClient;
 }
 const options=()=>({supabase:client(),userId:U,conversationId:C,enabled:true,query:'Which concentration?',sources:[{id:'old',kind:'message' as const,content:'0.15 M saline'}],memories:[],excluded:new Set<string>()});
-beforeEach(()=>{vi.clearAllMocks();vi.unstubAllEnvs();vi.unstubAllGlobals();});
+// Never read the machine's real flag or key (a developer shell may have them set).
+beforeEach(()=>{vi.clearAllMocks();vi.unstubAllEnvs();vi.unstubAllGlobals();vi.stubEnv('SMART_MEMORY_ENABLED','');vi.stubEnv('OPENAI_API_KEY','');});
 it('never embeds or reserves without both feature flag and user opt-in',async()=>{
  const fetchMock=vi.fn();vi.stubGlobal('fetch',fetchMock);
  expect(await retrieveRelevant(options())).toEqual({block:'',count:0});

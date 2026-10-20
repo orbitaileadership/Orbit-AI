@@ -46,6 +46,7 @@ export async function gatherMaterial(
   supabase: SupabaseClient,
   opts: {
     conversationId: string; projectId: string | null; question: string; newAttachmentIds: string[]; pdfInput: boolean; imageSlots?: number;
+    parentProjectId?: string | null; // a folder's course: its syllabus/notes are searched too (assignment folders)
     tokenBudget?: number;
     referencedAttachmentIds?: string[]; // most recently attached batch, for an explicit generic file reference
     previousQuestion?: string; // the student's message before this one, for follow-ups like "and the second one?"
@@ -54,7 +55,8 @@ export async function gatherMaterial(
   const cols = "id, name, kind, status, char_count, page_count, project_id, conversation_id, storage_path, mime";
   const load = (extra: string) => {
     const q = supabase.from("files").select(cols + extra);
-    return opts.projectId ? q.or(`conversation_id.eq.${opts.conversationId},project_id.eq.${opts.projectId}`) : q.eq("conversation_id", opts.conversationId);
+    const projects = [opts.projectId, opts.parentProjectId].filter((p): p is string => Boolean(p));
+    return projects.length ? q.or([`conversation_id.eq.${opts.conversationId}`, ...projects.map((p) => `project_id.eq.${p}`)].join(",")) : q.eq("conversation_id", opts.conversationId);
   };
   // visual_pages/image_count come with migration 0005; still works before it's run.
   const first = (await load(", visual_pages, image_count")) as unknown as { data: FileRow[] | null; error: unknown };
@@ -72,8 +74,11 @@ export async function gatherMaterial(
     }
   }
   // The model always knows what the course contains, even when nothing matches this question.
-  const courseFiles = opts.projectId ? all.filter((f) => f.project_id === opts.projectId) : [];
-  if (courseFiles.length) notes.push(`Files in this course: ${courseIndex(courseFiles)}. If the answer is probably in one of them but nothing below covers it, say which file and ask the student to point to the page or topic.`);
+  const courseFiles = opts.projectId ? all.filter((f) => f.project_id === opts.projectId || (opts.parentProjectId && f.project_id === opts.parentProjectId)) : [];
+  const parentFiles = opts.parentProjectId ? courseFiles.filter((f) => f.project_id === opts.parentProjectId) : [];
+  const ownFiles = courseFiles.filter((f) => !parentFiles.includes(f));
+  if (parentFiles.length) notes.push(`Files in this folder: ${ownFiles.length ? courseIndex(ownFiles) : "none yet"}. Files in its course: ${courseIndex(parentFiles)}. If the answer is probably in one of them but nothing below covers it, say which file and ask the student to point to the page or topic.`);
+  else if (courseFiles.length) notes.push(`Files in this course: ${courseIndex(courseFiles)}. If the answer is probably in one of them but nothing below covers it, say which file and ask the student to point to the page or topic.`);
   const dataFiles = [...new Set(all.filter((f) => f.status !== "failed" && DATA_FILE.test(f.name)).map((f) => f.name))];
   const imageTokens = images.length * IMAGE_TOKENS;
   const empty = { sources: [], block: "", unreadable, notes, documents: [], images, tokens: imageTokens, visualTokens: imageTokens, hasFiles: all.length > 0, dataFiles };
