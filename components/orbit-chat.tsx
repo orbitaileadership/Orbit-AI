@@ -8,6 +8,7 @@ import { THEMES } from "@/config/themes";
 import { ProviderLogo } from "@/components/provider-logo";
 import { AppRail, AppSwitcher, OrbitGlyph } from "@/components/app-rail";
 import { OrbitHero } from "@/components/orbit-hero";
+import { SidebarSection } from "@/components/sidebar-section";
 import { OrbitVotePanel } from "@/components/orbit-vote-panel";
 import { FileChip } from "@/components/file-chip";
 import { fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
@@ -230,17 +231,19 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
         </button>
         <button onClick={onCourses} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50">
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M3 5.5 10 3l7 2.5L10 8 3 5.5zM5.5 7v4.2c0 1.3 2 2.3 4.5 2.3s4.5-1 4.5-2.3V7M17 5.5V10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          Courses & syllabi
+          Courses
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
         <FolderBrowser userId={userId} disabled={busy||loading} onOpen={openFolder}/>
-        <div className="mt-5 flex items-center justify-between px-3 text-sm text-ink-subtle"><p className="truncate">{folderFilter?`Chats in ${folderFilter.name}`:"Recents"}</p>{folderFilter&&<button className="shrink-0 text-xs underline hover:text-ink" onClick={()=>setFolderFilter(null)}>All chats</button>}</div>
-        <nav className="mt-1 space-y-0.5" aria-label="Orbit chats">
+        <SidebarSection storageKey="orbit-recents" title={folderFilter?`In ${folderFilter.name}`:"Recents"} actionVisible
+          action={folderFilter?<button type="button" className="rounded-lg px-2 py-1 text-xs text-ink-muted transition hover:bg-surface-300 hover:text-ink" onClick={()=>setFolderFilter(null)}>Show all</button>:undefined}>
+        <nav className="space-y-0.5" aria-label="Orbit chats">
           {chats.filter(c=>!folderFilter||c.projectId===folderFilter.id).map(c=><button key={c.id} onClick={()=>openChat(c.id)} disabled={busy||loading} aria-current={active===c.id?"page":undefined}
-            className={`block w-full truncate rounded-xl px-3 py-2.5 text-left text-[15px] transition ${active===c.id?"bg-surface-300 font-medium":"hover:bg-surface-200"}`}>{c.title||"Untitled"}</button>)}
+            className={`block w-full truncate rounded-xl px-3 py-2 text-left text-[15px] transition-colors ${active===c.id?"bg-surface-300 font-medium":"hover:bg-surface-200"}`}>{c.title||"Untitled"}</button>)}
           {!chats.length&&<p className="px-3 py-2 text-sm text-ink-subtle">Your Orbit chats appear here.</p>}
         </nav>
+        </SidebarSection>
       </div>
       <div className="m-3 rounded-2xl bg-surface-200 p-4 text-xs leading-5 text-ink-muted">
         {remaining!==null&&<p className="mb-1 flex justify-between text-sm text-ink"><span className="font-medium">Budget</span><span className="tabular-nums text-ink-muted">US${(Math.max(0,remaining)/1e6).toFixed(2)} left</span></p>}
