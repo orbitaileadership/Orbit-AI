@@ -11,7 +11,10 @@ function perMessage(inPrice: number, outPrice: number) {
 }
 
 // Model picker that lives in the message box (like Gemini's "Flash ▾"). Opens upward as a card.
-export function ModelMenu({ provider, value, onChange, disabled }: {
+// placement="header": ChatGPT-style "ChatGPT Sol ▾" in the top bar, opening downward.
+export function ModelMenu({ provider, value, onChange, disabled, placement = "composer", title }: {
+  placement?: "composer" | "header";
+  title?: string;
   provider: ProviderId;
   value: string;
   onChange: (id: string) => void;
@@ -44,16 +47,18 @@ export function ModelMenu({ provider, value, onChange, disabled }: {
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
-        className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:bg-surface-300 hover:text-ink disabled:opacity-50 ${open ? "bg-surface-300 text-ink" : ""}`}
+        className={placement === "header"
+          ? `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-lg text-ink transition hover:bg-surface-200 disabled:opacity-50 ${open ? "bg-surface-200" : ""}`
+          : `flex items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:bg-surface-300 hover:text-ink disabled:opacity-50 ${open ? "bg-surface-300 text-ink" : ""}`}
       >
-        {current?.short ?? "Model"}
+        {placement === "header" && title ? <>{title} <span className="hidden text-ink-subtle sm:inline">{current?.short}</span></> : current?.short ?? "Model"}
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden className={`transition-transform ${open ? "rotate-180" : ""}`}>
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
 
       {open && (
-        <div role="menu" className="model-menu absolute bottom-full right-0 z-40 mb-2 max-h-[65vh] overflow-y-auto w-72 origin-bottom-right rounded-2xl border border-line bg-composer p-1.5 shadow-menu">
+        <div role="menu" className={`model-menu absolute z-40 max-h-[65vh] w-72 overflow-y-auto rounded-2xl border border-line bg-composer p-1.5 shadow-menu ${placement === "header" ? "left-0 top-full mt-1 origin-top-left" : "bottom-full right-0 mb-2 origin-bottom-right"}`}>
           <div className="flex items-center gap-2 px-3 pb-1.5 pt-2 text-xs font-medium text-ink-subtle">
             <ProviderLogo provider={provider} size={14} />
             Choose a model

@@ -375,3 +375,26 @@ a.md-cite:hover { color: var(--ink); }
 .orbit-pop { animation: orbit-pop .25s cubic-bezier(.3,1.6,.5,1) both; }
 .orbit-panel-in { animation: msg-in .3s ease-out both; }
 @media (prefers-reduced-motion: reduce) { .orbit-vote-pulse, .orbit-pop, .orbit-panel-in { animation: none; } }
+
+/* Orbit hero (components/orbit-hero.tsx): four apps circling a glowing core; faster while voting. */
+.orbit-hero { --orbit-dur: 48s; }
+.orbit-hero-busy { --orbit-dur: 7s; }
+@keyframes orbit-spin { to { transform: rotate(360deg); } }
+.orbit-hero-ring { animation: orbit-spin var(--orbit-dur) linear infinite; }
+.orbit-hero-badge { animation: orbit-spin var(--orbit-dur) linear infinite reverse; }
+.orbit-hero-core {
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--ice) 85%, white), var(--brand) 55%, var(--brand-strong));
+  box-shadow: 0 0 40px color-mix(in srgb, var(--brand) 45%, transparent), inset 0 -6px 14px color-mix(in srgb, var(--brand-strong) 60%, transparent);
+  animation: orbit-breathe 4s ease-in-out infinite;
+}
+.orbit-hero-busy .orbit-hero-core { animation-duration: 1.4s; }
+.orbit-hero-glow { background: radial-gradient(circle, color-mix(in srgb, var(--glow-ring) 45%, transparent), transparent 70%); filter: blur(8px); }
+@keyframes orbit-breathe { 0%, 100% { transform: scale(0.94); } 50% { transform: scale(1.04); } }
+.orbit-gradient-text {
+  background: linear-gradient(100deg, var(--brand-strong) 0%, var(--brand) 35%, var(--ice) 70%, var(--brand) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+@media (prefers-reduced-motion: reduce) { .orbit-hero-ring, .orbit-hero-badge, .orbit-hero-core { animation: none; } }
+/* Orbit send / accent button: brand gradient so the mode reads as Orbit, not any single app. */
+.orbit-send { background: linear-gradient(135deg, var(--ice), var(--brand) 45%, var(--brand-strong)); box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 35%, transparent); }
+.orbit-composer:focus-within { box-shadow: var(--elev-composer), 0 0 0 4px color-mix(in srgb, var(--brand) 12%, transparent); }
