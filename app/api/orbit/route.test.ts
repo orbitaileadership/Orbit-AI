@@ -85,4 +85,25 @@ describe("Orbit endpoint",()=>{
    expect((await POST(req({content:"q",attachmentIds:Array.from({length:9},()=>crypto.randomUUID())}))).status).toBe(400);
    expect(s.attach).not.toHaveBeenCalled();
  });
+ it("validates attachments before saving anything, so a rejected file leaves no chat or message",async()=>{
+   s.attach.mockRejectedValue(new AttachmentError("unavailable"));
+   await POST(req({content:"question",attachmentIds:[crypto.randomUUID()]}));
+   expect(s.fake!.db.conversations ?? []).toHaveLength(0);expect(s.fake!.db.messages ?? []).toHaveLength(0);
+ });
+ it("fails oversized attachment requests before saving or spending",async()=>{
+   s.attach.mockResolvedValue({block:"x ".repeat(3_000),fileIds:[crypto.randomUUID()],names:["a.pdf"]});
+   const res=await POST(req({content:"a".repeat(14_000),attachmentIds:[crypto.randomUUID()]}));
+   expect(res.status).toBe(413);expect(s.call).not.toHaveBeenCalled();expect(s.fake!.db.messages ?? []).toHaveLength(0);
+   expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
+ it("keeps attached files unused when the turn fails, and consumes them after a complete answer",async()=>{
+   const fid=crypto.randomUUID();s.fake!.db.files=[{id:fid,user_id:"u",project_id:null,conversation_id:null}];
+   s.attach.mockResolvedValue({block:"<attached_files>x</attached_files>",fileIds:[fid],names:["a.pdf"]});
+   s.call.mockRejectedValueOnce(new Error("synthetic"));
+   expect(await(await POST(req({content:"q",attachmentIds:[fid]}))).text()).toContain("orbit_vote_failed");
+   expect(s.fake!.db.files[0].conversation_id).toBeNull();
+   s.call.mockImplementation(async o=>{if(o.operation==="orbit_vote"){const i=PROVIDERS.indexOf(o.model.provider);return {text:JSON.stringify({nominee:PROVIDERS[(i+1)%4],collaborate:false,specialist:null}),finish:"stop"};}o.delta?.("ok");return {text:"ok",finish:"stop"};});
+   expect(await(await POST(req({content:"q",attachmentIds:[fid]}))).text()).toContain('"t":"done"');
+   expect(s.fake!.db.files[0].conversation_id).toBeTruthy();
+ });
 });

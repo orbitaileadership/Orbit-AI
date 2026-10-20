@@ -41,7 +41,7 @@ describe("Orbit attachment context", () => {
     const big = "synthetic words ".repeat(900);
     const d = db({ files: [file(A)], chunks: [{ file_id: A, page: 2, content: "Midterm is worth 30%." }, { file_id: A, page: 3, content: big }] });
     const r = await attachmentContext(d.client, "u", [A], "midterm weight");
-    expect(r.block).toContain("untrusted data");
+    expect(r.block).toMatch(/untrusted data/i);
     expect(r.block).toContain("page 2");
     expect(r.block).not.toContain(big);
     expect(r.block).toContain("left out");
