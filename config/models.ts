@@ -41,7 +41,7 @@ export const MODELS: ModelOption[] = [
   {
     id: "anthropic-default", label: "Claude Sonnet 5.5", short: "Sonnet 5.5", description: "Best balance of speed and intelligence",
     provider: "anthropic", providerLabel: "Anthropic", enabled: true,
-    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.1, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
   {
     id: "anthropic-opus", label: "Claude Opus 5.5", short: "Opus 5.5", description: "Most capable for complex work",
@@ -52,6 +52,55 @@ export const MODELS: ModelOption[] = [
     id: "anthropic-haiku", label: "Claude Haiku 4.5", short: "Haiku 4.5", description: "Fastest for quick answers",
     provider: "anthropic", providerLabel: "Anthropic", enabled: true,
     apiModel: "claude-haiku-4-5-20251001", inputPrice: 1, outputPrice: 5, cachedInputPrice: 0.1, cacheWritePrice: 1.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  // Further Claude models (ids and US$ prices from Anthropic's model reference, cached Oct 6 2026; cache writes = 1.25× input).
+  // The adapter sends no thinking/sampling/tool_choice settings. Fable 5/5.1 always think (counted in max_tokens and billed
+  // as output) and are unavailable to zero-data-retention orgs; verify tool loops and long answers on staging before launch.
+  {
+    id: "anthropic-haiku-5-5", label: "Claude Haiku 5.5", short: "Haiku 5.5", description: "Fastest and cheapest",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    // $0.10 / $0.50 applies to prompts ≤100k tokens; we never send more (contextTokens).
+    apiModel: "claude-haiku-5-5", inputPrice: 0.1, outputPrice: 0.5, cachedInputPrice: 0.01, cacheWritePrice: 0.125, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-fable-5-1", label: "Claude Fable 5.1", short: "Fable 5.1", description: "Most capable — uses much more budget",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-fable-5-1", inputPrice: 10, outputPrice: 50, cachedInputPrice: 0.25, cacheWritePrice: 12.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-sonnet-5", label: "Claude Sonnet 5", short: "Sonnet 5", description: "Previous Sonnet",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-sonnet-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-5", label: "Claude Opus 5", short: "Opus 5", description: "Previous Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-5", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-fable-5", label: "Claude Fable 5", short: "Fable 5", description: "Previous Fable — uses much more budget",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-fable-5", inputPrice: 10, outputPrice: 50, cachedInputPrice: 1, cacheWritePrice: 12.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-4-8", label: "Claude Opus 4.8", short: "Opus 4.8", description: "Earlier Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-4-8", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-4-7", label: "Claude Opus 4.7", short: "Opus 4.7", description: "Earlier Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-4-7", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-4-6", label: "Claude Opus 4.6", short: "Opus 4.6", description: "Earlier Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-4-6", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-sonnet-4-6", label: "Claude Sonnet 4.6", short: "Sonnet 4.6", description: "Earlier Sonnet",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-sonnet-4-6", inputPrice: 3, outputPrice: 15, cachedInputPrice: 0.3, cacheWritePrice: 3.75, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
 
   {
@@ -98,6 +147,19 @@ export const PDF_INPUT: Record<ProviderId, boolean> = { openai: true, anthropic:
 
 // Folder access (browser folder picker + file tools). All four APIs support function calling; switch one off here if needed.
 export const FOLDER_ACCESS: Record<ProviderId, boolean> = { openai: true, anthropic: true, google: true, xai: true };
+
+/**
+ * Model menu layout per app, like the apps' own pickers: these ids first (in this order), every other
+ * enabled model of that app under "More models". Menu order only; each app's default stays modelsFor()[0].
+ */
+export const MENU_MAIN: Record<ProviderId, string[]> = {
+  openai: ["openai-default", "openai-astra", "openai-luna"],
+  anthropic: ["anthropic-opus", "anthropic-default", "anthropic-fable-5-1", "anthropic-haiku-5-5"],
+  google: ["google-default", "google-pro"],
+  xai: ["xai-default"],
+};
+/** Models that cost far more per answer; the menu marks them so students know before choosing. */
+export const isPremium = (m: ModelOption) => m.outputPrice >= 40;
 
 export const DEFAULT_MODEL_ID = MODELS[0].id;
 export const PROVIDERS: ProviderId[] = ["openai", "anthropic", "google", "xai"];

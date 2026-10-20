@@ -398,3 +398,19 @@ a.md-cite:hover { color: var(--ink); }
 /* Orbit send / accent button: brand gradient so the mode reads as Orbit, not any single app. */
 .orbit-send { background: linear-gradient(135deg, var(--ice), var(--brand) 45%, var(--brand-strong)); box-shadow: 0 2px 10px color-mix(in srgb, var(--brand) 35%, transparent); }
 .orbit-composer:focus-within { box-shadow: var(--elev-composer), 0 0 0 4px color-mix(in srgb, var(--brand) 12%, transparent); }
+
+/* Per-app wait states (components/pending-indicator.tsx). */
+@keyframes chatgpt-dot { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.72); opacity: 0.55; } }
+.chatgpt-dot { animation: chatgpt-dot 1.3s ease-in-out infinite; }
+@keyframes claude-spark { 0% { transform: rotate(0) scale(1); } 50% { transform: rotate(90deg) scale(0.86); } 100% { transform: rotate(180deg) scale(1); } }
+.claude-spark { animation: claude-spark 2.2s cubic-bezier(.6, 0, .4, 1) infinite; transform-origin: center; }
+.gemini-line { background: linear-gradient(90deg, color-mix(in srgb, #4285f4 18%, var(--surface-200)) 0%, color-mix(in srgb, #9b72cb 22%, var(--surface-200)) 35%, var(--surface-200) 60%, color-mix(in srgb, #4285f4 18%, var(--surface-200)) 100%); background-size: 300% 100%; animation: gemini-sweep 1.8s ease-in-out infinite; }
+@keyframes gemini-sweep { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@keyframes grok-orbit { to { transform: rotate(360deg); } }
+.grok-orbit { animation: grok-orbit 1.1s linear infinite; }
+.grok-orbit-dot { top: 0; left: 50%; margin-left: -3px; }
+@keyframes pending-label-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+.pending-label { animation: pending-label-in .35s ease-out both, orbit-shimmer 1.6s linear infinite; }
+.image-pending::before { content: ""; position: absolute; inset: -50%; background: conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--brand) 22%, transparent), transparent 40%); animation: grok-orbit 3s linear infinite; }
+.image-pending::after { content: ""; position: absolute; inset: 2px; border-radius: 0.9rem; background: var(--surface-200); }
+@media (prefers-reduced-motion: reduce) { .chatgpt-dot, .claude-spark, .gemini-line, .grok-orbit, .pending-label, .image-pending::before { animation: none; } }
