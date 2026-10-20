@@ -1,6 +1,6 @@
 import { CONTEXT } from "@/config/context";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getModel, modelsFor, type ProviderId } from "@/config/models";
+import { getModel, modelsFor, SUMMARY_MODEL, type ProviderId } from "@/config/models";
 import { reserve, settle } from "@/lib/billing/budget";
 import { ADAPTERS } from "@/lib/providers";
 import type { Usage } from "@/lib/providers/types";
@@ -81,7 +81,8 @@ async function foldIn(
   existing: string | null,
   batch: SummaryMessage[],
 ): Promise<string | null> {
-  const model = [...modelsFor(o.provider)].sort((a, b) => a.outputPrice - b.outputPrice)[0];
+  const pinned = getModel(SUMMARY_MODEL[o.provider]);
+  const model = pinned?.enabled ? pinned : [...modelsFor(o.provider)].sort((a, b) => a.outputPrice - b.outputPrice)[0];
   const transcript = batch.map(transcriptLine).join("\n\n");
   const prompt =
     (existing ? `Current summary:\n${existing}\n\n` : "") +
