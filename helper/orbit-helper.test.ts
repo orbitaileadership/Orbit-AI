@@ -24,7 +24,8 @@ describe("paths stay inside the folder", () => {
   });
 
   it("refuses a symlink that leads outside", async () => {
-    symlinkSync(outside, path.join(root, "link"));
+    // Windows needs admin rights for symlinks; a directory junction tests the same escape without them.
+    symlinkSync(outside, path.join(root, "link"), process.platform === "win32" ? "junction" : "dir");
     await expect(runTool(root, "read_file", { path: "link/passwords.txt" })).rejects.toThrow(/outside/);
     await expect(runTool(root, "write_file", { path: "link/new.txt", content: "x" })).rejects.toThrow(/outside/);
   });

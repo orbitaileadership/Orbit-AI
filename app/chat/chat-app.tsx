@@ -1425,7 +1425,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                 <button onClick={() => toggleSidebar(false)} className="rounded-lg p-1.5 text-ink-muted hover:bg-surface-200 hover:text-ink" aria-label="Open sidebar" title="Open sidebar">{sidebarIcon}</button>
               </div>
             )}
-            <PluginsPage key={pluginsTab} ext={extensions} appName={theme.appName} initialTab={pluginsTab}
+            <PluginsPage key={pluginsTab} ext={extensions} appName={theme.appName} initialTab={pluginsTab} isAdmin={isAdmin}
               onTry={(prompt) => { newChat(); setInput(prompt); }} />
           </>
         ) : (<>

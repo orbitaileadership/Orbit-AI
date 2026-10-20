@@ -39,3 +39,10 @@
 - Assignment page = Drive-style workspace: chats (any AI/Orbit), assignment files, course files. Details in `docs/COURSE_WORKSPACE.md` (Assignment workspaces).
 - Context change: assignment-folder chats also see the parent course's details, syllabus and notes. Review found no cross-student path; fixed: stale-screen status edit dropping the link (UI + server carry-over), untrusted names moved inside the JSON fence, folder files searched first, labelled file index, remove-button focus/tablet visibility.
 - Open: signed-in staging check (upload into a new assignment folder, chat in each AI and Orbit cites the instructions and the syllabus); creating a folder bumps the course version, so a syllabus revision open in another tab may need re-confirming (existing concurrent-edit behaviour).
+
+## Update — plugins and skills
+
+- Every plugin and skill has an icon of what it does (own drawings on an app-hinting colour; no company logos). Student-written skills get an icon guessed from their name.
+- Plugins whose sign-in isn't configured show "Coming soon" instead of installing into a broken state; admins see the missing setting. Setup checklist added to `docs/INTEGRATIONS.md`.
+- Test isolation: three tests failed only because this machine's shell has real `WOLFRAM_APP_ID`, `SMART_MEMORY_ENABLED`/`OPENAI_API_KEY` set (one made a live Wolfram call) or lacks Windows symlink rights. Tests now ignore the real environment and use a junction on Windows. Full suite: 537/537.
+- Not verified: live sign-in for any provider (keys aren't set locally); production env presence is unknown from here.
