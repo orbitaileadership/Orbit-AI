@@ -14,6 +14,12 @@ export interface ProviderTheme {
   /** Greeting once we know the student's first name (hour = local hour, 0–23). */
   greetingFor?: (name: string, hour: number) => string;
   greetingLogo?: boolean; // the app's mark before the greeting (Claude)
+  placeholder: string;        // empty-chat composer text, as each app words it
+  replyPlaceholder: string;   // composer text once a chat has messages
+  recentsLabel: string;       // heading over the chat list
+  headerModel?: boolean;      // model picker in the top bar (ChatGPT) instead of the composer
+  sidebarTitleClass: string;  // app name beside the logo at the top of the sidebar
+  newChatAccent?: boolean;    // "New chat" with a filled brand circle (Claude)
   replyAvatar?: boolean;  // the app's mark beside each reply (Gemini)
   greetingClass: string;
   chipClass: string;    // starter suggestions under the empty-chat composer
@@ -34,6 +40,11 @@ export const THEMES: Record<ProviderId, ProviderTheme> = {
     itemClass: "rounded-lg",
     disclaimer: "ChatGPT can make mistakes. Check important info.",
     greeting: "What can I help with?",
+    placeholder: "Ask anything",
+    replyPlaceholder: "Ask anything",
+    recentsLabel: "Chats",
+    headerModel: true,
+    sidebarTitleClass: "sr-only",
     chipClass: "rounded-full border border-line px-3.5 py-2 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink",
     greetingClass: "text-[24px] font-normal tracking-tight sm:text-[28px]",
     composerClass: "rounded-[28px] border border-line bg-composer shadow-composer",
@@ -48,6 +59,11 @@ export const THEMES: Record<ProviderId, ProviderTheme> = {
     itemClass: "rounded-lg",
     disclaimer: "Claude can make mistakes. Please double-check responses.",
     greeting: "How can I help you today?",
+    placeholder: "How can I help you today?",
+    replyPlaceholder: "Reply to Claude…",
+    recentsLabel: "Recents",
+    sidebarTitleClass: "font-display text-[22px] font-medium tracking-tight",
+    newChatAccent: true,
     greetingFor: (name, h) => `${timeOfDay(h) === "Morning" ? "Good morning" : timeOfDay(h) === "Afternoon" ? "Good afternoon" : "Good evening"}, ${name}`,
     greetingLogo: true,
     chipClass: "rounded-lg border border-line bg-surface-000 px-3 py-1.5 text-sm text-ink-muted hover:border-line-strong hover:text-ink",
@@ -65,6 +81,10 @@ export const THEMES: Record<ProviderId, ProviderTheme> = {
     inlineComposer: true,
     disclaimer: "Gemini is AI and can make mistakes.",
     greeting: "Hello there",
+    placeholder: "Ask Gemini",
+    replyPlaceholder: "Ask Gemini",
+    recentsLabel: "Recent",
+    sidebarTitleClass: "text-[22px] font-normal",
     greetingFor: (name) => `Hello, ${name}`,
     replyAvatar: true,
     chipClass: "rounded-full bg-surface-200 px-4 py-2 text-sm text-ink hover:bg-surface-300",
@@ -82,6 +102,10 @@ export const THEMES: Record<ProviderId, ProviderTheme> = {
     itemClass: "rounded-xl",
     disclaimer: "Grok can make mistakes. Verify important information.",
     greeting: "What do you want to know?",
+    placeholder: "What do you want to know?",
+    replyPlaceholder: "How can Grok help?",
+    recentsLabel: "History",
+    sidebarTitleClass: "text-[20px] font-semibold tracking-tight",
     greetingFor: (name, h) => `Good ${timeOfDay(h).toLowerCase()}, ${name}.`,
     chipClass: "rounded-full border border-line-strong px-3.5 py-2 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink",
     greetingClass: "text-[26px] font-medium tracking-tight sm:text-[32px]",

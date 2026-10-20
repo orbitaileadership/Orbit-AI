@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { FOLDER_ACCESS, IMAGE_MODELS, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
 import { THEMES } from "@/config/themes";
 import { missedConcepts, type QuizState } from "@/lib/chat/quiz";
@@ -22,6 +21,7 @@ import { ExportMenu, type ExportOption } from "@/components/export-menu";
 import { CopyAnswer, Markdown } from "@/components/markdown";
 import { SettingsDialog, type SettingsTab } from "@/components/settings-dialog";
 import { PendingIndicator } from "@/components/pending-indicator";
+import { AppRail, AppSwitcher } from "@/components/app-rail";
 import { AccountMenu } from "@/components/account-menu";
 import { VoiceButton } from "@/components/voice-button";
 import { SpeakButton } from "@/components/speak-button";
@@ -1085,7 +1085,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     </div>
   );
 
-  const placeholder = imageMode ? "Describe an image" : empty ? `Ask ${theme.appName}` : `Reply to ${theme.appName}…`;
+  const placeholder = imageMode ? "Describe an image" : empty ? theme.placeholder : theme.replyPlaceholder;
   const installedTools = PLUGINS.filter((p) => p.tools.length && pluginConfigured(p) && extensions.ext.plugins.some((x) => x.id === p.id));
   const mentionOptions = mention ? installedTools.filter((p) => !mentions.includes(p.id) && (p.name.toLowerCase().replace(/\s+/g, "").includes(mention.query.replace(/-/g, "")) || p.id.includes(mention.query))) : [];
   function pickMention(id: PluginId) {
@@ -1210,7 +1210,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M3 9v2M6.5 6.5v7M10 4v12M13.5 6.5v7M17 9v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
     </button>
   );
-  const modelMenu = imageMode ? null : <ModelMenu provider={generationProvider} value={modelId} onChange={setModel} disabled={busy} />;
+  const modelMenu = imageMode || theme.headerModel ? null : <ModelMenu provider={generationProvider} value={modelId} onChange={setModel} disabled={busy} />;
+  const headerModelMenu = !imageMode && theme.headerModel ? <ModelMenu placement="header" title={theme.appName} provider={generationProvider} value={modelId} onChange={setModel} disabled={busy} /> : null;
 
   const composer = (
     <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="relative w-full"
@@ -1258,39 +1259,43 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const remaining = usage?.live ? usage.allowance - usage.spent - usage.reserved : 0;
   const usedPct = usage?.live && usage.allowance > 0 ? Math.min(100, ((usage.spent + usage.reserved) / usage.allowance) * 100) : 0;
 
-  if (orbitMode) return <OrbitChat isAdmin={isAdmin} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
+  const settingsDialog = (
+    <SettingsDialog
+      open={settingsOpen !== null}
+      tab={settingsOpen ?? undefined}
+      onClose={() => setSettingsOpen(null)}
+      email={email}
+      appName={theme.appName}
+      courses={projects[provider]}
+      memoryVersion={memoryVersion}
+      onImported={(p) => setConvs((prev) => ({ ...prev, [p]: null }))} // null = reload that app's chat list (now with the imported chats)
+      onOpenCourse={(id) => {
+        const p = projects[provider].find((x) => x.id === id);
+        setSettingsOpen(null);
+        if (p) openCourse(p);
+      }}
+    />
+  );
+  if (orbitMode) return (
+    <>
+      <OrbitChat isAdmin={isAdmin} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
+        account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />}
+        onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />
+      {settingsDialog}
+    </>
+  );
 
   return (
     <div data-theme={provider} className="flex h-dvh bg-surface-000 font-ui text-ink">
       {/* App rail */}
-      <nav aria-label="AI apps" className="hidden w-[76px] shrink-0 flex-col items-center gap-3 border-r border-line bg-surface-100 py-4 md:flex">
-        <Image src="/brand/orbit-mark.png" alt="Orbit AI" width={32} height={32} className="logo-mono mb-3 h-8 w-8 object-contain" />
-        <button onClick={() => setOrbitMode(true)} disabled={busy} title="Orbit mode" className="flex flex-col items-center gap-1 disabled:opacity-50">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl border border-line text-2xl text-brand hover:bg-surface-200">◎</span>
-          <span className="text-[11px] text-ink-muted">Orbit</span>
-        </button>
-        {PROVIDERS.map((p) => {
-          const on = p === provider;
-          return (
-            <button key={p} onClick={() => pickProvider(p)} disabled={busy && !on} aria-pressed={on} title={THEMES[p].appName}
-              className="group flex flex-col items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50">
-              <span className={`grid h-11 w-11 place-items-center rounded-2xl border transition ${on ? "border-line-strong bg-surface-300 shadow-composer" : "border-transparent group-hover:bg-surface-200"}`}>
-                <ProviderLogo provider={p} size={24} />
-              </span>
-              <span className={`text-[11px] ${on ? "font-semibold text-ink" : "text-ink-subtle group-hover:text-ink-muted"}`}>{THEMES[p].appName}</span>
-            </button>
-          );
-        })}
-        <div className="mt-auto">
-          <AccountMenu compact isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />
-        </div>
-      </nav>
+      <AppRail active={provider} busy={busy} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider}
+        account={<AccountMenu compact isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />} />
 
       {/* This app's projects + chats */}
       <aside className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col bg-surface-100 transition-transform md:static md:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "md:hidden" : ""}`}>
         <div className="flex items-center gap-2.5 px-5 pb-3 pt-5">
           <ProviderLogo provider={provider} size={22} />
-          <span className="text-[22px] font-normal tracking-tight">{theme.appName}</span>
+          <span className={theme.sidebarTitleClass}>{theme.appName}</span>
           <button onClick={() => setSidebarOpen(false)} className="ml-auto rounded-md p-1 text-ink-muted hover:text-ink md:hidden" aria-label="Close menu">
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
           </button>
@@ -1299,10 +1304,16 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           </button>
         </div>
         <div className="px-3">
-          <button onClick={newChat} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 ${theme.itemClass}`}>
-            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>
-              <path d="M11.5 4.5H5.5a1.5 1.5 0 0 0-1.5 1.5v8.5A1.5 1.5 0 0 0 5.5 16H14a1.5 1.5 0 0 0 1.5-1.5v-6M13.6 3.4a1.4 1.4 0 0 1 2 2L10 11l-2.6.6.6-2.6 5.6-5.6z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <button onClick={newChat} className={`group/new flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 ${theme.itemClass}`}>
+            {theme.newChatAccent ? (
+              <span aria-hidden className="-ml-0.5 grid h-[22px] w-[22px] place-items-center rounded-full bg-brand text-on-brand transition-transform group-hover/new:rotate-90">
+                <svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+              </span>
+            ) : (
+              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>
+                <path d="M11.5 4.5H5.5a1.5 1.5 0 0 0-1.5 1.5v8.5A1.5 1.5 0 0 0 5.5 16H14a1.5 1.5 0 0 0 1.5-1.5v-6M13.6 3.4a1.4 1.4 0 0 1 2 2L10 11l-2.6.6.6-2.6 5.6-5.6z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
             New chat
           </button>
           <button onClick={() => { setSearchOpen(true); setSidebarOpen(false); }} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 ${theme.itemClass}`}>
@@ -1325,7 +1336,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           }}/>
 
           {/* Chats */}
-          <div className="mt-5 flex items-center justify-between px-3 text-sm text-ink-subtle"><p>{filter ? "Chats in this folder" : "Recents"}</p>{filter && <button className="text-xs underline hover:text-ink" onClick={() => selectCourse(null)}>All chats</button>}</div>
+          <div className="mt-5 flex items-center justify-between px-3 text-sm text-ink-subtle"><p>{filter ? "Chats in this folder" : theme.recentsLabel}</p>{filter && <button className="text-xs underline hover:text-ink" onClick={() => selectCourse(null)}>All chats</button>}</div>
           <nav className="mt-1 space-y-0.5" aria-label={`${theme.appName} chats`}>
             {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}
             {appConvs !== null && visibleConvs.length === 0 && <p className="px-3 py-2 text-sm text-ink-subtle">No chats yet.</p>}
@@ -1424,6 +1435,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           <button onClick={() => setSidebarOpen(true)} className="rounded-md p-1 text-ink-muted hover:text-ink md:hidden" aria-label="Open menu">
             <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
           </button>
+          {headerModelMenu}
           {activeProject && (
             <button onClick={() => openCourse(activeProject)} title={activeProjectIsFolder ? "Folder settings and files" : "Course workspace"}
               className="flex min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink">
@@ -1443,18 +1455,12 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             </label>
           )}
           {exportable.some((m) => m.role === "assistant") && (
-            <div className={active && projects[provider].length > 0 ? "" : "ml-auto"}>
+            <div className={`hidden sm:block ${active && projects[provider].length > 0 ? "" : "ml-auto"}`}>
               <ExportMenu label="Export" options={chatOptions()} align="right" />
             </div>
           )}
-          <div className={`flex gap-1 md:hidden ${(active && projects[provider].length > 0) || exportable.some((m) => m.role === "assistant") ? "" : "ml-auto"}`} role="group" aria-label="AI apps">
-            <button onClick={() => setOrbitMode(true)} disabled={busy} aria-label="Orbit mode" className="grid h-9 w-9 place-items-center rounded-xl text-xl text-brand">◎</button>
-            {PROVIDERS.map((p) => (
-              <button key={p} onClick={() => pickProvider(p)} disabled={busy && p !== provider} aria-pressed={p === provider} aria-label={THEMES[p].appName}
-                className={`grid h-9 w-9 place-items-center rounded-xl ${p === provider ? "bg-surface-300" : ""}`}>
-                <ProviderLogo provider={p} size={20} />
-              </button>
-            ))}
+          <div className="ml-auto md:hidden">
+            <AppSwitcher active={provider} busy={busy} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider} />
           </div>
         </header>
 
@@ -1711,21 +1717,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         }} />
       <GitHubDialog open={githubOpen} onClose={() => setGithubOpen(false)} onPicked={(files) => void attachFiles(files)} />
       <OneDriveDialog open={oneDriveOpen} onClose={() => setOneDriveOpen(false)} onPicked={(files) => void attachFiles(files)} />
-      <SettingsDialog
-        open={settingsOpen !== null}
-        tab={settingsOpen ?? undefined}
-        onClose={() => setSettingsOpen(null)}
-        email={email}
-        appName={theme.appName}
-        courses={projects[provider]}
-        memoryVersion={memoryVersion}
-        onImported={(p) => setConvs((prev) => ({ ...prev, [p]: null }))} // null = reload that app's chat list (now with the imported chats)
-        onOpenCourse={(id) => {
-          const p = projects[provider].find((x) => x.id === id);
-          setSettingsOpen(null);
-          if (p) openCourse(p);
-        }}
-      />
+      {settingsDialog}
       <ProjectDialog
         open={projectDialog !== null}
         initial={projectDialog?.editing}
