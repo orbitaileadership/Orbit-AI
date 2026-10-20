@@ -33,3 +33,9 @@
 - Independent review (Sonnet subagent) matched every id/price against the fetched tables; defaults unchanged.
 - **Dated price changes to apply:** Gemini 4 Argon → $4/$20 (cache $0.20) on Dec 1 2026; Gemini 3.8/3.6 Flash double on Jan 1 2027. Until updated, those rows would under-bill.
 - Not verified live: each new model actually answering through its adapter (some older OpenAI/Gemini models may reject optional settings; adapters retry without them).
+
+## Update — assignment workspaces (approved by Noah; second-model review done)
+
+- Assignment page = Drive-style workspace: chats (any AI/Orbit), assignment files, course files. Details in `docs/COURSE_WORKSPACE.md` (Assignment workspaces).
+- Context change: assignment-folder chats also see the parent course's details, syllabus and notes. Review found no cross-student path; fixed: stale-screen status edit dropping the link (UI + server carry-over), untrusted names moved inside the JSON fence, folder files searched first, labelled file index, remove-button focus/tablet visibility.
+- Open: signed-in staging check (upload into a new assignment folder, chat in each AI and Orbit cites the instructions and the syllabus); creating a folder bumps the course version, so a syllabus revision open in another tab may need re-confirming (existing concurrent-edit behaviour).

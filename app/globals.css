@@ -414,3 +414,11 @@ a.md-cite:hover { color: var(--ink); }
 .image-pending::before { content: ""; position: absolute; inset: -50%; background: conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--brand) 22%, transparent), transparent 40%); animation: grok-orbit 3s linear infinite; }
 .image-pending::after { content: ""; position: absolute; inset: 2px; border-radius: 0.9rem; background: var(--surface-200); }
 @media (prefers-reduced-motion: reduce) { .chatgpt-dot, .claude-spark, .gemini-line, .grok-orbit, .pending-label, .image-pending::before { animation: none; } }
+
+/* File-type tiles (components/assignment-workspace.tsx): colour tells the kind of file apart at a glance. */
+.ft { color: var(--ink); background: var(--surface-300); }
+.ft-pdf { color: var(--danger); background: color-mix(in srgb, var(--danger) 14%, var(--surface-100)); }
+.ft-doc { color: var(--brand-strong); background: color-mix(in srgb, var(--brand) 14%, var(--surface-100)); }
+.ft-ppt { color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, var(--surface-100)); }
+.ft-xls { color: var(--success); background: color-mix(in srgb, var(--success) 14%, var(--surface-100)); }
+.ft-img { color: var(--provider-google); background: color-mix(in srgb, var(--provider-google) 14%, var(--surface-100)); }

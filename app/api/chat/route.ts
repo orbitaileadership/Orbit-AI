@@ -178,9 +178,9 @@ export async function POST(request: Request): Promise<Response> {
   const question = [...rows].reverse().find((m) => m.role === "user")?.content ?? content;
 
   // ---- course + material from files
-  let project: { name: string; instructions: string } | null = null;
+  let project: { name: string; instructions: string; parent_course_id?: string | null } | null = null;
   if (conversation.project_id) {
-    const { data } = await supabase.from("projects").select("name, instructions").eq("id", conversation.project_id).maybeSingle();
+    const { data } = await supabase.from("projects").select("name, instructions, parent_course_id").eq("id", conversation.project_id).maybeSingle();
     project = data;
     if(project){const context=await courseContext(supabase,user.id,conversation.project_id,content,false);project.instructions += "\n"+context.block;}
   }
@@ -191,7 +191,7 @@ export async function POST(request: Request): Promise<Response> {
   const imageCount = Math.min(MAX_IMAGES, imageFiles?.length ?? 0);
   const largeMaterialTask = /\b(summari[sz]e|review|compare|entire|whole)\b/i.test(question);
   const material = await gatherMaterial(supabase, {
-    conversationId: conversation.id, projectId: conversation.project_id, question,
+    conversationId: conversation.id, projectId: conversation.project_id, parentProjectId: project?.parent_course_id ?? null, question,
     newAttachmentIds: retry ? rows.at(-1)?.attachment_ids ?? [] : linked,
     pdfInput: PDF_INPUT[provider], imageSlots: Math.max(0, MAX_IMAGES - imageCount),
     tokenBudget: largeMaterialTask ? CONTEXT.largeTaskMaterialTokens : CONTEXT.materialTokens,
