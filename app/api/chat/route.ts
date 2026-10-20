@@ -62,6 +62,8 @@ export async function POST(request: Request): Promise<Response> {
   const provider = body.provider;
   if(body.homeProvider!==undefined && !isProvider(body.homeProvider)) return json({error:"bad_request"},400);
   const homeProvider = isProvider(body.homeProvider)?body.homeProvider:provider;
+  // Each app answers only with its own models (product decision, Oct 19 2026).
+  if (homeProvider !== provider) return json({ error: "unknown_model" }, 400);
   const model = getModel(typeof body.modelId === "string" ? body.modelId : undefined);
   if (!model || !model.enabled || model.provider !== provider) return json({ error: "unknown_model" }, 400);
   const retry = body.retry === true;

@@ -1,11 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { getModel, isPremium, MENU_MAIN, modelsFor, PROVIDERS, type ModelOption, type ProviderId } from "@/config/models";
-import { THEMES } from "@/config/themes";
-import { ProviderLogo } from "./provider-logo";
+import { getModel, isPremium, MENU_MAIN, modelsFor, type ModelOption, type ProviderId } from "@/config/models";
 
-type Sub = null | "more" | "other";
+type Sub = null | "more";
 
 const Check = () => (
   <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0 text-brand"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -23,8 +21,8 @@ const PremiumTag = () => (
 
 /**
  * Model picker in the style of the apps' own: this app's current models first (no descriptions, a check on the
- * selected one, number keys 1–9), older models under "More models ›", and the other three AIs under "Other AIs ›"
- * so a chat can still continue with a different provider. placement="header" is ChatGPT's "ChatGPT Sol ▾".
+ * selected one, number keys 1–9) and older models under "More models ›". Each app offers only its own models
+ * (product decision, Oct 19 2026). placement="header" is ChatGPT's "ChatGPT Sol ▾".
  */
 export function ModelMenu({ provider, app, value, onChange, disabled, placement = "composer", title }: {
   provider: ProviderId;     // provider of the selected model
@@ -44,7 +42,6 @@ export function ModelMenu({ provider, app, value, onChange, disabled, placement 
   const own = modelsFor(home);
   const main = MENU_MAIN[home].map((id) => own.find((m) => m.id === id)).filter((m): m is ModelOption => Boolean(m));
   const more = own.filter((m) => !main.includes(m));
-  const others = PROVIDERS.filter((p) => p !== home);
 
   function pick(id: string) { onChange(id); setOpen(false); setSub(null); }
 
@@ -84,17 +81,7 @@ export function ModelMenu({ provider, app, value, onChange, disabled, placement 
       <span className={note ? "" : "ml-auto"}><Chevron /></span>
     </button>
   );
-  const subList = sub === "more"
-    ? more.map((m) => item(m))
-    : sub === "other"
-      ? others.map((p) => (
-        <div key={p} className="py-0.5">
-          <p className="flex items-center gap-2 px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-subtle"><ProviderLogo provider={p} size={13} />{THEMES[p].appName}</p>
-          {MENU_MAIN[p].map((id) => getModel(id)).filter((m): m is ModelOption => Boolean(m?.enabled)).map((m) => item(m))}
-        </div>
-      ))
-      : null;
-  const otherSelected = Boolean(current && current.provider !== home);
+  const subList = sub === "more" ? more.map((m) => item(m)) : null;
   const moreSelected = Boolean(current && more.includes(current));
 
   // Opening side: the composer menu sits at the bottom right, the header menu at the top left.
@@ -109,7 +96,7 @@ export function ModelMenu({ provider, app, value, onChange, disabled, placement 
           : `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:bg-surface-300 hover:text-ink disabled:opacity-50 ${open ? "bg-surface-300 text-ink" : ""}`}>
         {placement === "header" && title
           ? <>{title} <span className="hidden text-ink-subtle sm:inline">{current?.short}</span></>
-          : <>{otherSelected && current && <ProviderLogo provider={current.provider} size={14} />}{current?.short ?? "Model"}</>}
+          : current?.short ?? "Model"}
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
@@ -120,14 +107,13 @@ export function ModelMenu({ provider, app, value, onChange, disabled, placement 
           {wide || !sub ? (
             <>
               {main.map((m, i) => item(m, i))}
-              <div className="mx-3 my-1.5 border-t border-line" />
+              {more.length > 0 && <div className="mx-3 my-1.5 border-t border-line" />}
               {more.length > 0 && subRow("more", "More models", moreSelected ? current?.short : undefined)}
-              {subRow("other", "Other AIs", otherSelected && current ? THEMES[current.provider].appName : undefined)}
             </>
           ) : (
             <>
               <button type="button" onClick={() => setSub(null)} className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-ink-muted hover:bg-surface-200">
-                <span className="rotate-180"><Chevron /></span>{sub === "more" ? "More models" : "Other AIs"}
+                <span className="rotate-180"><Chevron /></span>More models
               </button>
               <div className="max-h-[50vh] overflow-y-auto">{subList}</div>
             </>

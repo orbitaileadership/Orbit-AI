@@ -212,7 +212,9 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const active = appConvs?.find((c) => c.id === activeId) ?? null;
   const msgKey = active ? active.id : `${DRAFT}:${provider}`;
   const thread = messages[msgKey] ?? [];
-  const modelId = getModel(active?.modelId) ? active!.modelId : draftModels[provider];
+  // Each app uses only its own models; a chat saved with another AI's model (before Oct 19 2026) continues on this app's choice.
+  const savedModel = getModel(active?.modelId);
+  const modelId = savedModel?.enabled && savedModel.provider === provider ? savedModel.id : draftModels[provider];
   const generationProvider = getModel(modelId)?.provider ?? provider;
   const currentModel = getModel(modelId);
   const empty = thread.length === 0;
