@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FOLDER_ACCESS, IMAGE_MODELS, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
+import { FOLDER_ACCESS, IMAGE_MODELS, MENU_MAIN, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
 import { THEMES } from "@/config/themes";
 import { missedConcepts, type QuizState } from "@/lib/chat/quiz";
 import { answersLeft, answersText, isLow, timesCheaper, typicalAnswerMicros } from "@/lib/billing/estimate";
@@ -1046,7 +1046,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
 
   // Warn while there's still room to finish the session, in answers rather than dollars, and offer the cheapest model.
   const remainingNow = usage?.live ? usage.allowance - usage.spent - usage.reserved : Infinity;
-  const cheapest = [...modelsFor(generationProvider)].sort((a, b) => typicalAnswerMicros(a, usage?.typical) - typicalAnswerMicros(b, usage?.typical))[0];
+  const cheapest = modelsFor(generationProvider).filter((m) => MENU_MAIN[generationProvider].includes(m.id)).sort((a, b) => typicalAnswerMicros(a, usage?.typical) - typicalAnswerMicros(b, usage?.typical))[0];
   const perAnswer = currentModel ? typicalAnswerMicros(currentModel, usage?.typical) : 0;
   const cheapPerAnswer = cheapest ? typicalAnswerMicros(cheapest, usage?.typical) : 0;
   const offerCheaper = cheapest && cheapest.id !== modelId && remainingNow >= cheapPerAnswer;

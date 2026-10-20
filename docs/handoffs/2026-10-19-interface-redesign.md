@@ -25,3 +25,11 @@
 - Fixed from review: Sonnet 5.5 cache-read price 0.1 → 0.2 (pre-existing under-billing of cache reads); number-key model pick ignores Ctrl/Cmd/Alt.
 - Behaviour change: Claude conversation summaries now use the cheapest Claude model, Haiku 5.5 (was Haiku 4.5); prompts stay far below its 100k price tier.
 - Open (needs staging with live keys, not verified): Fable 5/5.1 always think; the adapter does not return thinking blocks in tool loops, which may 400 on the second tool step (same open question for Opus 5.5/Sonnet 5.5 adaptive thinking); thinking counts against the 8k max_tokens, so long answers may end incomplete; Fable is unavailable to zero-data-retention orgs; worst-case Fable reserve ≈ US$0.75 per call. Fable pricing/exposure is a product call for Jake.
+
+## Update — all practical models per app (second-model review done)
+
+- Added to `config/models.ts` with ids/prices from the official pages (fetched Oct 19 2026): 21 more OpenAI models (GPT-6 Sol, GPT-5.6 Sol/Terra/Luna, GPT-5.5, 5.4 + mini/nano, 5.2, 5.1, 5 + mini/nano, o3, o4-mini, o3-mini, GPT-4.1 + mini/nano, GPT-4o + mini), 6 more Gemini (4 Argon, 3.6 Flash, 3.5/3.1/2.5 Flash-Lite, 3 Flash preview, 2.5 Pro/Flash), 6 more Grok (4.6, 4.5, 4.3, 4.20 reasoning/non-reasoning, Build 0.1). Left out on cost/API grounds: OpenAI pro models, o1/o1-pro/o3-pro, legacy completions, specialty endpoints; Grok multi-agent.
+- Menu layout per app via `MENU_MAIN`; summaries pinned via `SUMMARY_MODEL` (unchanged models); low-budget "cheaper model" banner limited to main models.
+- Independent review (Sonnet subagent) matched every id/price against the fetched tables; defaults unchanged.
+- **Dated price changes to apply:** Gemini 4 Argon → $4/$20 (cache $0.20) on Dec 1 2026; Gemini 3.8/3.6 Flash double on Jan 1 2027. Until updated, those rows would under-bill.
+- Not verified live: each new model actually answering through its adapter (some older OpenAI/Gemini models may reject optional settings; adapters retry without them).
