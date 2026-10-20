@@ -5,7 +5,7 @@ import { LoginForm } from "./login-form";
 
 const NOTICES: Record<string, string> = {
   link_expired: "That link expired or was already used. Sign in with your password instead.",
-  not_uwo: "Orbit AI is only open to @uwo.ca email addresses.",
+  not_uwo: "Orbit AI is for students: sign in with your university or college email address.",
   missing_code: "That link is incomplete. Sign in with your password instead.",
 };
 
@@ -16,7 +16,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <AuthCard
       title="Sign in"
-      subtitle="Welcome back. Use your @uwo.ca email and password."
+      subtitle="Welcome back. Use your school email and password."
       footer={<>New to Orbit AI? <TextLink href="/signup">Get started</TextLink></>}
     >
       <LoginForm initialMessage={error ? NOTICES[error] : undefined} />

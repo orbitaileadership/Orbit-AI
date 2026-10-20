@@ -10,6 +10,7 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "benchmark:context": "vitest run benchmarks/context.test.ts --silent=false --reporter=verbose",
+    "update-school-domains": "node scripts/update-school-domains.mjs",
     "eval:quality": "vitest run --config vitest.eval.config.mts --silent=false --reporter=verbose"
   },
   "dependencies": {

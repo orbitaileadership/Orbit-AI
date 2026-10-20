@@ -5,7 +5,7 @@ export default function ResetPage() {
   return (
     <AuthCard
       title="Reset your password"
-      subtitle="We'll email a code to your @uwo.ca address."
+      subtitle="We'll email a code to your school address."
       footer={<>Remembered it? <TextLink href="/login">Sign in</TextLink></>}
     >
       <ResetForm />

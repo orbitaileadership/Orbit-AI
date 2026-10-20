@@ -19,7 +19,7 @@ const googleSans = Google_Sans({ variable: "--font-google-sans", subsets: ["lati
 
 export const metadata: Metadata = {
   title: "Orbit AI",
-  description: "GPT, Claude, Gemini and Grok in one place for Western students.",
+  description: "GPT, Claude, Gemini and Grok in one place for students.",
 };
 
 export const viewport: Viewport = {

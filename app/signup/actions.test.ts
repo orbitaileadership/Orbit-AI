@@ -10,7 +10,7 @@ function form(values: Record<string, string> = {}) {
   for (const [key, value] of Object.entries({ institution: "western", email: " Student@UWO.ca ", password: "Synthetic123", confirm: "Synthetic123", ...values })) data.set(key, value);
   return data;
 }
-describe("institution-aware Western registration", () => {
+describe("school-aware registration", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mocks.signup.mockResolvedValue({ data: { user: { identities: [{}] }, session: null }, error: null });
@@ -19,12 +19,27 @@ describe("institution-aware Western registration", () => {
     expect(await signUpAction(previous, form())).toMatchObject({ step: "verify", email: "student@uwo.ca" });
     expect(mocks.signup).toHaveBeenCalledWith({ email: "student@uwo.ca", password: "Synthetic123", options: { data: { institution: "western", institution_name: "Western University" } } });
   });
-  it.each(["waterloo", "other", "fake", ""])("never creates accounts for institution %s", async (institution) => {
-    expect((await signUpAction(previous, form({ institution }))).error).toContain("Select Western");
+  it("signs up students at other listed schools with that school's email", async () => {
+    expect(await signUpAction(previous, form({ institution: "waterloo", email: "s@uwaterloo.ca" }))).toMatchObject({ step: "verify", email: "s@uwaterloo.ca" });
+    expect(mocks.signup).toHaveBeenLastCalledWith(expect.objectContaining({ options: { data: { institution: "waterloo", institution_name: "University of Waterloo" } } }));
+    expect(await signUpAction(previous, form({ institution: "toronto", email: "s@mail.utoronto.ca" }))).toMatchObject({ step: "verify" });
+  });
+  it("signs up any school email when the school isn't listed", async () => {
+    expect(await signUpAction(previous, form({ institution: "other", email: "s@mit.edu" }))).toMatchObject({ step: "verify" });
+    expect(mocks.signup).toHaveBeenLastCalledWith(expect.objectContaining({ options: { data: { institution: "other", institution_domain: "mit.edu" } } }));
+    expect(await signUpAction(previous, form({ institution: "other", email: "s@ox.ac.uk" }))).toMatchObject({ step: "verify" });
+  });
+  it.each(["fake", ""])("needs a real school choice (%s)", async (institution) => {
+    expect((await signUpAction(previous, form({ institution }))).error).toContain("Select your school");
     expect(mocks.signup).not.toHaveBeenCalled();
   });
-  it.each(["student@waterloo.ca", "student@sub.uwo.ca", "student@uwo.ca.evil.com"])("rejects non-Western or lookalike email %s", async (email) => {
-    expect((await signUpAction(previous, form({ email }))).error).toContain("@uwo.ca");
+  it("rejects an email from a different school than the one picked", async () => {
+    expect((await signUpAction(previous, form({ institution: "waterloo", email: "s@uwo.ca" }))).error).toContain("@uwaterloo.ca");
+    expect(mocks.signup).not.toHaveBeenCalled();
+  });
+  it.each(["student@gmail.com", "student@uwo.ca.evil.com", "student@xuwo.ca"])("rejects non-school or lookalike email %s", async (email) => {
+    expect((await signUpAction(previous, form({ email }))).error).toContain("school email");
+    expect((await signUpAction(previous, form({ email, institution: "other" }))).error).toContain("school email");
     expect(mocks.signup).not.toHaveBeenCalled();
   });
   it("retains verification, resend, and change-email actions", async () => {
@@ -40,8 +55,9 @@ describe("institution-aware Western registration", () => {
     mocks.verify.mockResolvedValue("Invalid code");
     expect(await signUpAction(previous, form({ intent: "verify", code: "000000" }))).toMatchObject({ step: "verify", error: "Invalid code" });
   });
-  it("rejects non-Western institution claims even on verification requests", async () => {
-    expect((await signUpAction(previous, form({ intent: "verify", institution: "other" }))).error).toContain("Select Western");
+  it("checks the school even on verification requests", async () => {
+    expect((await signUpAction(previous, form({ intent: "verify", institution: "fake" }))).error).toContain("Select your school");
+    expect((await signUpAction(previous, form({ intent: "verify", institution: "waterloo" }))).error).toContain("@uwaterloo.ca");
     expect(mocks.verify).not.toHaveBeenCalled();
   });
 });

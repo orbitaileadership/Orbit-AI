@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isAllowedEmail, normalizeEmail } from "@/lib/auth/eligibility";
+import { isAllowedEmail, normalizeEmail, NOT_ALLOWED_MESSAGE } from "@/lib/auth/eligibility";
 import { friendlyAuthError, logAuthError } from "@/lib/auth/errors";
 import { resendSignupCode, verifyEmailCode } from "@/lib/auth/flows";
 
@@ -13,7 +13,7 @@ export type SignInState = {
   message?: string;
 };
 
-const NOT_UWO = "Orbit AI is only open to @uwo.ca email addresses.";
+const NOT_UWO = NOT_ALLOWED_MESSAGE;
 
 export async function signInAction(prev: SignInState, formData: FormData): Promise<SignInState> {
   const intent = String(formData.get("intent") ?? "signin");
