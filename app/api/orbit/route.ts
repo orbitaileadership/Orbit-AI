@@ -1,3 +1,4 @@
+import { attachmentContext, AttachmentError } from "@/lib/orbit/attachments";
 import { courseContext } from "@/lib/courses/context";
 import { ORBIT } from "@/config/orbit";
 import { getModel, PROVIDERS } from "@/config/models";
@@ -36,7 +37,8 @@ export async function POST(request: Request) {
   if (!ORBIT.enabled()) return json({error:"orbit_not_enabled"},503);
   const body = await request.json().catch(()=>null);
   if (!body || typeof body.content !== "string" || !body.content.trim() || body.content.length>24_000 ||
-      (body.conversationId !== undefined && !isUuid(body.conversationId)) || (body.projectId !== undefined && !isUuid(body.projectId))) return json({error:"bad_request"},400);
+      (body.conversationId !== undefined && !isUuid(body.conversationId)) || (body.projectId !== undefined && !isUuid(body.projectId)) ||
+      (body.attachmentIds !== undefined && (!Array.isArray(body.attachmentIds) || body.attachmentIds.length>ORBIT.maxAttachments || !body.attachmentIds.every(isUuid)))) return json({error:"bad_request"},400);
   const content = body.content.trim();
   if (estimateTokens(content)>5_000) return json({error:"context_too_large"},413);
   const live = isLive();
@@ -68,12 +70,17 @@ export async function POST(request: Request) {
       conversation=r.data;
     }
     const course=conversation.project_id?await courseContext(supabase,user.id,conversation.project_id,content):null;
-    const courseBlock=course?.block??"";
+    let attached;
+    try{attached=await attachmentContext(supabase,user.id,body.attachmentIds??[],content);}
+    catch(e){await release();if(e instanceof AttachmentError)return json({error:"attachment_unavailable"},e.message==="load_failed"?500:404);throw e;}
+    const courseBlock=[course?.block??"",attached.block].filter(Boolean).join("\n\n");
     const {data:previous,error:historyError}=await supabase.from("messages").select("id,seq,role,content,model_id")
       .eq("conversation_id",conversation.id).eq("status","complete").eq("kind","text").order("seq",{ascending:false}).limit(ORBIT.contextRows);
     if(historyError) {await release();return dbError(historyError,"load_failed");}
-    const saved=await supabase.from("messages").insert({conversation_id:conversation.id,user_id:user.id,role:"user",content}).select("id,seq").single();
+    const saved=await supabase.from("messages").insert({conversation_id:conversation.id,user_id:user.id,role:"user",content,...(attached.fileIds.length?{attachment_ids:attached.fileIds}:{})}).select("id,seq").single();
     if(saved.error||!saved.data) {await release();return dbError(saved.error,"save_failed");}
+    if(attached.fileIds.length){const linked=await supabase.from("files").update({conversation_id:conversation.id}).in("id",attached.fileIds).eq("user_id",user.id).is("conversation_id",null);
+      if(linked.error) {await release();return dbError(linked.error,"save_failed");}}
     const rows:Row[]=[...(previous??[]).reverse() as Row[],{id:saved.data.id,seq:saved.data.seq,role:"user",content,model_id:null}];
     const personal=await loadPersonal(supabase);
     const preferences=personalPrompt(personal.profile,relevantMemories(personal.memories,content));
@@ -111,7 +118,7 @@ export async function POST(request: Request) {
             existing:summary,existingUpto:conversation.summary_upto,dropped});
         }
         const contextNotice=ctx.dropped||(previous?.length??0)>=ORBIT.contextRows ? "Earlier messages may be omitted or only partially summarized. Do not claim complete recall." : "";
-        const system=`You are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. Do not claim voting proves correctness. Only supplied course excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
+        const system=`You are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. Do not claim voting proves correctness. Only supplied course and attached-file excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
         let contribution="";
         if(decision.specialist) {
           emitStage("collaborating");

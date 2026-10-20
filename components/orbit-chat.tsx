@@ -8,6 +8,8 @@ import { THEMES } from "@/config/themes";
 import { ProviderLogo } from "@/components/provider-logo";
 import { Wordmark, OrbitBackdrop } from "@/components/brand";
 import { OrbitVotePanel } from "@/components/orbit-vote-panel";
+import { FileChip } from "@/components/file-chip";
+import { fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { Markdown } from "@/components/markdown";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Decision } from "@/lib/orbit/voting";
@@ -19,6 +21,7 @@ const ERRORS: Record<string,string> = {
   orbit_not_enabled:"Orbit mode is in preview. The team needs to enable it before live use.",
   orbit_provider_unavailable:"Orbit needs all four providers enabled and configured. No partial vote was started.",
   orbit_vote_failed:"The four-model vote could not be completed. No lead was substituted. Completed routing calls may still use allowance.",
+  attachment_unavailable:"An attached file is no longer available. Remove it and attach it again.",
   orbit_busy:"Another Orbit turn is running on your account. Wait for it to finish.",
   orbit_call_failed:"A provider call failed. Any partial answer is saved. You can send a follow-up to try again.",
   orbit_incomplete_response:"The model did not finish. Any partial answer is saved; check it before using it.",
@@ -47,6 +50,7 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
   const [busy,setBusy]=useState(false), [loading,setLoading]=useState(false), [phase,setPhase]=useState(""), [error,setError]=useState("");
   const [decision,setDecision]=useState<Decision|null>(null), [dropped,setDropped]=useState(false), [sidebar,setSidebar]=useState(false);
   const [remaining,setRemaining]=useState<number|null>(null);
+  const [files,setFiles]=useState<UploadedFile[]>([]), [uploading,setUploading]=useState(false), picker=useRef<HTMLInputElement>(null);
   const controller=useRef<AbortController|null>(null), bottom=useRef<HTMLDivElement>(null), view=useRef(0);
   const refresh=useCallback(async()=>{
     const [list,usage]=await Promise.all([fetch("/api/conversations?provider=orbit"),fetch("/api/usage")]);
@@ -93,15 +97,26 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
     try{const res=await fetch(`/api/conversations/${active}`,{method:"DELETE"});if(!res.ok)throw new Error();newChat();await refresh();}
     catch{setError("Could not delete this chat. Try again.");}finally{setLoading(false);}
   }
+  async function attach(list:FileList|null){
+    if(!list?.length)return;setError("");setUploading(true);
+    try{for(const file of Array.from(list)){
+      if(files.length>=ORBIT.maxAttachments){setError(`Orbit accepts up to ${ORBIT.maxAttachments} text documents per message.`);break;}
+      const up=await uploadFile(file,userId);
+      if(!("id" in up)){setError(up.error);continue;}
+      if(up.kind!=="document"||up.status!=="ready"){setError("Orbit can read text documents only for now. Images and scanned files work in the single-AI chats.");continue;}
+      setFiles(prev=>[...prev,up]);
+    }}finally{setUploading(false);if(picker.current)picker.current.value="";}
+  }
   async function send() {
     const content=input.trim();if(!content||busy||loading)return;
-    setBusy(true);setError("");setInput("");setDecision(null);setPhase("voting");
+    const attachmentIds=files.map(f=>f.id),sentFiles=files;
+    setBusy(true);setError("");setInput("");setFiles([]);setDecision(null);setPhase("voting");
     const userId=crypto.randomUUID(),localReply=crypto.randomUUID();let terminal=false,accepted=false;
     setMessages(prev=>[...prev,{id:userId,role:"user",content},{id:localReply,role:"assistant",content:"",status:"streaming"}]);
     const abort=new AbortController();controller.current=abort;
     const patch=(change:Partial<Message>)=>setMessages(prev=>prev.map(m=>m.id===localReply?{...m,...change}:m));
     try {
-      const res=await fetch("/api/orbit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,...(active?{conversationId:active}:{projectId:course?.id})}),signal:abort.signal});
+      const res=await fetch("/api/orbit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,...(attachmentIds.length?{attachmentIds}:{}),...(active?{conversationId:active}:{projectId:course?.id})}),signal:abort.signal});
       if(!res.ok){const d=await res.json();throw new Error(ERRORS[d.error]??"Orbit could not start this turn.");}
       if(!res.body)throw new Error("The response connection could not be opened.");
       const reader=res.body.getReader(),decoder=new TextDecoder();let buffer="",text="";
@@ -119,7 +134,7 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
       if(buffer.trim())event(buffer);
       if(!terminal)throw new Error("The connection ended before Orbit finished. Refresh to check the saved answer before continuing.");
     } catch(e) {
-      if(!accepted){setMessages(prev=>prev.filter(m=>m.id!==userId&&m.id!==localReply));setInput(content);}
+      if(!accepted){setMessages(prev=>prev.filter(m=>m.id!==userId&&m.id!==localReply));setInput(content);setFiles(sentFiles);}
       else patch({status:"partial"});
       setError(abort.signal.aborted?"Stopped locally. A dispatched answer may still finish and use allowance. Reopen the chat to check the saved result.":(e as Error).message);
     }
@@ -147,7 +162,7 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-8">
         <div className="mx-auto max-w-3xl">
-          {!messages.length&&!loading&&<div className="py-8 text-center sm:py-16"><OrbitBackdrop className="mx-auto mb-6 grid h-44 w-44 place-items-center"><span className="text-5xl text-brand">◎</span></OrbitBackdrop><h1 className="text-3xl font-semibold tracking-tight">Four perspectives. One conversation.</h1><p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-ink-muted">ChatGPT, Claude, Gemini and Grok vote on a lead. When three voters request collaboration, one specialist contributes before the lead answers.</p><p className="mt-3 text-xs text-ink-subtle">Text chats with selected course excerpts. Direct attachments, browsing, tools and voice come later.</p><div className="mt-7 flex flex-wrap justify-center gap-2">{["Explain why confidence intervals are often misunderstood.","Help me plan and critique an argument for my essay."].map(s=><button key={s} onClick={()=>setInput(s)} className="max-w-xs rounded-2xl border border-line px-4 py-3 text-left text-sm hover:bg-surface-100">{s}</button>)}</div></div>}
+          {!messages.length&&!loading&&<div className="py-8 text-center sm:py-16"><OrbitBackdrop className="mx-auto mb-6 grid h-44 w-44 place-items-center"><span className="text-5xl text-brand">◎</span></OrbitBackdrop><h1 className="text-3xl font-semibold tracking-tight">Four perspectives. One conversation.</h1><p className="mx-auto mt-4 max-w-lg text-sm leading-6 text-ink-muted">ChatGPT, Claude, Gemini and Grok vote on a lead. When three voters request collaboration, one specialist contributes before the lead answers.</p><p className="mt-3 text-xs text-ink-subtle">Text chats with selected course and attached-document excerpts. Images, scanned files, browsing, tools and voice come later.</p><div className="mt-7 flex flex-wrap justify-center gap-2">{["Explain why confidence intervals are often misunderstood.","Help me plan and critique an argument for my essay."].map(s=><button key={s} onClick={()=>setInput(s)} className="max-w-xs rounded-2xl border border-line px-4 py-3 text-left text-sm hover:bg-surface-100">{s}</button>)}</div></div>}
           {loading&&<p role="status" className="text-sm text-ink-muted">Opening chat…</p>}
           {dropped&&<p className="mb-5 rounded-xl border border-line p-3 text-xs text-ink-muted">Selected recent context and any available summary are used. Older history may be omitted or partially summarized. This view shows the latest {ORBIT.contextRows} saved messages.</p>}
           {messages.map(m=><article key={m.id} className={`msg-in mb-7 ${m.role==="user"?"ml-auto max-w-[90%] rounded-3xl bg-surface-200 px-5 py-3":""}`}>
@@ -164,7 +179,7 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
       </div>
       <form onSubmit={e=>{e.preventDefault();void send();}} className="mx-auto w-full max-w-3xl px-4 pb-4">
         {course&&<p className="mb-2 text-xs text-ink-muted">{course.name} · Selected text goes to all four AIs.</p>}
-        <div className="rounded-3xl border border-line-strong bg-surface-100 p-3 shadow-composer"><textarea aria-label="Message Orbit" placeholder="Ask Orbit anything…" maxLength={24000} rows={3} value={input} disabled={busy||loading} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} className="w-full resize-none bg-transparent px-2 py-1 text-base outline-none disabled:opacity-50"/><div className="flex items-center justify-between gap-3"><span className="px-2 text-xs text-ink-muted">4 votes · up to 1 specialist · 1 lead answer</span>{busy?<button type="button" onClick={()=>controller.current?.abort()} className="rounded-full border border-line px-4 py-2 text-sm">Stop</button>:<button disabled={!input.trim()||loading} className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-on-brand disabled:opacity-40">Send</button>}</div></div>
+        <div className="rounded-3xl border border-line-strong bg-surface-100 p-3 shadow-composer">{(files.length>0||uploading)&&<div className="mb-2 flex flex-wrap gap-2">{files.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={[fileNote(f),"excerpts go to all four AIs"].filter(Boolean).join(" · ")} onRemove={busy?undefined:()=>setFiles(prev=>prev.filter(x=>x.id!==f.id))}/>)}{uploading&&<FileChip name="Uploading" state="uploading"/>}</div>}<textarea aria-label="Message Orbit" placeholder="Ask Orbit anything…" maxLength={24000} rows={3} value={input} disabled={busy||loading} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} className="w-full resize-none bg-transparent px-2 py-1 text-base outline-none disabled:opacity-50"/><div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 px-2 text-xs text-ink-muted"><input ref={picker} type="file" multiple hidden onChange={e=>void attach(e.target.files)}/><button type="button" aria-label="Attach text documents" title="Attach documents (excerpts go to all four AIs)" disabled={busy||loading||uploading||files.length>=ORBIT.maxAttachments} onClick={()=>picker.current?.click()} className="grid h-8 w-8 place-items-center rounded-full border border-line text-base hover:bg-surface-200 disabled:opacity-40">＋</button>4 votes · up to 1 specialist · 1 lead answer</span>{busy?<button type="button" onClick={()=>controller.current?.abort()} className="rounded-full border border-line px-4 py-2 text-sm">Stop</button>:<button disabled={!input.trim()||loading} className="rounded-full bg-brand px-4 py-2 text-sm font-medium text-on-brand disabled:opacity-40">Send</button>}</div></div>
         <p className="mt-2 text-center text-[11px] leading-4 text-ink-subtle">Orbit can make mistakes. Four-model routing adds time and usage; it has not yet been shown to outperform an individual model.</p>
       </form>
     </main>
