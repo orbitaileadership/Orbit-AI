@@ -62,7 +62,7 @@ export const PLUGINS: PluginInfo[] = [
   },
   {
     id: "gmail", name: "Gmail", tagline: "Read, write and organize your email",
-    description: "Lets the AI search and read your Gmail, write and send emails, save drafts, and tidy your inbox (mark read, archive, star, label, move to Trash). You see every change first and nothing happens until you confirm.",
+    description: "Works with any Gmail or Google account, personal or school. Lets the AI search and read your Gmail, write and send emails, save drafts, and tidy your inbox (mark read, archive, star, label, move to Trash). You see every change first and nothing happens until you confirm.",
     category: "Mail & calendar", popular: true, auth: "google", scopes: ["https://www.googleapis.com/auth/gmail.readonly"],
     permissions: ["Read your email messages and settings", "Send, draft and organize email, only after you confirm", "Never permanently deletes email (Trash only)"],
     can: ["Find emails from a professor or TA", "Summarize a thread", "Write and send emails or replies after you check them", "Save drafts, archive, star, label or trash emails"],
@@ -91,7 +91,7 @@ export const PLUGINS: PluginInfo[] = [
   },
   {
     id: "google-calendar", name: "Google Calendar", tagline: "See, add and change your events",
-    description: "Lets the AI see your Google Calendar so it can plan study time around your classes, labs and exams, and add, move or delete events for you. You see every change first and nothing happens until you confirm.",
+    description: "Works with any Google account. Lets the AI see your Google Calendar so it can plan study time around your classes, labs and exams, and add, move or delete events for you. You see every change first and nothing happens until you confirm.",
     category: "Mail & calendar", popular: true, auth: "google", scopes: ["https://www.googleapis.com/auth/calendar.readonly"],
     permissions: ["See events on your calendars", "Create, change and delete events, only after you confirm"],
     can: ["Plan study sessions around your schedule", "List what's due or happening this week", "Add study blocks, exams and deadlines to your calendar", "Move or cancel events"],
@@ -115,7 +115,7 @@ export const PLUGINS: PluginInfo[] = [
   },
   {
     id: "google-drive", name: "Google Drive", tagline: "Read and edit your Docs, Sheets and files",
-    description: "Lets the AI search your Google Drive and read your files (Docs, Sheets, Slides, PDFs, Word and PowerPoint), and make changes for you: create and edit Docs and Sheets, rename, organize into folders, or move files to Trash. You see every change first and nothing happens until you confirm. It never shares your files.",
+    description: "Works with any Google account. Lets the AI search your Google Drive and read your files (Docs, Sheets, Slides, PDFs, Word and PowerPoint), and make changes for you: create and edit Docs and Sheets, rename, organize into folders, or move files to Trash. You see every change first and nothing happens until you confirm. It never shares your files.",
     category: "Files", popular: true, auth: "google", scopes: ["https://www.googleapis.com/auth/drive.readonly"],
     permissions: ["See and download your Google Drive files", "Create, edit, rename, move and trash files, only after you confirm", "Never shares files or deletes them permanently"],
     can: ["Find a doc, handout or slide deck by name or content", "Answer questions from your notes", "Save study guides as Docs and tables as Sheets", "Add to a Doc or Sheet, rename files and tidy folders"],
@@ -154,8 +154,8 @@ export const PLUGINS: PluginInfo[] = [
     ],
   },
   {
-    id: "outlook", name: "Outlook Email", tagline: "Read, write and organize your Outlook email",
-    description: "Lets the AI search and read your Outlook or Western email, write and send emails and replies, save drafts, and tidy your inbox (mark read, archive, flag, categorize, delete). You see every change first and nothing happens until you confirm.",
+    id: "outlook", name: "Outlook Email", tagline: "Outlook, Hotmail, Live or Western email",
+    description: "Works with school accounts (Western) and personal Microsoft accounts (Outlook.com, Hotmail, Live). Lets the AI search and read your email, write and send emails and replies, save drafts, and tidy your inbox (mark read, archive, flag, categorize, delete). You see every change first and nothing happens until you confirm.",
     category: "Mail & calendar", popular: true, auth: "microsoft", scopes: ["Mail.Read"],
     permissions: ["Read your mail", "Send, draft and organize email, only after you confirm", "Deleting only moves email to Deleted Items"],
     can: ["Find announcements and course emails", "Summarize a thread", "Write and send emails or replies after you check them", "Archive, flag, categorize or delete emails"],
@@ -182,7 +182,7 @@ export const PLUGINS: PluginInfo[] = [
   },
   {
     id: "outlook-calendar", name: "Outlook Calendar", tagline: "See, add and change your Outlook events",
-    description: "Lets the AI see your Outlook calendar so it can plan around classes and deadlines, and add, move or delete events for you. You see every change first and nothing happens until you confirm.",
+    description: "Works with school and personal Microsoft accounts. Lets the AI see your Outlook calendar so it can plan around classes and deadlines, and add, move or delete events for you. You see every change first and nothing happens until you confirm.",
     category: "Mail & calendar", auth: "microsoft", scopes: ["Calendars.Read"],
     permissions: ["Read your calendars", "Create, change and delete events, only after you confirm"],
     can: ["Plan study time around your week", "List upcoming events", "Add study blocks, exams and deadlines", "Move or cancel events"],

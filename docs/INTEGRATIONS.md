@@ -105,3 +105,7 @@ Plugins whose sign-in isn't configured now show **Coming soon** to students (no 
 | Wikipedia, arXiv, Semantic Scholar, Crossref, YouTube (Gemini) | none | Work without setup. |
 
 Write actions (send email, edit docs, change events) ask for the extra permission at the moment of the action, so connecting only grants read access.
+
+**Personal accounts (Gmail, Hotmail, Outlook.com, Live).** The code accepts any account: Microsoft sign-in uses the `common` endpoint and Google has no domain restriction; the first Google connection asks which account to use. Two settings outside the code decide whether personal accounts actually work:
+- **Microsoft (Azure → App registrations → Authentication):** Supported account types = "Accounts in any organizational directory and personal Microsoft accounts". Single-tenant or "organizational only" blocks Hotmail/Outlook.com (students see a clear message).
+- **Google (Google Auth Platform → Audience):** User type = External and publishing status = In production. "Internal" allows only one Workspace domain; "Testing" allows only listed test users (up to 100). Gmail and Drive scopes need Google's verification before production.
