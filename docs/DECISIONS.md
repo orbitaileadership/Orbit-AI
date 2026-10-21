@@ -32,8 +32,6 @@ Noah (engineering owner) decided that ChatGPT, Claude, Gemini and Grok each offe
 
 **Supersedes:** same-chat switching *across providers* described as a P0 promise in `docs/ENGINEERING_PROTOCOL.md` §1/§3 and `docs/PRODUCT_SPEC.md`. Model switching within one provider's models is unchanged. Jake should confirm, and the spec/protocol wording should be updated if he agrees.
 
-## October 20, 2026 — Optional sign-up without a school email
+## October 20, 2026 — Any-email sign-up comes from main
 
-Noah asked for an option for people without a school email. Implemented behind a server switch: `OPEN_SIGNUP=on` adds "I don't have a school email" to sign-up and lets verified addresses at any valid public domain (Gmail, Hotmail, Outlook, iCloud, other schools) sign in; off/unset keeps @uwo.ca only (default, unchanged behaviour). Email verification is still required, the Western form still requires @uwo.ca, and the existing waitlist/early-access gate (`WAITLIST_MODE`, `EARLY_ACCESS_EMAILS`) still decides who reaches the app and its AI budget. If `WAITLIST_MODE=off`, every verified account (school or not) gets the standard trial allowance — there is no separate, smaller allowance for non-school accounts yet (would need a billing change and Jake's approval).
-
-**Needs Jake's confirmation** before `OPEN_SIGNUP` is turned on in production: it widens the target audience beyond Western (product decision) and increases abuse/cost exposure. Analytics trigger in migration 0009 counts only @uwo.ca sign-ups as "Western registrations"; non-school users won't appear in that count.
+The interim `OPEN_SIGNUP` switch on this branch was dropped when main was merged: main already accepts any verified email by default (`SCHOOL_EMAILS_ONLY=on` restricts to school addresses). Waitlist/early-access rules still decide app access.

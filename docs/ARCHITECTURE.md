@@ -6,7 +6,7 @@ src/
   app/                 # Next.js routes and UI (chat, sign-in, usage, admin)
   components/          # UI components
   server/
-    auth/              # session, uwo.ca eligibility check
+    auth/              # session, school-email eligibility check
     chat/              # orchestration: load history → build context → reserve → call → reconcile → save
     providers/         # one adapter per provider + shared interface
       types.ts
@@ -53,7 +53,7 @@ Walk history from newest to oldest and keep messages until we hit `min(model.con
 Store money as integer micro-cents (or numeric) to avoid float rounding.
 
 ## Request flow (server only)
-1. Auth: valid session, email verified, and the domain is exactly `uwo.ca`.
+1. Auth: valid session, email verified, and the domain is a school (lib/auth/eligibility.ts).
 2. Ownership: the conversation belongs to the user.
 3. Gates: the global stop is off, the provider is enabled, the model is allowed for this plan, and the rate limit passes.
 4. Build context (policy above). Estimate the cost upper bound: `input_tokens × in_price + maxOutput (incl. reasoning) × out_price`.

@@ -1,7 +1,7 @@
 import { getUserAccess } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 
-// Shared guard for API routes: verified @uwo.ca account that is past the waitlist.
+// Shared guard for API routes: verified school-email account that is past the waitlist.
 // Returns the user plus a Supabase client bound to their session (RLS applies to every query).
 type AppUser = { user: NonNullable<Awaited<ReturnType<typeof getUserAccess>>>["user"]; supabase: Awaited<ReturnType<typeof createClient>> };
 

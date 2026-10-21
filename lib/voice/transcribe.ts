@@ -1,4 +1,5 @@
 // Server side of voice input: send a recording to OpenAI's transcription API.
+import { errorForStatus } from "@/lib/providers/types";
 import { VOICE } from "@/config/voice";
 
 export const AUDIO_TYPES = ["audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav", "audio/x-wav", "audio/aac", "audio/m4a", "audio/x-m4a"];
@@ -32,7 +33,7 @@ export async function transcribe(audio: Blob, type: string, apiKey: string, hint
     body: form,
     signal: signal ?? AbortSignal.timeout(60_000),
   });
-  if (!res.ok) throw new Error(`transcribe_${res.status}`);
+  if (!res.ok) throw errorForStatus(res.status);
   const out = (await res.json()) as { text?: string };
   return (out.text ?? "").trim();
 }

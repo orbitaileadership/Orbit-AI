@@ -2,7 +2,6 @@ import { redirect } from "next/navigation";
 import { getEligibleUser } from "@/lib/auth/session";
 import { AuthCard, TextLink } from "@/components/auth-ui";
 import { RegistrationForm } from "./registration-form";
-import { openSignupEnabled } from "@/lib/auth/eligibility";
 
 export default async function SignUpPage() {
   if (await getEligibleUser()) redirect("/");
@@ -10,10 +9,10 @@ export default async function SignUpPage() {
   return (
     <AuthCard
       title="Get started with Orbit"
-      subtitle="Start with your institution."
+      subtitle="Pick your school, then create your account."
       footer={<>Already have an account? <TextLink href="/login">Sign in</TextLink></>}
     >
-      <RegistrationForm openSignup={openSignupEnabled()} />
+      <RegistrationForm />
     </AuthCard>
   );
 }

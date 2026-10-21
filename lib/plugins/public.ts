@@ -2,9 +2,12 @@
 // browser (/api/plugins/public) because not all of them allow browser calls. URLs are built here from fixed hosts —
 // the model only supplies search words, titles and DOIs — so this can't be used to fetch arbitrary pages.
 
-export const PUBLIC_TOOLS = ["wikipedia_search", "wikipedia_read", "arxiv_search", "scholar_search", "crossref_lookup", "wolfram_query"] as const;
-export type PublicTool = (typeof PUBLIC_TOOLS)[number];
-export const isPublicTool = (v: unknown): v is PublicTool => typeof v === "string" && (PUBLIC_TOOLS as readonly string[]).includes(v);
+import { wolframRequestMicros } from "@/config/economics";
+import { reserve, settle, overRateLimit } from "@/lib/billing/budget";
+
+export { PUBLIC_TOOLS, isPublicTool } from "./public-tools";
+import type { PublicTool } from "./public-tools";
+export type { PublicTool } from "./public-tools";
 
 const UA = "OrbitAI/1.0 (student study app; https://orbit-ai.vercel.app)";
 const MAX = 40_000;
@@ -62,11 +65,11 @@ export const cleanDoi = (v: string) => v.trim().replace(/^https?:\/\/(dx\.)?doi\
 
 /** Plugins that only work once the team sets a server key. */
 export function serverPluginsReady(): string[] {
-  return process.env.WOLFRAM_APP_ID?.trim() ? ["wolfram"] : [];
+  return process.env.WOLFRAM_APP_ID?.trim() && wolframRequestMicros() != null ? ["wolfram"] : [];
 }
 
 // ---------------------------------------------------------------- the tools
-export async function runPublicTool(tool: PublicTool, a: Record<string, unknown>): Promise<string> {
+export async function runPublicTool(tool: PublicTool, a: Record<string, unknown>, userId?: string): Promise<string> {
   switch (tool) {
     case "wikipedia_search": {
       const q = str(a.query);
@@ -119,14 +122,30 @@ export async function runPublicTool(tool: PublicTool, a: Record<string, unknown>
       if (!appid) throw new PublicToolError("Wolfram|Alpha isn't set up on this server (WOLFRAM_APP_ID).");
       const q = str(a.input, 500);
       if (!q) throw new PublicToolError("What should Wolfram|Alpha compute?");
-      const res = await fetch(`https://www.wolframalpha.com/api/v1/llm-api?input=${encodeURIComponent(q)}&appid=${encodeURIComponent(appid)}&maxchars=6000`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(20_000) }).catch(() => null);
-      if (!res) throw new PublicToolError("Wolfram|Alpha didn't respond. Try again.");
-      const text = await res.text();
-      // 501 = Wolfram couldn't interpret the input; its text suggests rewordings, which helps the model retry.
-      if (res.status === 501 || res.status === 400) return `Wolfram|Alpha couldn't interpret that. ${text.slice(0, 1500)}`;
-      if (res.status === 403) throw new PublicToolError("Wolfram|Alpha rejected the app id.");
-      if (!res.ok) throw new PublicToolError(`Wolfram|Alpha returned an error (${res.status}).`);
-      return clip(text, 8000);
+      const cost = wolframRequestMicros();
+      if (!userId || cost == null) throw new PublicToolError("Wolfram|Alpha accounting is not configured.");
+      if (await overRateLimit(userId)) throw new PublicToolError("Too many requests. Try again in a minute.");
+      const requestId = crypto.randomUUID();
+      const reservation = await reserve(userId, requestId, "wolfram-llm", "text", cost, {
+        provider: "wolfram", operation: "wolfram", apiModel: "llm-api", unitType: "request", units: 1,
+        unitCostUsdMicros: cost, costBasis: "estimated",
+      });
+      if (!reservation.ok) throw new PublicToolError("Wolfram|Alpha is paused or your allowance is unavailable.");
+      try {
+        const res = await fetch(`https://www.wolframalpha.com/api/v1/llm-api?input=${encodeURIComponent(q)}&appid=${encodeURIComponent(appid)}&maxchars=6000`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(20_000) });
+        const text = await res.text();
+        // Interpretation failures can consume request units. Never infer a zero provider expense.
+        if (res.ok || res.status === 501 || res.status === 400) {
+          await settle(requestId, "settled", cost);
+          return res.ok ? clip(text, 8000) : `Wolfram|Alpha couldn't interpret that. ${text.slice(0, 1500)}`;
+        }
+        await settle(requestId, "uncertain", 0, undefined, "wolfram_failed");
+        throw new PublicToolError("Wolfram|Alpha returned an error.");
+      } catch (error) {
+        if (error instanceof PublicToolError) throw error;
+        await settle(requestId, "uncertain", 0, undefined, "wolfram_failed");
+        throw new PublicToolError("Wolfram|Alpha didn't respond. Try again.");
+      }
     }
     case "crossref_lookup": {
       const mailto = process.env.CROSSREF_MAILTO?.trim();

@@ -1,3 +1,4 @@
+import { failureState } from "@/lib/billing/outcome";
 import { COURSES } from '@/config/courses';
 import { getModel, PDF_INPUT } from '@/config/models';
 import { reserve, settle, isProviderDisabled, overRateLimit } from '@/lib/billing/budget';
@@ -27,7 +28,7 @@ export async function extractSyllabus(userId: string, chunks: SourceChunk[], sig
     }
   } catch(e) {
     if(usage)await settle(id,'settled',costMicros(model,usage),usage,'syllabus_failed');
-    else if(e instanceof ProviderError && !e.started && e.status && e.status>=400 && e.status<500 && e.status!==408) await settle(id,'released',0,undefined,e.code);
+    else if(e instanceof ProviderError && failureState(e) === "released") await settle(id,'released',0,undefined,e.code);
     else await settle(id,'uncertain',0,undefined,'syllabus_failed');
     throw new Error('extraction_failed');
   }

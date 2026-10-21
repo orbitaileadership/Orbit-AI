@@ -1,3 +1,4 @@
+import { failureState } from "@/lib/billing/outcome";
 import type { ModelOption } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
 import { isProviderDisabled, reserve, settle } from "@/lib/billing/budget";
@@ -37,7 +38,7 @@ export async function orbitCall(o: {
     }
   } catch (error) {
     if (usage) await settle(id,"settled",costMicros(o.model,usage),usage,"orbit_call_failed");
-    else if (error instanceof ProviderError && !error.started && error.status != null && error.status >= 400 && error.status < 500 && error.status !== 408)
+    else if (error instanceof ProviderError && failureState(error) === "released")
       await settle(id,"released",0,undefined,error.code);
     else await settle(id,"uncertain",0,undefined,"orbit_call_failed");
     throw new OrbitError("orbit_call_failed");

@@ -5,7 +5,7 @@ import { Field, FormAlert, linkButtonClass, primaryButtonClass } from "@/compone
 import { PASSWORD_MIN } from "@/lib/auth/password";
 import { resetAction, type ResetState } from "./actions";
 
-export function ResetForm({ open = false }: { open?: boolean }) {
+export function ResetForm() {
   const [state, action, pending] = useActionState<ResetState, FormData>(resetAction, { step: "email", email: "" });
 
   if (state.step === "code") {
@@ -37,8 +37,8 @@ export function ResetForm({ open = false }: { open?: boolean }) {
   return (
     <form action={action} className="flex flex-col gap-4">
       <FormAlert error={state.error} message={state.message} />
-      <Field label={open ? "Email" : "Western email"} id="email" type="email" required autoComplete="email" inputMode="email"
-        placeholder={open ? "you@uwo.ca or you@gmail.com" : "you@uwo.ca"} defaultValue={state.email} key={state.email} />
+      <Field label="Email" id="email" type="email" required autoComplete="email" inputMode="email"
+        placeholder="you@example.com" defaultValue={state.email} key={state.email} />
       <button type="submit" name="intent" value="send" disabled={pending} className={primaryButtonClass}>
         {pending ? "Sending…" : "Email me a code"}
       </button>

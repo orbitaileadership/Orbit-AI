@@ -130,12 +130,12 @@ describe("POST /api/chat", () => {
     expect(state.fake!.db.messages[1]).toMatchObject({ content: "Hi there", status: "complete", model_id: "anthropic-default" });
   });
 
-  it("live: a provider that fails before replying is released (not charged) and the reply is marked error", async () => {
+  it("live: an ambiguous server failure retains the reservation and the reply is marked error", async () => {
     state.live = true;
     state.failBeforeStart = true;
     const events = await readEvents(await POST(req({ provider: "anthropic", modelId: "anthropic-default", content: "hello" })));
     expect(events.at(-1)).toEqual({ t: "error", code: "unavailable" });
-    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "released", 0, undefined, "unavailable");
+    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "uncertain", 0, undefined, "unavailable");
     expect(state.fake!.db.messages[1].status).toBe("error");
   });
 
@@ -634,7 +634,7 @@ describe("web search", () => {
     vi.stubEnv("TAVILY_API_KEY", "tvly-test");
     vi.stubGlobal("fetch", vi.fn(async () => new Response("no", { status: 500 })));
     await readEvents(await POST(req({ provider: "anthropic", modelId: "anthropic-default", content: "latest news on X", web: true })));
-    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "released", 0, undefined, "search_failed");
+    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "uncertain", 0, undefined, "search_failed");
     expect(state.lastArgs!.system).toContain("The web search failed this time");
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
