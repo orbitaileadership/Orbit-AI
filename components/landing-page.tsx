@@ -30,7 +30,7 @@ export function LandingPage() {
             <h1 className="mt-6 text-[clamp(2.5rem,6vw,4.5rem)] font-medium leading-[1.08] tracking-tight">Your AIs. Your courses.<br />One place to learn.</h1>
             <p className="mx-auto mt-6 max-w-xl text-base leading-7 text-ink-muted sm:text-lg">Spend less time switching tabs. Bring your favourite AI models, course materials, and deadlines into one workspace.</p>
             <Link href="/signup" className={`${primaryButtonClass} mt-8 !w-auto !px-8`}>Get Started <span aria-hidden="true">→</span></Link>
-            <p className="mt-4 text-xs leading-5 text-ink-subtle">Western students can create an account. Other Canadian institutions can join the waitlist.</p>
+            <p className="mt-4 text-xs leading-5 text-ink-subtle">Free for students. Pick your school and sign up in a minute.</p>
             <div className="mt-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
               {providers.map(([id, name]) => <div key={id} className="flex items-center gap-2 text-sm text-ink-muted"><ProviderLogo provider={id} size={22} /><span>{name}</span></div>)}
             </div>

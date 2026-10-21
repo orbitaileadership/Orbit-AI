@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isAllowedEmail } from "./eligibility";
 import { accessFor, type Access } from "./access";
 
-// Server-side source of truth for "is this a verified @uwo.ca account?".
+// Server-side source of truth for "is this a verified school-email account?" (lib/auth/eligibility.ts).
 // Every page, server action and API route that touches chats, credits or models must call this.
 export async function getEligibleUser() {
   const supabase = await createClient();

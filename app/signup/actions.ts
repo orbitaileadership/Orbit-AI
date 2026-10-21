@@ -2,9 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isAllowedEmail, isSchoolEmail, normalizeEmail, notAllowedMessage, openSignupEnabled } from "@/lib/auth/eligibility";
+import { emailDomain, isAllowedEmail, normalizeEmail, notAllowedMessage } from "@/lib/auth/eligibility";
 import { friendlyAuthError, logAuthError } from "@/lib/auth/errors";
-import { institution } from "@/config/institutions";
+import { emailFitsInstitution, institution } from "@/config/institutions";
 import { passwordProblem } from "@/lib/auth/password";
 import { resendSignupCode, verifyEmailCode } from "@/lib/auth/flows";
 
@@ -19,16 +19,14 @@ export async function signUpAction(prev: SignUpState, formData: FormData): Promi
   const intent = String(formData.get("intent") ?? "signup");
   const email = normalizeEmail(String(formData.get("email") ?? prev.email ?? ""));
 
-  // "personal" = the "I don't have a school email" option, only while the team has OPEN_SIGNUP=on.
-  const personal = formData.get("institution") === "personal" && openSignupEnabled();
-  const school = institution(formData.get("institution"));
-  if (!personal && school?.id !== "western") {
-    return { step: "details", email, error: "Select Western University to create an account. Other institutions can join the waitlist." };
-  }
+  const picked = formData.get("institution");
+  const school = institution(picked);
+  if (!school && picked !== "other") return { step: "details", email, error: "Select your school first." };
 
   if (intent === "back") return { step: "details", email };
-  if (personal ? !isAllowedEmail(email) : !isSchoolEmail(email)) {
-    return { step: "details", email, error: personal ? notAllowedMessage() : "Use your @uwo.ca address for a Western account." };
+  if (!isAllowedEmail(email)) return { step: "details", email, error: notAllowedMessage() };
+  if (!emailFitsInstitution(email, picked, (e) => isAllowedEmail(e))) {
+    return { step: "details", email, error: `Use your ${school!.name} email (${school!.domains.map((d) => `@${d}`).join(" or ")}), or pick a different school.` };
   }
 
   if (intent === "verify") {
@@ -48,7 +46,7 @@ export async function signUpAction(prev: SignUpState, formData: FormData): Promi
   if (problem) return { step: "details", email, error: problem };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: personal && !isSchoolEmail(email) ? { institution: "personal", institution_name: "No school email" } : personal ? { institution: "western", institution_name: "Western University" } : { institution: school!.id, institution_name: school!.name } } });
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: school ? { institution: school.id, institution_name: school.name } : { institution: "other", institution_domain: emailDomain(email) } } });
   if (error) {
     logAuthError("signUp", error);
     return { step: "details", email, error: friendlyAuthError(error, "send") };
