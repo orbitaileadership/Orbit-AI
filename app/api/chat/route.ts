@@ -1,3 +1,4 @@
+import { failureState } from "@/lib/billing/outcome";
 import { courseContext } from "@/lib/courses/context";
 import { RESPONSE_QUALITY_VERSION } from "@/config/quality";
 import { fitToolContext } from "@/lib/chat/tool-context";
@@ -232,7 +233,7 @@ export async function POST(request: Request): Promise<Response> {
       const query = searchQuery(question, previousQ);
       const searchId = randomUUID();
       const cost = Math.ceil(WEB_SEARCH.pricePerSearch * 1_000_000);
-      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,provider:"tavily",operation:"search",unitCostUsdMicros:cost});
+      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
       if (!r.ok) return json({ error: r.reason === "budget" ? "budget" : r.reason === "global_stop" ? "paused" : "reserve_failed", conversationId: conversation.id }, r.reason === "budget" ? 402 : 503);
       try {
         const results = await webSearch(query, key);
@@ -241,7 +242,7 @@ export async function POST(request: Request): Promise<Response> {
         await supabase.from("messages").update({ web_results: web }).eq("id", userMessageId);
         if (!results.length) webNotes.push(`A web search for "${query}" found nothing. Say so, and answer from what you know, clearly marked as not from a search.`);
       } catch {
-        await settle(searchId, "released", 0, undefined, "search_failed"); // a failed search isn't charged
+        await settle(searchId, "uncertain", 0, undefined, "search_failed");
         webNotes.push("The web search failed this time. Say so in one sentence, and answer from what you know, clearly marked as not from a search.");
       }
     }
@@ -495,7 +496,7 @@ export async function POST(request: Request): Promise<Response> {
 
       if (live) {
         if (usage) await settle(requestId, "settled", costMicros(model, usage), usage, failure?.code, {latencyMs:Date.now()-startedAt,finishReason:finish,qualityVersion:RESPONSE_QUALITY_VERSION});
-        else if (failure && !failure.started && text.length === priorText.length) await settle(requestId, "released", 0, undefined, failure.code);
+        else if (failure && failureState(failure) === "released" && text.length === priorText.length) await settle(requestId, "released", 0, undefined, failure.code);
         else await settle(requestId, "uncertain", 0, undefined, failure?.code ?? "no_usage");
       }
 

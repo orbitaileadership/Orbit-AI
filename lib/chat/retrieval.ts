@@ -1,3 +1,5 @@
+import { ProviderError } from "@/lib/providers/types";
+import { failureState } from "@/lib/billing/outcome";
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { CONTEXT, SEMANTIC_MEMORY as S } from "@/config/context";
@@ -35,11 +37,11 @@ async function embed(userId: string, conversationId: string, texts: string[]): P
       body: JSON.stringify({ model: S.model, input: texts, dimensions: S.dimensions }), signal: AbortSignal.timeout(8_000) });
     if (!res.ok) {
       // Unknown/server failures can have incurred work; only explicit auth/validation rejection releases.
-      await settle(requestId, [400,401,403,404,429].includes(res.status) ? "released" : "uncertain", 0, undefined, "embedding_failed"); return null;
+      await settle(requestId, failureState(new ProviderError("unknown", res.status)), 0, undefined, "embedding_failed"); return null;
     }
     const data = await res.json();
     const usage = data.usage;
-    if (typeof usage?.prompt_tokens === "number") await settle(requestId,"settled",Math.ceil(usage.prompt_tokens*S.inputPrice),{input:usage.prompt_tokens,output:0,reasoning:0,cached:0});
+    if (Number.isSafeInteger(usage?.prompt_tokens) && usage.prompt_tokens >= 0) await settle(requestId,"settled",Math.ceil(usage.prompt_tokens*S.inputPrice),{input:usage.prompt_tokens,output:0,reasoning:0,cached:0});
     else await settle(requestId,"uncertain",0,undefined,"no_usage");
     const vectors = (data.data ?? []).sort((a: {index:number},b: {index:number}) => a.index-b.index).map((d: {embedding:number[]}) => d.embedding);
     if (vectors.length !== texts.length || vectors.some((v: number[]) => v.length !== S.dimensions || v.some(x=>!Number.isFinite(x)))) return null;

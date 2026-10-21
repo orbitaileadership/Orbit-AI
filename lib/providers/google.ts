@@ -1,3 +1,4 @@
+import { reportedUsage, tokenCount } from "./usage";
 import { readSse } from "./sse";
 import { decodeBase64, errorForStatus, normalizeTurns, parseArgs, ProviderError, toolSchema, type FinishReason, type ChatTurn, type ProviderAdapter, type StreamArgs } from "./types";
 
@@ -97,15 +98,13 @@ export const google: ProviderAdapter = {
       if (ev.usageMetadata) usage = ev.usageMetadata; // cumulative; the last one wins
     }
     if (usage) {
-      const thoughts = usage.thoughtsTokenCount ?? 0;
-      yield {
-        usage: {
-          input: usage.promptTokenCount ?? 0,
-          output: (usage.candidatesTokenCount ?? 0) + thoughts, // thinking is billed as output
-          reasoning: thoughts,
-          cached: usage.cachedContentTokenCount ?? 0,
-        },
-      };
+      const thoughts = usage.thoughtsTokenCount;
+      const output = tokenCount(usage.candidatesTokenCount) && (thoughts == null || tokenCount(thoughts))
+        ? usage.candidatesTokenCount + (thoughts ?? 0) : undefined;
+      const normalized = reportedUsage(usage.promptTokenCount, output, {
+        reasoning: thoughts, cached: usage.cachedContentTokenCount, cacheWrite: 0,
+      });
+      if (normalized) yield { usage: { ...normalized, outputEstimated: !tokenCount(thoughts) } };
     }
     if(finish) yield {finish};
     else throw new ProviderError("incomplete_stream",undefined,true);

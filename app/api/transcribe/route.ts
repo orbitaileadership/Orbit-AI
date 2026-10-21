@@ -1,3 +1,4 @@
+import { failureState } from "@/lib/billing/outcome";
 import { randomUUID } from "node:crypto";
 import { VOICE } from "@/config/voice";
 import { json, requireAppUser } from "@/lib/api";
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
 
   const id = randomUUID();
   const r = await reserve(user.id, id, VOICE.ledgerId, "text", micros(seconds, VOICE.reservePerMinute), {
-    provider: "openai", operation: "transcription", unitCostUsdMicros: micros(60, VOICE.pricePerMinute),
+    provider: "openai", operation: "transcription", unitCostUsdMicros: micros(60, VOICE.pricePerMinute), apiModel: VOICE.model, unitType: "minute", units: seconds / 60, costBasis: "estimated",
   });
   if (!r.ok) {
     const code = r.reason === "global_stop" ? "paused" : ["budget", "trial_expired", "fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed";
@@ -41,8 +42,8 @@ export async function POST(request: Request) {
     const text = await transcribe(audio, type, key, hint);
     await settle(id, "settled", micros(seconds, VOICE.pricePerMinute));
     return json({ text, seconds });
-  } catch {
-    await settle(id, "released", 0, undefined, "transcribe_failed"); // a failed transcription isn't charged
+  } catch (error) {
+    await settle(id, failureState(error), 0, undefined, "transcribe_failed");
     return json({ error: "transcribe_failed" }, 502);
   }
 }

@@ -66,7 +66,7 @@ describe("adapters", () => {
       `data: ${JSON.stringify({ type: "response.completed", response: { usage: { input_tokens: 10, output_tokens: 5, output_tokens_details: { reasoning_tokens: 2 } } } })}`,
     ]));
     vi.stubGlobal("fetch", fetchMock);
-    expect(await collect(openai.stream(args()))).toEqual({ text: "Hello", usage: { input: 10, output: 5, reasoning: 2, cached: 0, cacheWrite: 0 } });
+    expect(await collect(openai.stream(args()))).toMatchObject({ text: "Hello", usage: { input: 10, output: 5, reasoning: 2, cached: 0, cacheWrite: 0 } });
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(body).toMatchObject({ model: "test-model", instructions: "sys", max_output_tokens: 100, stream: true });
   });
@@ -79,7 +79,7 @@ describe("adapters", () => {
       `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}`,
     ]));
     vi.stubGlobal("fetch", fetchMock);
-    expect(await collect(anthropic.stream(args()))).toEqual({ text: "Hi", usage: { input: 10, output: 9, reasoning: 0, cached: 3, cacheWrite: 0, reasoningReported: false } });
+    expect(await collect(anthropic.stream(args()))).toMatchObject({ text: "Hi", usage: { input: 10, output: 9, reasoning: 0, cached: 3, cacheWrite: 0, reasoningReported: false } });
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(body.system).toBe("sys");
     expect(body.messages[0]).toEqual({ role: "user", content: "hi" });
@@ -91,7 +91,7 @@ describe("adapters", () => {
       `data: ${JSON.stringify({ candidates: [{ finishReason:"STOP", content: { parts: [{ text: "B" }] } }], usageMetadata: { promptTokenCount: 4, candidatesTokenCount: 2, thoughtsTokenCount: 3 } })}`,
     ]));
     vi.stubGlobal("fetch", fetchMock);
-    expect(await collect(google.stream(args()))).toEqual({ text: "AB", usage: { input: 4, output: 5, reasoning: 3, cached: 0 } });
+    expect(await collect(google.stream(args()))).toMatchObject({ text: "AB", usage: { input: 4, output: 5, reasoning: 3, cached: 0 } });
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(body.contents[1].role).toBe("model");
   });
@@ -102,7 +102,7 @@ describe("adapters", () => {
       `data: ${JSON.stringify({ choices: [{finish_reason:"stop"}], usage: { prompt_tokens: 3, completion_tokens: 2, completion_tokens_details: { reasoning_tokens: 1 } } })}`,
       "data: [DONE]",
     ])));
-    expect(await collect(xai.stream(args()))).toEqual({ text: "G", usage: { input: 3, output: 3, reasoning: 1, cached: 0 } });
+    expect(await collect(xai.stream(args()))).toMatchObject({ text: "G", usage: { input: 3, output: 3, reasoning: 1, cached: 0 } });
   });
 
   it("maps HTTP errors to provider error codes", async () => {

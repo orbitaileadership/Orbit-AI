@@ -33,7 +33,7 @@ describe("Orbit paid calls",()=>{
    expect(state.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"orbit_call_failed");
  });
  it("releases known pre-start client rejections",async()=>{
-   state.stream.mockImplementation(async function*(){throw new ProviderError("bad_request",400,false);});await expect(orbitCall(args())).rejects.toThrow();expect(state.settle).toHaveBeenCalledWith(expect.any(String),"released",0,undefined,"bad_request");
+   state.stream.mockImplementation(async function*(){throw new ProviderError("auth",403,false);});await expect(orbitCall(args())).rejects.toThrow();expect(state.settle).toHaveBeenCalledWith(expect.any(String),"released",0,undefined,"auth");
  });
  it.each(["length","unknown","blocked"])("rejects %s helper output even with usage",async finish=>{
    state.stream.mockImplementation(async function*(){yield {delta:"unfinished"};yield {usage:{input:100,output:20,reasoning:0,cached:0}};yield {finish};});
@@ -42,4 +42,10 @@ describe("Orbit paid calls",()=>{
  it("requires a terminal signal",async()=>{
    state.stream.mockImplementation(async function*(){yield {delta:"text without finish"};});await expect(orbitCall(args())).rejects.toThrow("orbit_incomplete_response");expect(state.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"no_usage");
  });
+});
+
+it("does not infer a free request from an arbitrary HTTP 400",async()=>{
+ state.stream.mockImplementation(async function*(){throw new ProviderError("bad_request",400,false);});
+ await expect(orbitCall(args())).rejects.toThrow("orbit_call_failed");
+ expect(state.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"orbit_call_failed");
 });

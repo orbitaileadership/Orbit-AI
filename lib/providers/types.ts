@@ -18,6 +18,13 @@ export interface Usage {
   cached: number;    // cache READ tokens, subset of input
   cacheWrite?: number; // cache WRITE tokens, disjoint subset of input
   costUsdMicros?: number; // exact provider-reported cost when supplied
+  cachedReported?: boolean;
+  cacheWriteReported?: boolean;
+  usageComplete?: boolean;
+  outputEstimated?: boolean;
+  inputEstimated?: boolean;
+  costInUsdTicks?: string;
+  providerRequestId?: string;
   reasoningReported?: boolean; // false when provider does not expose a reasoning breakdown
 }
 
@@ -54,6 +61,9 @@ export interface ImageArgs {
 export interface GeneratedImage {
   mime: string;
   bytes: Uint8Array;
+  costUsdMicros?: number;
+  costInUsdTicks?: string;
+  providerRequestId?: string;
 }
 
 export interface ProviderAdapter {

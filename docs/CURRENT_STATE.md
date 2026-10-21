@@ -49,3 +49,8 @@ The original launch target was October 19, 2026. A target date, passing tests an
 - Verified all four folder columns, validated shape constraint, enabled ownership trigger and existing projects RLS. Anonymous/authenticated direct execution of the trigger function is blocked.
 - No prior migration was rerun, and no student content, provider settings, budget records or credentials were changed. Signed-in end-to-end folder creation/upload/chat checks remain pending.
 - See `handoffs/2026-10-19-folder-database-update.md` for evidence and rollback considerations.
+
+
+## Accounting accuracy branch — October 20, 2026
+
+Phase 1 implementation is integrated on `fix/accounting-accuracy-current-main`, based on current main `1404a26`. See [ACCOUNTING_ACCURACY.md](ACCOUNTING_ACCURACY.md) for semantics, tests, configuration and rollout constraints. Reporting migration 0020 is local-only and has not been applied to the shared database. The app, billing integrations and paid evaluations have not been deployed or run. Production cost reconciliation remains unverified.
