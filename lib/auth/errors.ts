@@ -24,6 +24,11 @@ export function friendlyAuthError(error: AuthErrorLike, context: "send" | "verif
       return "An account with this email already exists. Sign in instead.";
     case "signup_disabled":
       return "Sign-ups are closed right now.";
+    // Supabase's built-in email service only emails the project's own team; real sign-ups need custom SMTP.
+    case "email_address_not_authorized":
+      return "We can't send email to this address yet. Please try again later or contact the Orbit team.";
+    case "email_address_invalid":
+      return "That email address can't receive email. Check it and try again.";
   }
   if ((error?.status ?? 0) >= 500 && context === "send") {
     return "We couldn't send the email right now. Please try again in a few minutes.";
