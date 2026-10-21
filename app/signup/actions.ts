@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { emailDomain, isAllowedEmail, normalizeEmail, NOT_ALLOWED_MESSAGE } from "@/lib/auth/eligibility";
+import { emailDomain, isAllowedEmail, normalizeEmail, notAllowedMessage } from "@/lib/auth/eligibility";
 import { friendlyAuthError, logAuthError } from "@/lib/auth/errors";
 import { emailFitsInstitution, institution } from "@/config/institutions";
 import { passwordProblem } from "@/lib/auth/password";
@@ -24,7 +24,7 @@ export async function signUpAction(prev: SignUpState, formData: FormData): Promi
   if (!school && picked !== "other") return { step: "details", email, error: "Select your school first." };
 
   if (intent === "back") return { step: "details", email };
-  if (!isAllowedEmail(email)) return { step: "details", email, error: NOT_ALLOWED_MESSAGE };
+  if (!isAllowedEmail(email)) return { step: "details", email, error: notAllowedMessage() };
   if (!emailFitsInstitution(email, picked, (e) => isAllowedEmail(e))) {
     return { step: "details", email, error: `Use your ${school!.name} email (${school!.domains.map((d) => `@${d}`).join(" or ")}), or pick a different school.` };
   }

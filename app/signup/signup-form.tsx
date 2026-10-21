@@ -39,8 +39,8 @@ export function SignUpForm({ school, name, domain }: { school: string; name?: st
     <form action={action} className="flex flex-col gap-4">
       <input type="hidden" name="institution" value={school} />
       <FormAlert error={state.error} message={state.message} />
-      <Field label={name ? `${name} email` : "School email"} id="email" type="email" required autoComplete="email" inputMode="email"
-        placeholder={`you@${domain ?? "yourschool.edu"}`} defaultValue={state.email} key={state.email} />
+      <Field label={name ? `${name} email` : "Email"} id="email" type="email" required autoComplete="email" inputMode="email"
+        placeholder={`you@${domain ?? "example.com"}`} defaultValue={state.email} key={state.email} />
       <Field label="Password" id="password" type="password" required autoComplete="new-password"
         minLength={PASSWORD_MIN} hint={`At least ${PASSWORD_MIN} characters, with a letter and a number.`} />
       <Field label="Confirm password" id="confirm" type="password" required autoComplete="new-password"

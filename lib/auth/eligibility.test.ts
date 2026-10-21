@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { accessFor } from "./access";
-import { emailDomain, isAllowedEmail } from "./eligibility";
+import { emailDomain, isAllowedEmail, notAllowedMessage } from "./eligibility";
 
-const env = {};
+const env = { SCHOOL_EMAILS_ONLY: "on" };
 
-describe("isAllowedEmail", () => {
+describe("default: any email", () => {
+  it.each(["me@gmail.com", "s@uwo.ca", "x@company.co.uk"])("allows %s", (e) => expect(isAllowedEmail(e, {})).toBe(true));
+  it.each(["", "nope", "a@@b.com", "studеnt@gmail.com"])("rejects malformed %s", (e) => expect(isAllowedEmail(e, {})).toBe(false));
+  it("explains the rule in each mode", () => {
+    expect(notAllowedMessage({})).toBe("Enter a valid email address.");
+    expect(notAllowedMessage(env)).toContain("school email");
+  });
+});
+
+describe("SCHOOL_EMAILS_ONLY=on", () => {
   it.each([
     "student@uwo.ca", "  Student.Name@UWO.CA ", "a+b@uwo.ca", // Western
     "s@utoronto.ca", "s@mail.utoronto.ca", "s@mcgill.ca", "s@uwaterloo.ca", // other Canadian schools + a subdomain
@@ -18,10 +27,10 @@ describe("isAllowedEmail", () => {
   ])("rejects %s", (e) => expect(isAllowedEmail(e, env)).toBe(false));
 
   it("lets the team add domains or open sign-up to everyone", () => {
-    expect(isAllowedEmail("me@mycollege.org", { ALLOWED_EMAIL_DOMAINS: "mycollege.org" })).toBe(true);
-    expect(isAllowedEmail("me@staff.mycollege.org", { ALLOWED_EMAIL_DOMAINS: " @MyCollege.org " })).toBe(true);
-    expect(isAllowedEmail("me@gmail.com", { ALLOWED_EMAIL_DOMAINS: "*" })).toBe(true);
-    expect(isAllowedEmail("not-an-email", { ALLOWED_EMAIL_DOMAINS: "*" })).toBe(false);
+    expect(isAllowedEmail("me@mycollege.org", { ...env, ALLOWED_EMAIL_DOMAINS: "mycollege.org" })).toBe(true);
+    expect(isAllowedEmail("me@staff.mycollege.org", { ...env, ALLOWED_EMAIL_DOMAINS: " @MyCollege.org " })).toBe(true);
+    expect(isAllowedEmail("me@gmail.com", { ...env, ALLOWED_EMAIL_DOMAINS: "*" })).toBe(true);
+    expect(isAllowedEmail("not-an-email", { ...env, ALLOWED_EMAIL_DOMAINS: "*" })).toBe(false);
   });
 
   it("finds the domain", () => {

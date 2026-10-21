@@ -1,11 +1,12 @@
-// Who may sign up: students with a school email address, at any university or college.
-// A school email proves the person controls an inbox at that school; it does not prove current enrolment.
+// Who may sign up. By default any valid email address (students pick their school, or "Other").
+// SCHOOL_EMAILS_ONLY=on limits sign-up to school email addresses at any university or college; a school email proves
+// the person controls an inbox at that school, not current enrolment.
 //
-// A domain counts when it (or a domain it sits under, e.g. mail.utoronto.ca → utoronto.ca) is:
+// In school-only mode a domain counts when it (or a domain it sits under, e.g. mail.utoronto.ca → utoronto.ca) is:
 //  - in the bundled list of ~10,000 university and college domains (school-domains.ts), or
 //  - an academic domain by name: *.edu, *.edu.xx or *.ac.xx (school districts, *.k12.*, are excluded), or
 //  - listed in ALLOWED_EMAIL_DOMAINS (comma-separated, e.g. "sheridancollege.ca,mycompany.com").
-// ALLOWED_EMAIL_DOMAINS=* lets any email address sign up. Free mail (gmail.com…) is never a school.
+// Free mail (gmail.com…) is never a school.
 import { SCHOOL_DOMAINS_TEXT } from "./school-domains";
 
 // ASCII-only, so unicode lookalikes (e.g. Cyrillic letters) are rejected.
@@ -38,6 +39,7 @@ const extraDomains = (env: Record<string, string | undefined>) =>
 export function isAllowedEmail(raw: string | null | undefined, env: Record<string, string | undefined> = process.env): boolean {
   const domain = emailDomain(raw);
   if (!domain) return false;
+  if (!schoolEmailsOnly(env)) return true;
   const extra = extraDomains(env);
   if (extra.includes("*")) return true;
   const candidates = withParents(domain);
@@ -46,5 +48,10 @@ export function isAllowedEmail(raw: string | null | undefined, env: Record<strin
   return ACADEMIC.test(domain) || candidates.some((d) => schoolSet().has(d));
 }
 
+/** SCHOOL_EMAILS_ONLY=on: only school email addresses can sign up (default: any email). */
+export const schoolEmailsOnly = (env: Record<string, string | undefined> = process.env) => (env.SCHOOL_EMAILS_ONLY ?? "").trim().toLowerCase() === "on";
+
 /** The message shown when an address isn't accepted. */
-export const NOT_ALLOWED_MESSAGE = "Orbit AI is for students: use your school email address (any university or college).";
+export function notAllowedMessage(env: Record<string, string | undefined> = process.env): string {
+  return schoolEmailsOnly(env) ? "Orbit AI is for students: use your school email address (any university or college)." : "Enter a valid email address.";
+}

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isAllowedEmail, normalizeEmail, NOT_ALLOWED_MESSAGE } from "@/lib/auth/eligibility";
+import { isAllowedEmail, normalizeEmail, notAllowedMessage } from "@/lib/auth/eligibility";
 import { friendlyAuthError, logAuthError } from "@/lib/auth/errors";
 import { passwordProblem } from "@/lib/auth/password";
 
@@ -19,7 +19,7 @@ export async function resetAction(prev: ResetState, formData: FormData): Promise
 
   if (intent === "back") return { step: "email", email };
   if (!isAllowedEmail(email)) {
-    return { step: "email", email, error: NOT_ALLOWED_MESSAGE };
+    return { step: "email", email, error: notAllowedMessage() };
   }
 
   const supabase = await createClient();

@@ -37,10 +37,18 @@ describe("school-aware registration", () => {
     expect((await signUpAction(previous, form({ institution: "waterloo", email: "s@uwo.ca" }))).error).toContain("@uwaterloo.ca");
     expect(mocks.signup).not.toHaveBeenCalled();
   });
-  it.each(["student@gmail.com", "student@uwo.ca.evil.com", "student@xuwo.ca"])("rejects non-school or lookalike email %s", async (email) => {
+  it("accepts any email under Other, but a listed school still needs its own email", async () => {
+    expect(await signUpAction(previous, form({ institution: "other", email: "student@gmail.com" }))).toMatchObject({ step: "verify" });
+    expect((await signUpAction(previous, form({ institution: "western", email: "student@gmail.com" }))).error).toContain("@uwo.ca");
+    expect((await signUpAction(previous, form({ email: "student@uwo.ca.evil.com" }))).error).toContain("@uwo.ca");
+    expect((await signUpAction(previous, form({ institution: "other", email: "not an email" }))).error).toContain("valid email");
+  });
+  it.each(["student@gmail.com", "student@uwo.ca.evil.com", "student@xuwo.ca"])("with SCHOOL_EMAILS_ONLY=on rejects %s", async (email) => {
+    vi.stubEnv("SCHOOL_EMAILS_ONLY", "on");
     expect((await signUpAction(previous, form({ email }))).error).toContain("school email");
     expect((await signUpAction(previous, form({ email, institution: "other" }))).error).toContain("school email");
     expect(mocks.signup).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
   });
   it("retains verification, resend, and change-email actions", async () => {
     mocks.verify.mockResolvedValue(null);
