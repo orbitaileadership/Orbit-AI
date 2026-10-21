@@ -102,10 +102,10 @@ describe("POST /api/chat", () => {
     expect(res.status).toBe(400);
   });
 
-  it("new chats retain the sidebar/course home when choosing another provider",async()=>{
+  it("rejects answering in one app with another AI's model",async()=>{
     const res=await POST(req({provider:"anthropic",homeProvider:"openai",modelId:"anthropic-default",content:"hi"}));
-    await readEvents(res);
-    expect(state.fake!.db.conversations[0]).toMatchObject({provider:"openai",model_id:"anthropic-default"});
+    expect(res.status).toBe(400);
+    expect(state.fake!.db.conversations).toHaveLength(0);
   });
 
   it("demo mode: creates the chat, streams, saves both messages, never touches the budget", async () => {

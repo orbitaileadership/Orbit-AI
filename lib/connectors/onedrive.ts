@@ -42,6 +42,8 @@ export async function msToken(scopes: string[] = SCOPES, what = "OneDrive"): Pro
   } catch (e) {
     const msg = String((e as Error)?.message ?? "");
     if (/consent|admin/i.test(msg)) throw new ConnectorError(`Your school account needs an administrator to approve Orbit for ${what}. Try a personal Microsoft account, or upload/paste it instead.`);
+    // AADSTS50020 / unauthorized_client: the Microsoft app isn't registered for this kind of account (e.g. personal Hotmail/Outlook.com).
+    if (/AADSTS50020|AADSTS700016|unauthorized_client|not supported for this (user|account)/i.test(msg)) throw new ConnectorError("Microsoft didn't accept this kind of account for Orbit yet. Try your other Microsoft account (school or personal), or ask the Orbit team to allow all Microsoft accounts.");
     throw new ConnectorError("Microsoft sign-in was cancelled or blocked (allow pop-ups for Orbit).");
   }
 }

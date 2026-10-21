@@ -77,6 +77,8 @@ describe("tools (mocked services)", () => {
 describe("Wolfram|Alpha", () => {
   afterEach(() => { delete process.env.WOLFRAM_APP_ID; });
   it("needs the server key, then returns Wolfram's text (and its suggestions when it can't parse)", async () => {
+    delete process.env.WOLFRAM_APP_ID; // a developer shell may have a real key: never call Wolfram from tests
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("no network in tests"); }));
     await expect(runPublicTool("wolfram_query", { input: "2+2" })).rejects.toThrow(/isn't set up/);
     process.env.WOLFRAM_APP_ID = "APPID";
     vi.stubEnv("WOLFRAM_REQUEST_USD_MICROS", "2000");

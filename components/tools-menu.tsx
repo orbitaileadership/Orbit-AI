@@ -126,7 +126,7 @@ export function ToolsMenu(p: {
                         <AppLogo id={c.id} />
                         <span className="min-w-0 flex-1">
                           <span className="block text-sm font-medium">{c.name}</span>
-                          <span className="block truncate text-xs text-ink-subtle">{c.setup ? "Not set up on this server" : c.hint}</span>
+                          <span className="block truncate text-xs text-ink-subtle">{c.setup ? "Coming soon" : c.hint}</span>
                         </span>
                       </button>
                     ))}

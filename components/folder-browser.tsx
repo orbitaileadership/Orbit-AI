@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { folderSections, type Folder } from '@/lib/folders/types';
 import { uploadFile, type UploadedFile } from '@/lib/files/upload-client';
 import { ProjectDialog } from './project-dialog';
+import { FolderIcon, PlusIcon, SectionAction, SidebarSection } from './sidebar-section';
 
 type CourseOption = { id: string; name: string };
 async function request(path: string, body?: object, method = 'POST') {
@@ -52,22 +53,40 @@ export function FolderBrowser({ userId, courseId, active = true, disabled = fals
     });
   }
   const sections = folderSections(folders);
-  return <section aria-label={courseId ? 'Course folders' : 'Folders'} className="mt-5 text-sm">
-    <div className="flex items-center justify-between gap-2 px-3"><h2 className="font-medium">Folders</h2><button disabled={busy || disabled} aria-label="New folder" className="rounded-lg px-2 py-1 hover:bg-surface-200" onClick={() => { setFiles([]); setEditing(null); }}>＋</button></div>
-    {error && <p role="alert" className="my-2 px-3 text-danger">{error}<button className="ml-2 underline" onClick={() => setRevision(v => v + 1)}>Retry</button></p>}
-    {loading && <p role="status" className="px-3 py-2 text-ink-muted">Loading folders…</p>}
-    {(['pinned', 'recent'] as const).map(section => <div key={section} className="mt-3">
-      <h3 className="px-3 text-xs text-ink-subtle">{section === 'pinned' ? 'Pinned folders' : 'Recent folders'}</h3>
-      {!sections[section].length && <p className="px-3 py-2 text-xs text-ink-muted">{section === 'pinned' ? 'Pin folders to keep them here.' : 'No recent folders.'}</p>}
-      {sections[section].map(folder => <div key={folder.id} className="flex items-center rounded-xl hover:bg-surface-200">
-        <button disabled={busy || disabled} className="min-w-0 flex-1 truncate px-3 py-2.5 text-left" onClick={() => act(async () => {
-          const data = await request(`/api/projects/${folder.id}`, { opened: true }, 'PATCH'); changed(); onOpen(data.project);
-        })}>{folder.name}</button>
-        <button disabled={busy || disabled} className="rounded-lg p-2 text-ink-muted hover:text-ink" aria-label={`${folder.pinned_at ? 'Unpin' : 'Pin'} ${folder.name}`} onClick={() => act(async () => { await request(`/api/projects/${folder.id}`, { pinned: !folder.pinned_at }, 'PATCH'); changed(); })}>{folder.pinned_at ? '★' : '☆'}</button>
-        <button disabled={busy || disabled} className="rounded-lg p-2 text-ink-muted hover:text-ink" aria-label={`${folder.name} settings and files`} onClick={() => settings(folder)}>⋯</button>
-      </div>)}
-    </div>)}
-    {!folders.length && !loading && <button disabled={busy || disabled} className="px-3 py-3 text-ink-muted hover:text-ink" onClick={() => { setFiles([]); setEditing(null); }}>＋ Create a folder</button>}
+  const create = () => { setFiles([]); setEditing(null); };
+  const open = (folder: Folder) => act(async () => { const data = await request(`/api/projects/${folder.id}`, { opened: true }, 'PATCH'); changed(); onOpen(data.project); });
+  const row = (folder: Folder) => {
+    const pinned = Boolean(folder.pinned_at);
+    return <div key={folder.id} className="group/row flex items-center rounded-xl transition-colors hover:bg-surface-200">
+      <button disabled={busy || disabled} className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 text-left text-[15px]" onClick={() => open(folder)}>
+        <span className={pinned ? 'text-brand' : 'text-ink-muted'}><FolderIcon filled={pinned} /></span>
+        <span className="truncate">{folder.name}</span>
+      </button>
+      <button disabled={busy || disabled} aria-label={`${pinned ? 'Unpin' : 'Pin'} ${folder.name}`} title={pinned ? 'Unpin' : 'Pin to top'}
+        className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition hover:bg-surface-300 hover:text-ink ${pinned ? 'text-brand' : 'text-ink-subtle md:opacity-0 md:group-hover/row:opacity-100'}`}
+        onClick={() => act(async () => { await request(`/api/projects/${folder.id}`, { pinned: !pinned }, 'PATCH'); changed(); })}>
+        <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M9.8 2.2l4 4-2.1.7-2.3 2.3.3 3-1.1 1.1-2.4-2.4L3 14.1 1.9 13l3.2-3.2-2.4-2.4 1.1-1.1 3 .3 2.3-2.3z" fill={pinned ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>
+      </button>
+      <button disabled={busy || disabled} aria-label={`${folder.name} settings and files`} title="Settings and files"
+        className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-lg text-ink-subtle transition hover:bg-surface-300 hover:text-ink md:opacity-0 md:group-hover/row:opacity-100"
+        onClick={() => settings(folder)}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><circle cx="3.5" cy="8" r="1.2" fill="currentColor" /><circle cx="8" cy="8" r="1.2" fill="currentColor" /><circle cx="12.5" cy="8" r="1.2" fill="currentColor" /></svg>
+      </button>
+    </div>;
+  };
+  return <SidebarSection title={courseId ? 'Course folders' : 'Folders'} storageKey={courseId ? 'course-folders' : 'folders'}
+    action={<SectionAction label="New folder" onClick={create} disabled={busy || disabled}><PlusIcon /></SectionAction>}>
+    <div aria-label={courseId ? 'Course folders' : 'Folders'} className="space-y-0.5">
+      {error && <p role="alert" className="mx-3 my-1 text-xs text-danger">{error} <button className="underline" onClick={() => setRevision(v => v + 1)}>Retry</button></p>}
+      {loading && [0, 1].map(n => <div key={n} className="mx-3 my-2 flex items-center gap-3"><span className="pending-line h-4 w-4 rounded" /><span className="pending-line h-3 flex-1 rounded-full" /></div>)}
+      {sections.pinned.map(row)}
+      {sections.pinned.length > 0 && sections.recent.length > 0 && <div className="mx-3 my-1.5 border-t border-line" />}
+      {sections.recent.map(row)}
+      {!folders.length && !loading && <button disabled={busy || disabled} className="group/new flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] text-ink-muted transition hover:bg-surface-200 hover:text-ink" onClick={create}>
+        <span className="relative"><FolderIcon /><span className="absolute -bottom-1 -right-1 grid h-2.5 w-2.5 place-items-center rounded-full bg-surface-100 text-[10px] leading-none">+</span></span>
+        New folder
+      </button>}
+    </div>
     <ProjectDialog open={editing !== undefined} initial={editing ?? undefined} courses={courses} defaultCourseId={courseId}
       files={files} uploading={uploading} error={error} onClose={() => { dialogVersion.current++; setEditing(undefined); }}
       onSave={async value => act(async () => { await request(editing ? `/api/projects/${editing.id}` : '/api/projects', value, editing ? 'PATCH' : 'POST'); setEditing(undefined); changed(); })}
@@ -78,5 +97,5 @@ export function FolderBrowser({ userId, courseId, active = true, disabled = fals
         finally { setUploading([]); }
       }); } : undefined}
       onDeleteFile={editing ? id => { void act(async () => { await request(`/api/files/${id}`, {}, 'DELETE'); setFiles(old => old.filter(f => f.id !== id)); changed({ filesFor: editing.id }); }); } : undefined}/>
-  </section>;
+  </SidebarSection>;
 }
