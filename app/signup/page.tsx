@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getEligibleUser } from "@/lib/auth/session";
 import { AuthCard, TextLink } from "@/components/auth-ui";
 import { RegistrationForm } from "./registration-form";
+import { openSignupEnabled } from "@/lib/auth/eligibility";
 
 export default async function SignUpPage() {
   if (await getEligibleUser()) redirect("/");
@@ -12,7 +13,7 @@ export default async function SignUpPage() {
       subtitle="Start with your institution."
       footer={<>Already have an account? <TextLink href="/login">Sign in</TextLink></>}
     >
-      <RegistrationForm />
+      <RegistrationForm openSignup={openSignupEnabled()} />
     </AuthCard>
   );
 }

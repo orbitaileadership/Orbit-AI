@@ -6,7 +6,7 @@ import { INSTITUTIONS, institution } from "@/config/institutions";
 import { Field, FormAlert, inputClass, primaryButtonClass } from "@/components/auth-ui";
 import { SignUpForm } from "./signup-form";
 
-export function RegistrationForm() {
+export function RegistrationForm({ openSignup = false }: { openSignup?: boolean }) {
   const [school, setSchool] = useState("");
   const selected = institution(school);
   return (
@@ -17,6 +17,7 @@ export function RegistrationForm() {
           <option value="" disabled>Select your institution</option>
           {INSTITUTIONS.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           <option value="other">My institution isn’t listed</option>
+          {openSignup && <option value="personal">I don’t have a school email</option>}
         </select>
       </div>
       <div id="registration-details">
@@ -25,8 +26,14 @@ export function RegistrationForm() {
           <p className="mb-5 text-sm leading-6 text-ink-muted">Create your Western account. We’ll email you a code to verify your @uwo.ca address. Early-access approval may still be required.</p>
           <SignUpForm />
         </div>
-        {school && school !== "western" && <WaitlistForm key={school} school={school} name={selected?.name} />}
-        {!school && <p className="text-sm leading-6 text-ink-muted">Choose your institution to create a Western account or join your institution’s waitlist.</p>}
+        {openSignup && (
+          <div hidden={school !== "personal"}>
+            <p className="mb-5 text-sm leading-6 text-ink-muted">Create an account with any email you use, like Gmail, Outlook or iCloud. We’ll email you a code to verify it. Early-access approval may still be required.</p>
+            <SignUpForm personal />
+          </div>
+        )}
+        {school && school !== "western" && school !== "personal" && <WaitlistForm key={school} school={school} name={selected?.name} />}
+        {!school && <p className="text-sm leading-6 text-ink-muted">Choose your institution to create a Western account or join your institution’s waitlist.{openSignup ? " No school email? Choose “I don’t have a school email”." : ""}</p>}
       </div>
     </div>
   );

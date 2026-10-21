@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { isAllowedEmail } from "./eligibility";
+import { isAllowedEmail, notAllowedMessage } from "./eligibility";
 import { friendlyAuthError, logAuthError } from "./errors";
 
 // Confirms an email with the one-time code from the sign-up email. Leaves the user signed in.
@@ -15,7 +15,7 @@ export async function verifyEmailCode(email: string, rawCode: string): Promise<s
   }
   if (!isAllowedEmail(data.user.email)) {
     await supabase.auth.signOut();
-    return "Orbit AI is only open to @uwo.ca email addresses.";
+    return notAllowedMessage();
   }
   return null;
 }

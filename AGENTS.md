@@ -13,7 +13,7 @@ For Orbit engineering work, follow [docs/ENGINEERING_PROTOCOL.md](docs/ENGINEERI
 ## Safeguards
 
 - Secrets and provider API calls stay server-side. Never expose keys or log student message content. Use synthetic test accounts and data.
-- Enforce exact verified `uwo.ca` eligibility, early-access/waitlist rules, ownership checks and RLS on the server. Other institutions' waitlist forms do not grant app access.
+- Enforce exact verified `uwo.ca` eligibility (or any verified email only while the server has `OPEN_SIGNUP=on`; see `docs/DECISIONS.md`), early-access/waitlist rules, ownership checks and RLS on the server. Other institutions' waitlist forms do not grant app access.
 - Every billable model call requires atomic reserve → call → reconcile, including retries and tool rounds. Preserve budget limits and failure handling.
 - No silent provider substitution or history dropping. Preserve disclosed context handling, truthful citations and explicit incomplete-response states.
 - Keep payments disabled until Jake explicitly approves complete billing rules and activation.

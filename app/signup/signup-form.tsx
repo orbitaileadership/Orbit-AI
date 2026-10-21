@@ -5,7 +5,7 @@ import { Field, FormAlert, linkButtonClass, primaryButtonClass } from "@/compone
 import { PASSWORD_MIN } from "@/lib/auth/password";
 import { signUpAction, type SignUpState } from "./actions";
 
-export function SignUpForm() {
+export function SignUpForm({ personal = false }: { personal?: boolean }) {
   const [state, action, pending] = useActionState<SignUpState, FormData>(signUpAction, {
     step: "details",
     email: "",
@@ -14,10 +14,10 @@ export function SignUpForm() {
   if (state.step === "verify") {
     return (
       <form action={action} className="flex flex-col gap-4">
-        <input type="hidden" name="institution" value="western" />
+        <input type="hidden" name="institution" value={personal ? "personal" : "western"} />
         <FormAlert error={state.error} message={state.message} />
         <input type="hidden" name="email" value={state.email} />
-        <Field label="Verification code" id="code" required autoComplete="one-time-code" inputMode="numeric"
+        <Field label="Verification code" id={personal ? "personal-code" : "code"} name="code" required autoComplete="one-time-code" inputMode="numeric"
           maxLength={10} placeholder="123456" autoFocus />
         <button type="submit" name="intent" value="verify" disabled={pending} className={primaryButtonClass}>
           {pending ? "Checking…" : "Verify email"}
@@ -36,13 +36,13 @@ export function SignUpForm() {
 
   return (
     <form action={action} className="flex flex-col gap-4">
-      <input type="hidden" name="institution" value="western" />
+      <input type="hidden" name="institution" value={personal ? "personal" : "western"} />
       <FormAlert error={state.error} message={state.message} />
-      <Field label="Western email" id="email" type="email" required autoComplete="email" inputMode="email"
-        placeholder="you@uwo.ca" defaultValue={state.email} key={state.email} />
-      <Field label="Password" id="password" type="password" required autoComplete="new-password"
+      <Field label={personal ? "Email" : "Western email"} id={personal ? "personal-email" : "email"} name="email" type="email" required autoComplete="email" inputMode="email"
+        placeholder={personal ? "you@gmail.com" : "you@uwo.ca"} defaultValue={state.email} key={state.email} />
+      <Field label="Password" id={personal ? "personal-password" : "password"} name="password" type="password" required autoComplete="new-password"
         minLength={PASSWORD_MIN} hint={`At least ${PASSWORD_MIN} characters, with a letter and a number.`} />
-      <Field label="Confirm password" id="confirm" type="password" required autoComplete="new-password"
+      <Field label="Confirm password" id={personal ? "personal-confirm" : "confirm"} name="confirm" type="password" required autoComplete="new-password"
         minLength={PASSWORD_MIN} />
       <button type="submit" name="intent" value="signup" disabled={pending} className={primaryButtonClass}>
         {pending ? "Creating account…" : "Create account"}

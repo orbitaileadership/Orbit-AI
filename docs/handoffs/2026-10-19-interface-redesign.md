@@ -46,3 +46,9 @@
 - Plugins whose sign-in isn't configured show "Coming soon" instead of installing into a broken state; admins see the missing setting. Setup checklist added to `docs/INTEGRATIONS.md`.
 - Test isolation: three tests failed only because this machine's shell has real `WOLFRAM_APP_ID`, `SMART_MEMORY_ENABLED`/`OPENAI_API_KEY` set (one made a live Wolfram call) or lacks Windows symlink rights. Tests now ignore the real environment and use a junction on Windows. Full suite: 537/537.
 - Not verified: live sign-in for any provider (keys aren't set locally); production env presence is unknown from here.
+
+## Update — optional sign-up without a school email (Oct 20)
+
+- `OPEN_SIGNUP=on` (server env, default off) adds "I don't have a school email" to sign-up and accepts verified addresses at any valid public domain on every gate (`isAllowedEmail`). Off = unchanged @uwo.ca-only behaviour. Western form stays @uwo.ca-only; waitlist/early access still gates the app and its budget.
+- Second-model review: no bypass found (off path identical, verification still required, regex not ReDoS-prone, forged `personal` refused when off). Fixed: reset page reads the switch per request; @uwo.ca via the personal form recorded as Western; added gate tests for both switch states.
+- Open: Jake's confirmation before enabling; with `WAITLIST_MODE=off` + `OPEN_SIGNUP=on` every verified account gets the trial allowance and nothing stops alias/disposable-email trial farming (add captcha/rate limits/blocklist first); migration 0009's sign-up analytics counts only @uwo.ca.

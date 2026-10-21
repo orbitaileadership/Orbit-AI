@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { isAllowedEmail, normalizeEmail } from "@/lib/auth/eligibility";
+import { isAllowedEmail, isSchoolEmail, normalizeEmail, notAllowedMessage, openSignupEnabled } from "@/lib/auth/eligibility";
 import { friendlyAuthError, logAuthError } from "@/lib/auth/errors";
 import { institution } from "@/config/institutions";
 import { passwordProblem } from "@/lib/auth/password";
@@ -19,14 +19,16 @@ export async function signUpAction(prev: SignUpState, formData: FormData): Promi
   const intent = String(formData.get("intent") ?? "signup");
   const email = normalizeEmail(String(formData.get("email") ?? prev.email ?? ""));
 
+  // "personal" = the "I don't have a school email" option, only while the team has OPEN_SIGNUP=on.
+  const personal = formData.get("institution") === "personal" && openSignupEnabled();
   const school = institution(formData.get("institution"));
-  if (school?.id !== "western") {
+  if (!personal && school?.id !== "western") {
     return { step: "details", email, error: "Select Western University to create an account. Other institutions can join the waitlist." };
   }
 
   if (intent === "back") return { step: "details", email };
-  if (!isAllowedEmail(email)) {
-    return { step: "details", email, error: "Orbit AI is only open to @uwo.ca email addresses." };
+  if (personal ? !isAllowedEmail(email) : !isSchoolEmail(email)) {
+    return { step: "details", email, error: personal ? notAllowedMessage() : "Use your @uwo.ca address for a Western account." };
   }
 
   if (intent === "verify") {
@@ -46,7 +48,7 @@ export async function signUpAction(prev: SignUpState, formData: FormData): Promi
   if (problem) return { step: "details", email, error: problem };
 
   const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: { institution: school.id, institution_name: school.name } } });
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { data: personal && !isSchoolEmail(email) ? { institution: "personal", institution_name: "No school email" } : personal ? { institution: "western", institution_name: "Western University" } : { institution: school!.id, institution_name: school!.name } } });
   if (error) {
     logAuthError("signUp", error);
     return { step: "details", email, error: friendlyAuthError(error, "send") };

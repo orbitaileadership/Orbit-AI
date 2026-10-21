@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ signup: vi.fn(), verify: vi.fn(), resend: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { signUp: mocks.signup } }) }));
 vi.mock("@/lib/auth/flows", () => ({ verifyEmailCode: mocks.verify, resendSignupCode: mocks.resend }));
@@ -43,5 +43,28 @@ describe("institution-aware Western registration", () => {
   it("rejects non-Western institution claims even on verification requests", async () => {
     expect((await signUpAction(previous, form({ intent: "verify", institution: "other" }))).error).toContain("Select Western");
     expect(mocks.verify).not.toHaveBeenCalled();
+  });
+});
+
+describe("no school email option", () => {
+  beforeEach(() => { vi.clearAllMocks(); mocks.signup.mockResolvedValue({ data: { user: { id: "u" } }, error: null }); });
+  afterEach(() => { vi.unstubAllEnvs(); });
+  it("is refused while open sign-up is off", async () => {
+    vi.stubEnv("OPEN_SIGNUP", "");
+    const out = await signUpAction(previous, form({ institution: "personal", email: "student@gmail.com" }));
+    expect(out.error).toContain("Western");
+    expect(mocks.signup).not.toHaveBeenCalled();
+  });
+  it("accepts a verified personal email when the team turns it on", async () => {
+    vi.stubEnv("OPEN_SIGNUP", "on");
+    const out = await signUpAction(previous, form({ institution: "personal", email: " Student@Gmail.com " }));
+    expect(out.step).toBe("verify");
+    expect(mocks.signup).toHaveBeenCalledWith(expect.objectContaining({ email: "student@gmail.com", options: { data: { institution: "personal", institution_name: "No school email" } } }));
+  });
+  it("keeps the Western form for @uwo.ca only, even when open", async () => {
+    vi.stubEnv("OPEN_SIGNUP", "on");
+    const out = await signUpAction(previous, form({ institution: "western", email: "student@gmail.com" }));
+    expect(out.error).toContain("@uwo.ca");
+    expect(mocks.signup).not.toHaveBeenCalled();
   });
 });

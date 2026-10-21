@@ -5,7 +5,7 @@ import { useActionState } from "react";
 import { Field, FormAlert, linkButtonClass, primaryButtonClass } from "@/components/auth-ui";
 import { signInAction, type SignInState } from "./actions";
 
-export function LoginForm({ initialMessage }: { initialMessage?: string }) {
+export function LoginForm({ initialMessage, open = false }: { initialMessage?: string; open?: boolean }) {
   const [state, action, pending] = useActionState<SignInState, FormData>(signInAction, {
     step: "credentials",
     email: "",
@@ -37,8 +37,8 @@ export function LoginForm({ initialMessage }: { initialMessage?: string }) {
   return (
     <form action={action} className="flex flex-col gap-4">
       <FormAlert error={state.error} message={state.message} />
-      <Field label="Western email" id="email" type="email" required autoComplete="email" inputMode="email"
-        placeholder="you@uwo.ca" defaultValue={state.email} key={state.email} />
+      <Field label={open ? "Email" : "Western email"} id="email" type="email" required autoComplete="email" inputMode="email"
+        placeholder={open ? "you@uwo.ca or you@gmail.com" : "you@uwo.ca"} defaultValue={state.email} key={state.email} />
       <Field label="Password" id="password" type="password" required autoComplete="current-password" />
       <div className="-mt-2 text-right">
         <Link href="/reset" className="text-sm text-ink-muted underline underline-offset-[3px]">
