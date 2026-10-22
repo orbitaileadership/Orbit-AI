@@ -78,7 +78,7 @@ const STARTERS = [
 ];
 const greetingFor = (name: string) => { const h = new Date().getHours(); return `${h < 5 || h >= 18 ? "Good evening" : h < 12 ? "Good morning" : "Good afternoon"}${name ? `, ${name}` : ""}`; };
 
-export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLaunch, userId, account }: { userId: string; isAdmin?: boolean; account?: (compact: boolean) => ReactNode; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
+export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLaunch, userId, account, visible=true, dots, onActivity }: { userId: string; isAdmin?: boolean; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
   const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
   const [course,setCourse]=useState<{id:string;name:string}|null>(null);
   const [chats,setChats]=useState<Chat[]>([]), [active,setActive]=useState<string|null>(null);
@@ -108,6 +108,13 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{refresh().catch(()=>setError("Could not load Orbit chats."));return()=>controller.current?.abort();},[refresh]);
   useEffect(()=>{bottom.current?.scrollIntoView({behavior:"smooth"});},[messages,phase]);
+  // Orbit stays mounted while the student is elsewhere: report running (orange) / finished-unseen (blue) for the app rail.
+  const seen=useRef(true);
+  useEffect(()=>{
+    if(busy){seen.current=visible;onActivity?.("running");return;}
+    if(visible){seen.current=true;onActivity?.(null);}
+    else if(!seen.current)onActivity?.("done");
+  },[busy,visible,onActivity]);
   useEffect(()=>{fetch("/api/profile").then(r=>r.ok?r.json():null).then((j:{profile?:{display_name?:string}}|null)=>{if(j)setFirstName((j.profile?.display_name??"").trim().split(/\s+/)[0]??"");}).catch(()=>{});},[]);
   async function openChat(id:string) {
     const token=++view.current;setFiles([]);setLoading(true);setSidebar(false);setError("");
@@ -216,7 +223,7 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
   );
 
   return <div className="flex h-dvh bg-surface-000 font-ui text-ink">
-    <AppRail active="orbit" busy={busy} onOrbit={()=>{}} onProvider={onSelectProvider} account={account?.(true)}/>
+    <AppRail active="orbit" dots={dots} onOrbit={()=>{}} onProvider={onSelectProvider} account={account?.(true)}/>
     {sidebar&&<div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={()=>setSidebar(false)}/>}
     <aside className={`fixed inset-y-0 left-0 z-30 flex w-72 shrink-0 flex-col bg-surface-100 transition-transform md:static md:translate-x-0 ${sidebar?"translate-x-0":"-translate-x-full"}`}>
       <div className="flex items-center gap-2.5 px-5 pb-3 pt-5">
@@ -229,7 +236,7 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
           <span aria-hidden className="orbit-send -ml-0.5 grid h-[22px] w-[22px] place-items-center rounded-full text-white transition-transform group-hover/new:rotate-90"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg></span>
           New chat
         </button>
-        <button onClick={onCourses} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50">
+        <button onClick={onCourses} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50">
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M3 5.5 10 3l7 2.5L10 8 3 5.5zM5.5 7v4.2c0 1.3 2 2.3 4.5 2.3s4.5-1 4.5-2.3V7M17 5.5V10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Courses
         </button>
@@ -260,7 +267,7 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
             <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-6M14 13.5H2" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>Analytics</a>}
           {active&&<button disabled={busy||loading} onClick={deleteChat} aria-label="Delete chat" title="Delete chat" className="grid h-9 w-9 place-items-center rounded-full text-ink-muted hover:bg-surface-200 hover:text-danger disabled:opacity-40">
             <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
-          <AppSwitcher active="orbit" busy={busy} onOrbit={()=>{}} onProvider={onSelectProvider}/>
+          <AppSwitcher active="orbit" dots={dots} onOrbit={()=>{}} onProvider={onSelectProvider}/>
         </div>
       </header>
       {empty ? <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-[8vh]">

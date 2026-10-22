@@ -25,10 +25,21 @@ export function OrbitGlyph({ size = 22, className = "" }: { size?: number; class
   );
 }
 
+type Dots = Partial<Record<ProviderId | "orbit", "running" | "done">>;
+
+/** Orange pulsing = an answer is still running there; blue = it finished while you were elsewhere. */
+export function RunDot({ state, className = "" }: { state: "running" | "done"; className?: string }) {
+  return (
+    <span role="status" aria-label={state === "running" ? "Answer running" : "New answer"} title={state === "running" ? "Answer running" : "New answer"}
+      className={`run-dot run-dot-${state} inline-block h-2.5 w-2.5 shrink-0 rounded-full ${className}`} />
+  );
+}
+
 /** The left rail on computers: Orbit mode plus the four AI apps, and the account button at the bottom. */
-export function AppRail({ active, busy, onOrbit, onProvider, account }: {
+export function AppRail({ active, busy, onOrbit, onProvider, account, dots = {} }: {
   active: ProviderId | "orbit";
   busy?: boolean;
+  dots?: Dots;
   onOrbit: () => void;
   onProvider: (p: ProviderId) => void;
   account: ReactNode;
@@ -42,14 +53,14 @@ export function AppRail({ active, busy, onOrbit, onProvider, account }: {
       <Image src="/brand/orbit-mark.png" alt="Orbit AI" width={32} height={32} className="logo-mono mb-3 h-8 w-8 object-contain" />
       <button onClick={onOrbit} disabled={busy && active !== "orbit"} aria-pressed={active === "orbit"} title="Orbit mode"
         className="group flex flex-col items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50">
-        <span className={tile(active === "orbit")}>{marker(active === "orbit")}<OrbitGlyph size={24} /></span>
+        <span className={tile(active === "orbit")}>{marker(active === "orbit")}<OrbitGlyph size={24} />{dots.orbit && <RunDot state={dots.orbit} className="absolute -right-0.5 -top-0.5 ring-2 ring-surface-100" />}</span>
         <span className={label(active === "orbit")}>Orbit</span>
       </button>
       <span aria-hidden className="my-0.5 h-px w-8 bg-line" />
       {PROVIDERS.map((p) => (
         <button key={p} onClick={() => onProvider(p)} disabled={busy && p !== active} aria-pressed={p === active} title={THEMES[p].appName}
           className="group flex flex-col items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50">
-          <span className={tile(p === active)}>{marker(p === active)}<ProviderLogo provider={p} size={24} /></span>
+          <span className={tile(p === active)}>{marker(p === active)}<ProviderLogo provider={p} size={24} />{dots[p] && <RunDot state={dots[p]!} className="absolute -right-0.5 -top-0.5 ring-2 ring-surface-100" />}</span>
           <span className={label(p === active)}>{THEMES[p].appName}</span>
         </button>
       ))}
@@ -59,20 +70,22 @@ export function AppRail({ active, busy, onOrbit, onProvider, account }: {
 }
 
 /** Phone header: the same switcher as small icons. */
-export function AppSwitcher({ active, busy, onOrbit, onProvider }: {
+export function AppSwitcher({ active, busy, onOrbit, onProvider, dots = {} }: {
   active: ProviderId | "orbit";
   busy?: boolean;
+  dots?: Dots;
   onOrbit: () => void;
   onProvider: (p: ProviderId) => void;
 }) {
   return (
     <div className="flex gap-0.5 md:hidden" role="group" aria-label="AI apps">
       <button onClick={onOrbit} disabled={busy && active !== "orbit"} aria-pressed={active === "orbit"} aria-label="Orbit mode"
-        className={`grid h-8 w-8 place-items-center rounded-xl ${active === "orbit" ? "bg-surface-300" : ""}`}><OrbitGlyph size={19} /></button>
+        className={`relative grid h-8 w-8 place-items-center rounded-xl ${active === "orbit" ? "bg-surface-300" : ""}`}><OrbitGlyph size={19} />{dots.orbit && <RunDot state={dots.orbit} className="absolute right-0 top-0 h-2 w-2" />}</button>
       {PROVIDERS.map((p) => (
         <button key={p} onClick={() => onProvider(p)} disabled={busy && p !== active} aria-pressed={p === active} aria-label={THEMES[p].appName}
-          className={`grid h-8 w-8 place-items-center rounded-xl ${p === active ? "bg-surface-300" : ""}`}>
+          className={`relative grid h-8 w-8 place-items-center rounded-xl ${p === active ? "bg-surface-300" : ""}`}>
           <ProviderLogo provider={p} size={19} />
+          {dots[p] && <RunDot state={dots[p]!} className="absolute right-0 top-0 h-2 w-2" />}
         </button>
       ))}
     </div>
