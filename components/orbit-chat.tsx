@@ -13,6 +13,7 @@ import { OrbitVotePanel } from "@/components/orbit-vote-panel";
 import { FileChip } from "@/components/file-chip";
 import { fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { Markdown } from "@/components/markdown";
+import { SpeakButton } from "@/components/speak-button";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Decision } from "@/lib/orbit/voting";
 
@@ -78,7 +79,7 @@ const STARTERS = [
 ];
 const greetingFor = (name: string) => { const h = new Date().getHours(); return `${h < 5 || h >= 18 ? "Good evening" : h < 12 ? "Good morning" : "Good afternoon"}${name ? `, ${name}` : ""}`; };
 
-export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLaunch, userId, account, visible=true, dots, onActivity }: { userId: string; isAdmin?: boolean; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
+export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, account, visible=true, dots, onActivity }: { userId: string; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
   const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
   const [course,setCourse]=useState<{id:string;name:string}|null>(null);
   const [chats,setChats]=useState<Chat[]>([]), [active,setActive]=useState<string|null>(null);
@@ -263,8 +264,6 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
         <button onClick={()=>setSidebar(true)} className="rounded-md p-1 text-ink-muted hover:text-ink md:hidden" aria-label="Open menu"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
         <span className="hidden items-center gap-2 text-lg sm:flex">Orbit <span className="text-ink-subtle">4 AIs</span></span>
         <div className="ml-auto flex items-center gap-1">
-          {isAdmin&&<a href="/admin/analytics" className="hidden items-center gap-1.5 rounded-full px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink md:flex">
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-6M14 13.5H2" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>Analytics</a>}
           {active&&<button disabled={busy||loading} onClick={deleteChat} aria-label="Delete chat" title="Delete chat" className="grid h-9 w-9 place-items-center rounded-full text-ink-muted hover:bg-surface-200 hover:text-danger disabled:opacity-40">
             <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
           <AppSwitcher active="orbit" dots={dots} onOrbit={()=>{}} onProvider={onSelectProvider}/>
@@ -287,14 +286,14 @@ export function OrbitChat({ isAdmin=false, onSelectProvider, onCourses, courseLa
             {loading&&<p role="status" className="orbit-shimmer text-sm">Opening chat…</p>}
             {dropped&&<p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">Recent messages and any available summary are used. Older history may be left out or partly summarized. This view shows the latest {ORBIT.contextRows} saved messages.</p>}
             {messages.map((m,idx)=>m.role==="user"
-              ? <div key={m.id} className="msg-in mb-8 flex justify-end"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div></div>
+              ? <div key={m.id} className="group msg-in mb-8 flex flex-col items-end gap-1"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div><div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100"><CopyButton text={m.content}/></div></div>
               : <article key={m.id} className="msg-in mb-8">
                 {m.orbit_details&&<LeadChip decision={m.orbit_details}/>}
                 {m.status==="streaming"&&!m.content
                   ? <OrbitVotePanel phase={phase} decision={decision} message={PHASES[phase]??"Working…"}/>
                   : <div className={`text-[16px] leading-7 ${m.status==="streaming"?"md-streaming":""}`}><Markdown text={hideRememberMarkers(m.content)} final={m.status!=="streaming"}/></div>}
                 {m.status==="partial"&&<p className="mt-2 text-xs text-ink-subtle">[Incomplete answer]</p>}
-                {m.status!=="streaming"&&m.content.trim()&&<div className="mt-1.5 -ml-1.5 flex items-center gap-0.5"><CopyButton text={hideRememberMarkers(m.content)}/>{idx===messages.length-1&&m.model_id&&<span className="ml-1 text-[11px] text-ink-subtle">{getModel(m.model_id)?.label}</span>}</div>}
+                {m.status!=="streaming"&&m.content.trim()&&<div className="mt-1.5 -ml-1.5 flex items-center gap-0.5"><CopyButton text={hideRememberMarkers(m.content)}/><SpeakButton compact id={m.id} text={hideRememberMarkers(m.content)}/>{idx===messages.length-1&&m.model_id&&<span className="ml-1 text-[11px] text-ink-subtle">{getModel(m.model_id)?.label}</span>}</div>}
               </article>)}
             {error&&<p role="alert" className="mb-4 rounded-xl border border-line-strong bg-surface-100 p-4 text-sm">{error}</p>}
             <div ref={bottom}/>

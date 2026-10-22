@@ -17,7 +17,6 @@ export interface ProviderTheme {
   placeholder: string;        // empty-chat composer text, as each app words it
   replyPlaceholder: string;   // composer text once a chat has messages
   recentsLabel: string;       // heading over the chat list
-  headerModel?: boolean;      // model picker in the top bar (ChatGPT) instead of the composer
   sidebarTitleClass: string;  // app name beside the logo at the top of the sidebar
   newChatAccent?: boolean;    // "New chat" with a filled brand circle (Claude)
   replyAvatar?: boolean;  // the app's mark beside each reply (Gemini)
@@ -43,7 +42,6 @@ export const THEMES: Record<ProviderId, ProviderTheme> = {
     placeholder: "Ask anything",
     replyPlaceholder: "Ask anything",
     recentsLabel: "Chats",
-    headerModel: true,
     sidebarTitleClass: "sr-only",
     chipClass: "rounded-full border border-line px-3.5 py-2 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink",
     greetingClass: "text-[24px] font-normal tracking-tight sm:text-[28px]",
