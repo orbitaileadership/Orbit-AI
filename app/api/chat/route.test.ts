@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeSupabase } from "@/test/fake-supabase";
 import type { StreamEvent } from "@/lib/providers/types";
 import { ProviderError } from "@/lib/providers/types";
+import { RESPONSE_QUALITY_VERSION } from "@/config/quality";
 
 // Route test with mocked auth, database, budget and providers (no live calls, no money).
 const state = vi.hoisted(() => ({
@@ -661,7 +662,7 @@ describe("response completion quality",()=>{
     expect(events.at(-1)).toMatchObject({t:"done",status:"partial",finishReason:"length"});
     expect(state.fake!.db.messages.at(-1)?.status).toBe("partial");
     expect(state.fake!.db.memories??[]).toHaveLength(0);
-    expect(budget.settle).toHaveBeenCalledWith(expect.any(String),"settled",70,expect.anything(),undefined,expect.objectContaining({finishReason:"length",qualityVersion:"student-v1"}));
+    expect(budget.settle).toHaveBeenCalledWith(expect.any(String),"settled",70,expect.anything(),undefined,expect.objectContaining({finishReason:"length",qualityVersion:RESPONSE_QUALITY_VERSION}));
   });
   it("does not execute a tool call whose output/arguments were cut off",async()=>{
     state.live=true;

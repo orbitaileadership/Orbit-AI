@@ -10,6 +10,8 @@ import remarkMath from "remark-math";
 import { hideQuizMarkers } from "@/lib/chat/quiz";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Source } from "./answer-text";
+import { parseWidget } from "@/lib/widgets/schema";
+import { ChatWidget, WidgetPending } from "./chat-widgets";
 
 // Answers rendered the way ChatGPT / Claude / Gemini / Grok show them: headings, lists, tables, code blocks with a
 // language label and Copy, and LaTeX maths. Citation markers ([S1] course files, [W2] web) become small chips.
@@ -52,13 +54,19 @@ function textOf(node: ReactNode): string {
 
 const LANG_NAMES: Record<string, string> = { js: "javascript", ts: "typescript", py: "python", sh: "bash", shell: "bash", cpp: "c++", cs: "c#", md: "markdown", yml: "yaml", tex: "latex" };
 
-function makeComponents(sources: Source[] | undefined): Components {
+function makeComponents(sources: Source[] | undefined, final: boolean): Components {
   const byTag = new Map((sources ?? []).map((s) => [tagOf(s), s]));
   return {
     pre({ children }) {
       const code = Array.isArray(children) ? children[0] : children;
       const cls = (code as { props?: { className?: string } })?.props?.className ?? "";
       const lang = /language-([\w+#-]+)/.exec(cls)?.[1]?.toLowerCase() ?? "";
+      // Interactive widget (calculator, chart, diagram) described as JSON by the AI; shown as code only if invalid.
+      if (lang === "orbit-widget") {
+        const widget = parseWidget(textOf(children));
+        if (widget) return <ChatWidget widget={widget} />;
+        if (!final) return <WidgetPending />;
+      }
       return (
         <div className="md-code not-prose">
           <div className="md-code-head">
@@ -100,7 +108,7 @@ export const Markdown = memo(function Markdown({ text, sources, final = true, cl
       <ReactMarkdown
         remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: "ignore" }], [rehypeHighlight, { detect: false, ignoreMissing: true }]]}
-        components={makeComponents(sources)}
+        components={makeComponents(sources, final)}
         urlTransform={urlTransform}
       >
         {prepareMarkdown(text, sources, final)}
