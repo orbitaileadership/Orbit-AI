@@ -21,7 +21,7 @@ import { ExportMenu, type ExportOption } from "@/components/export-menu";
 import { CopyAnswer, Markdown } from "@/components/markdown";
 import { SettingsDialog, type SettingsTab } from "@/components/settings-dialog";
 import { ImagePending, PendingIndicator } from "@/components/pending-indicator";
-import { AppRail, AppSwitcher } from "@/components/app-rail";
+import { AppRail, AppSwitcher, RunDot } from "@/components/app-rail";
 import { SidebarSection } from "@/components/sidebar-section";
 import { AccountMenu } from "@/components/account-menu";
 import { VoiceButton } from "@/components/voice-button";
@@ -150,7 +150,13 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0");
     } catch {}
   }
-  const [busy, setBusy] = useState(false);
+  // One answer runs at a time, but the student can move around the app while it does. run = the chat it belongs to.
+  const [run, setRun] = useState<{ key: string; provider: ProviderId } | null>(null);
+  const runRef = useRef<{ key: string; provider: ProviderId } | null>(null);
+  const [finished, setFinished] = useState<Record<string, ProviderId>>({}); // answered while the student was elsewhere
+  const [orbitDot, setOrbitDot] = useState<"running" | "done" | null>(null);
+  const [orbitLoaded, setOrbitLoaded] = useState(false); // Orbit mounts on first visit, then stays mounted
+  const viewKeyRef = useRef("");
   const [usage, setUsage] = useState<Usage | null>(null);
   const [ready, setReady] = useState(false); // saved app choice restored
   const [projectDialog, setProjectDialog] = useState<null | { editing?: Project }>(null);
@@ -211,6 +217,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const activeId = activeIds[provider];
   const active = appConvs?.find((c) => c.id === activeId) ?? null;
   const msgKey = active ? active.id : `${DRAFT}:${provider}`;
+  const busy = run !== null && run.key === msgKey; // this chat's answer is still running
+  const otherRunning = run !== null && !busy;      // an answer is running in another chat
   const thread = messages[msgKey] ?? [];
   // Each app uses only its own models; a chat saved with another AI's model (before Oct 19 2026) continues on this app's choice.
   const savedModel = getModel(active?.modelId);
@@ -439,6 +447,21 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
 
   const setActive = (id: string | null) => setActiveIds((prev) => ({ ...prev, [provider]: id }));
 
+  // Which chat the student is looking at, for the running (orange) / finished-unseen (blue) dots.
+  useEffect(() => { if (orbitMode) setOrbitLoaded(true); }, [orbitMode]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    viewKeyRef.current = orbitMode ? "" : msgKey;
+    if (!orbitMode) setFinished((f) => { if (!(msgKey in f)) return f; const next = { ...f }; delete next[msgKey]; return next; }); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [msgKey, orbitMode]);
+  function startRun(key: string) { runRef.current = { key, provider }; setRun(runRef.current); }
+  function moveRun(from: string, to: string) { if (runRef.current?.key === from) { runRef.current = { ...runRef.current, key: to }; setRun(runRef.current); } }
+  function endRun() {
+    const r = runRef.current;
+    runRef.current = null;
+    setRun(null);
+    if (r && viewKeyRef.current !== r.key) setFinished((f) => ({ ...f, [r.key]: r.provider }));
+  }
+
   function adoptConversation(newId: string, title: string, fromKey: string) {
     setMessages((prev) => {
       const next = { ...prev, [newId]: prev[fromKey] ?? [] };
@@ -454,7 +477,9 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         : { id: newId, title, modelId, projectId: filter, updatedAt: new Date().toISOString() };
       return { ...prev, [provider]: [summary, ...list.filter((c) => c.id !== newId)] };
     });
-    setActive(newId);
+    moveRun(fromKey, newId);
+    // Follow the new chat only if the student is still looking at it (they may have moved on while it answers).
+    if (viewKeyRef.current === fromKey) setActive(newId);
   }
 
   async function setModel(id: string) {
@@ -467,7 +492,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   }
 
   function pickProvider(p: ProviderId) {
-    if (busy) return;
     setProvider(p);
     setInput("");
     setImageMode(false);
@@ -648,7 +672,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const busyRef = useRef(false);
   const sendRef = useRef(send);
   useEffect(() => {
-    busyRef.current = busy;
+    busyRef.current = run !== null;
     sendRef.current = send;
   });
   const sendByVoice = useCallback(async (text: string) => {
@@ -660,7 +684,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   async function send(text: string, retry = false, opts: { voice?: boolean; edit?: boolean } = {}) {
     const content = text.trim();
     const ready = pending.filter((p) => p.file);
-    if ((!content && !retry && !ready.length) || busy || pending.some((p) => p.uploading)) return;
+    if ((!content && !retry && !ready.length) || runRef.current || pending.some((p) => p.uploading)) return;
     const key = msgKey;
     const label = currentModel?.label ?? theme.appName;
     stick.current = true; // a new question always brings the view to the bottom
@@ -690,7 +714,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     let convId = active?.id;
     const patchReply = (fn: (m: Message) => Message) => patchMessages(currentKey, (list) => list.map((x) => (x.id === replyTmp ? fn(x) : x)));
 
-    setBusy(true);
+    startRun(key);
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -801,7 +825,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     } finally {
       for (const decide of approvals.current.values()) decide(false);
       approvals.current.clear();
-      setBusy(false);
+      endRun();
       abortRef.current = null;
       loadUsage();
     }
@@ -1003,7 +1027,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const replyTmp = tmpId();
     patchMessages(key, (m) => [...m, { id: replyTmp, role: "assistant", kind: "image", content: prompt, modelId: `${provider}-image`, status: "streaming" }]);
     let currentKey = key;
-    setBusy(true);
+    startRun(key);
     try {
       const res = await fetch("/api/images", {
         method: "POST",
@@ -1024,7 +1048,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         ),
       );
     } finally {
-      setBusy(false);
+      endRun();
       loadUsage();
     }
   }
@@ -1036,7 +1060,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       <span className="h-3 w-3 rounded-[2px] bg-current" />
     </button>
   ) : (
-    <button type="submit" disabled={(!input.trim() && !pending.some((p) => p.file)) || busy || pending.some((p) => p.uploading)} aria-label={imageMode ? "Create image" : "Send"}
+    <button type="submit" disabled={(!input.trim() && !pending.some((p) => p.file)) || run !== null || pending.some((p) => p.uploading)} aria-label={imageMode ? "Create image" : "Send"}
       className={`grid shrink-0 place-items-center bg-brand text-on-brand transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-30 ${theme.sendClass}`}>
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
         <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -1088,7 +1112,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     </div>
   );
 
-  const placeholder = imageMode ? "Describe an image" : empty ? theme.placeholder : theme.replyPlaceholder;
+  const placeholder = otherRunning ? "Another answer is still running. You can type; send when it finishes." : imageMode ? "Describe an image" : empty ? theme.placeholder : theme.replyPlaceholder;
   const installedTools = PLUGINS.filter((p) => p.tools.length && pluginConfigured(p) && extensions.ext.plugins.some((x) => x.id === p.id));
   const mentionOptions = mention ? installedTools.filter((p) => !mentions.includes(p.id) && (p.name.toLowerCase().replace(/\s+/g, "").includes(mention.query.replace(/-/g, "")) || p.id.includes(mention.query))) : [];
   function pickMention(id: PluginId) {
@@ -1279,19 +1303,22 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       }}
     />
   );
-  if (orbitMode) return (
-    <>
-      <OrbitChat isAdmin={isAdmin} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
-        account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />}
-        onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />
-      {settingsDialog}
-    </>
-  );
+  const railDots: Partial<Record<ProviderId | "orbit", "running" | "done">> = {
+    ...Object.fromEntries(Object.values(finished).map((p) => [p, "done"])),
+    ...(orbitDot ? { orbit: orbitDot } : {}),
+    ...(run ? { [run.provider]: "running" } : {}),
+  };
 
   return (
-    <div data-theme={provider} className="flex h-dvh bg-surface-000 font-ui text-ink">
+    <>
+    {(orbitMode || orbitLoaded) && <div hidden={!orbitMode}>
+      <OrbitChat visible={orbitMode} dots={railDots} onActivity={setOrbitDot} isAdmin={isAdmin} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
+        account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />}
+        onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />
+    </div>}
+    <div data-theme={provider} hidden={orbitMode} className="flex h-dvh bg-surface-000 font-ui text-ink">
       {/* App rail */}
-      <AppRail active={provider} busy={busy} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider}
+      <AppRail active={provider} dots={railDots} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider}
         account={<AccountMenu compact isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />} />
 
       {/* This app's projects + chats */}
@@ -1324,7 +1351,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             Search chats
             <kbd className="ml-auto hidden font-sans text-xs text-ink-subtle md:inline">{isMac ? "⌘K" : "Ctrl K"}</kbd>
           </button>
-          <button onClick={onCourses} disabled={busy} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50 ${theme.itemClass}`}>
+          <button onClick={onCourses} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50 ${theme.itemClass}`}>
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M2.5 7.5 10 4l7.5 3.5L10 11 2.5 7.5zM5.5 9v3.6c0 1.2 2 2.4 4.5 2.4s4.5-1.2 4.5-2.4V9M17.5 7.5v4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
             Courses
           </button>
@@ -1336,7 +1363,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
-          <FolderBrowser userId={userId} disabled={busy} onOpen={folder => {
+          <FolderBrowser userId={userId} onOpen={folder => {
             setProjects(prev => Object.fromEntries(PROVIDERS.map(p => [p, [folder, ...prev[p].filter(f => f.id !== folder.id)]])) as Record<ProviderId, Project[]>);
             selectCourse(folder.id);
           }}/>
@@ -1357,7 +1384,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                   ) : (
                     <button onClick={() => { setActive(c.id); setPage("chat"); setSidebarOpen(false); }} onDoubleClick={() => setRenaming(c.id)}
                       aria-current={c.id === activeId ? "page" : undefined} className="min-w-0 flex-1 truncate px-3 py-2 text-left text-[15px]">
-                      {c.title || "Untitled"}
+                      <span className="flex min-w-0 items-center gap-2"><span className="truncate">{c.title || "Untitled"}</span>{run?.key === c.id ? <RunDot state="running" /> : finished[c.id] ? <RunDot state="done" /> : null}</span>
                     </button>
                   )}
                   <button onClick={() => setRenaming(c.id)} aria-label={`Rename ${c.title || "chat"}`}
@@ -1468,7 +1495,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             </div>
           )}
           <div className="ml-auto md:hidden">
-            <AppSwitcher active={provider} busy={busy} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider} />
+            <AppSwitcher active={provider} dots={railDots} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider} />
           </div>
         </header>
 
@@ -1725,7 +1752,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         }} />
       <GitHubDialog open={githubOpen} onClose={() => setGithubOpen(false)} onPicked={(files) => void attachFiles(files)} />
       <OneDriveDialog open={oneDriveOpen} onClose={() => setOneDriveOpen(false)} onPicked={(files) => void attachFiles(files)} />
-      {settingsDialog}
       <ProjectDialog
         open={projectDialog !== null}
         initial={projectDialog?.editing}
@@ -1741,5 +1767,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-surface-000 shadow-menu">{notice}</div>
       )}
     </div>
+    {settingsDialog}
+    </>
   );
 }
