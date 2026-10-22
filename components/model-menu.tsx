@@ -22,16 +22,14 @@ const PremiumTag = () => (
 /**
  * Model picker in the style of the apps' own: this app's current models first (no descriptions, a check on the
  * selected one, number keys 1–9) and older models under "More models ›". Each app offers only its own models
- * (product decision, Oct 19 2026). placement="header" is ChatGPT's "ChatGPT Sol ▾".
+ * (product decision, Oct 19 2026). It sits at the bottom right of the composer in every app.
  */
-export function ModelMenu({ provider, app, value, onChange, disabled, placement = "composer", title }: {
+export function ModelMenu({ provider, app, value, onChange, disabled }: {
   provider: ProviderId;     // provider of the selected model
   app?: ProviderId;         // the app whose menu this is (defaults to provider)
   value: string;
   onChange: (id: string) => void;
   disabled?: boolean;
-  placement?: "composer" | "header";
-  title?: string;
 }) {
   const home = app ?? provider;
   const [open, setOpen] = useState(false);
@@ -84,19 +82,15 @@ export function ModelMenu({ provider, app, value, onChange, disabled, placement 
   const subList = sub === "more" ? more.map((m) => item(m)) : null;
   const moreSelected = Boolean(current && more.includes(current));
 
-  // Opening side: the composer menu sits at the bottom right, the header menu at the top left.
-  const panelPos = placement === "header" ? "left-0 top-full mt-1.5 origin-top-left" : "bottom-full right-0 mb-2 origin-bottom-right";
-  const flyoutPos = placement === "header" ? "left-full top-0 ml-1.5 origin-top-left" : "right-full bottom-0 mr-1.5 origin-bottom-right";
+  // Opens upward and to the left from the bottom-right corner of the composer.
+  const panelPos = "bottom-full right-0 mb-2 origin-bottom-right";
+  const flyoutPos = "right-full bottom-0 mr-1.5 origin-bottom-right";
 
   return (
     <div ref={root} className="relative">
       <button type="button" onClick={() => { setOpen((o) => !o); setSub(null); }} disabled={disabled} aria-haspopup="menu" aria-expanded={open}
-        className={placement === "header"
-          ? `flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-lg text-ink transition hover:bg-surface-200 disabled:opacity-50 ${open ? "bg-surface-200" : ""}`
-          : `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:bg-surface-300 hover:text-ink disabled:opacity-50 ${open ? "bg-surface-300 text-ink" : ""}`}>
-        {placement === "header" && title
-          ? <>{title} <span className="hidden text-ink-subtle sm:inline">{current?.short}</span></>
-          : current?.short ?? "Model"}
+        className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-ink-muted transition hover:bg-surface-300 hover:text-ink disabled:opacity-50 ${open ? "bg-surface-300 text-ink" : ""}`}>
+        {current?.short ?? "Model"}
         <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
           <path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
         </svg>

@@ -10,6 +10,7 @@ import { signOut } from "../login/actions";
 import { ProviderLogo } from "@/components/provider-logo";
 import { OrbitChat } from "@/components/orbit-chat";
 import { ModelMenu } from "@/components/model-menu";
+import { ChatRowMenu } from "@/components/chat-row-menu";
 import { ToolsMenu, type ConnectedApp, type StudyMode } from "@/components/tools-menu";
 import { FolderBrowser } from "@/components/folder-browser";
 import { ProjectDialog } from "@/components/project-dialog";
@@ -1237,8 +1238,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M3 9v2M6.5 6.5v7M10 4v12M13.5 6.5v7M17 9v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
     </button>
   );
-  const modelMenu = imageMode || theme.headerModel ? null : <ModelMenu provider={generationProvider} app={provider} value={modelId} onChange={setModel} disabled={busy} />;
-  const headerModelMenu = !imageMode && theme.headerModel ? <ModelMenu placement="header" title={theme.appName} provider={generationProvider} app={provider} value={modelId} onChange={setModel} disabled={busy} /> : null;
+  const modelMenu = imageMode ? null : <ModelMenu provider={generationProvider} app={provider} value={modelId} onChange={setModel} disabled={busy} />;
 
   const composer = (
     <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="relative w-full"
@@ -1312,7 +1312,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   return (
     <>
     {(orbitMode || orbitLoaded) && <div hidden={!orbitMode}>
-      <OrbitChat visible={orbitMode} dots={railDots} onActivity={setOrbitDot} isAdmin={isAdmin} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
+      <OrbitChat visible={orbitMode} dots={railDots} onActivity={setOrbitDot} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
         account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />}
         onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />
     </div>}
@@ -1387,14 +1387,10 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                       <span className="flex min-w-0 items-center gap-2"><span className="truncate">{c.title || "Untitled"}</span>{run?.key === c.id ? <RunDot state="running" /> : finished[c.id] ? <RunDot state="done" /> : null}</span>
                     </button>
                   )}
-                  <button onClick={() => setRenaming(c.id)} aria-label={`Rename ${c.title || "chat"}`}
-                    className="px-1.5 py-1 text-ink-subtle transition hover:text-ink focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M10.5 2.5l3 3L6 13H3v-3z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
-                  </button>
-                  <button onClick={() => deleteChat(c.id)} aria-label={`Delete ${c.title || "chat"}`}
-                    className="py-1 pl-1.5 pr-3 text-ink-subtle transition hover:text-danger focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                    <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                  </button>
+                  <div className="pr-1.5">
+                    <ChatRowMenu title={c.title || "chat"} folders={projects[provider]} folderId={c.projectId ?? null}
+                      onRename={() => setRenaming(c.id)} onMove={(id) => moveToProject(c.id, id)} onDelete={() => deleteChat(c.id)} />
+                  </div>
                 </div>
               ))}
             </nav>
@@ -1470,7 +1466,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           <button onClick={() => setSidebarOpen(true)} className="rounded-md p-1 text-ink-muted hover:text-ink md:hidden" aria-label="Open menu">
             <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
           </button>
-          {headerModelMenu}
           {activeProject && (
             <button onClick={() => openCourse(activeProject)} title={activeProjectIsFolder ? "Folder settings and files" : "Course workspace"}
               className="flex min-w-0 items-center gap-2 rounded-full px-3 py-1.5 text-sm text-ink-muted hover:bg-surface-200 hover:text-ink">
@@ -1478,19 +1473,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
               <span className="truncate">{activeProject.name}</span>
             </button>
           )}
-          {active && projects[provider].length > 0 && (
-            <label className="ml-auto hidden items-center gap-1.5 text-xs text-ink-subtle sm:flex">
-              Folder
-              <select value={active.projectId ?? ""} onChange={(e) => moveToProject(active.id, e.target.value || null)}
-                className="rounded-full border border-line bg-surface-100 px-2.5 py-1 text-xs text-ink outline-none">
-                <option value="">None</option>
-                {activeProject && !activeProjectIsFolder && <option value={activeProject.id}>Course: {activeProject.name}</option>}
-                {projects[provider].map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-          )}
           {exportable.some((m) => m.role === "assistant") && (
-            <div className={`hidden sm:block ${active && projects[provider].length > 0 ? "" : "ml-auto"}`}>
+            <div className="ml-auto hidden sm:block">
               <ExportMenu label="Export" options={chatOptions()} align="right" />
             </div>
           )}
