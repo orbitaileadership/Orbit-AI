@@ -46,6 +46,9 @@ describe('financial SQL and RLS',()=>{
    await db.exec('reset role');
  });
  it('requires configured FX and creates CAD-capped, time-limited trial once',async()=>{
+   // Migration 0021 seeds a rate; remove it to check the guard, then use a round test rate.
+   expect((await db.query(`select value from public.settings where key='usd_cad_rate'`)).rows).toHaveLength(1);
+   await db.exec(`delete from public.settings where key='usd_cad_rate';`);
    expect(await reserve('fx-missing')).toMatchObject({ok:false,reason:'fx_not_configured'});
    await db.exec(`insert into public.settings values('usd_cad_rate','1.25');`);
    expect(await reserve('r1')).toMatchObject({ok:true});
