@@ -422,3 +422,20 @@ a.md-cite:hover { color: var(--ink); }
 .ft-ppt { color: var(--warning); background: color-mix(in srgb, var(--warning) 16%, var(--surface-100)); }
 .ft-xls { color: var(--success); background: color-mix(in srgb, var(--success) 14%, var(--surface-100)); }
 .ft-img { color: var(--provider-google); background: color-mix(in srgb, var(--provider-google) 14%, var(--surface-100)); }
+
+/* Interactive answer widgets (components/chat-widgets.tsx). Categorical chart palette: the dataviz skill's validated
+   8-slot order (light and dark steps validated against the light/dark chat surfaces). */
+:root { --viz-1: #2a78d6; --viz-2: #eb6834; --viz-3: #1baf7a; --viz-4: #eda100; --viz-5: #e87ba4; --viz-6: #008300; --viz-7: #6250d6; --viz-8: #e34948; }
+@media (prefers-color-scheme: dark) {
+  :root { --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500; --viz-5: #d55181; --viz-6: #008300; --viz-7: #9085e9; --viz-8: #e66767; }
+}
+.chat-widget { animation: msg-in .35s ease-out both; }
+.widget-range { appearance: none; -webkit-appearance: none; height: 6px; border-radius: 999px; background: linear-gradient(to right, var(--brand) var(--fill, 50%), var(--surface-300) var(--fill, 50%)); outline: none; cursor: pointer; }
+.widget-range::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 999px; background: var(--surface-100); border: 2px solid var(--brand); box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: transform .15s; }
+.widget-range::-moz-range-thumb { width: 18px; height: 18px; border-radius: 999px; background: var(--surface-100); border: 2px solid var(--brand); }
+.widget-range:active::-webkit-slider-thumb { transform: scale(1.15); }
+.widget-range:focus-visible { box-shadow: var(--elev-focus); }
+@keyframes widget-draw { from { stroke-dasharray: 2000; stroke-dashoffset: 2000; } to { stroke-dasharray: 2000; stroke-dashoffset: 0; } }
+.widget-line { animation: widget-draw 1.1s ease-out both; }
+.widget-step { animation: msg-in .4s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .chat-widget, .widget-line, .widget-step { animation: none; } }
