@@ -9,7 +9,7 @@ export function RegistrationForm() {
   const [school, setSchool] = useState("");
   const selected = institution(school);
   const tile = (on: boolean) =>
-    `flex min-h-[4.5rem] flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-center text-[11px] leading-tight transition ${
+    `flex min-h-[6.5rem] flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2.5 text-center text-[11px] leading-tight transition ${
       on ? "border-brand bg-surface-200 text-ink shadow-focus" : "border-line bg-surface-100 text-ink-muted hover:border-line-strong hover:text-ink"}`;
   return (
     <div className="space-y-6">
@@ -18,12 +18,12 @@ export function RegistrationForm() {
         <div role="radiogroup" aria-label="School" aria-controls="registration-details" className="mt-2 grid grid-cols-3 gap-2">
           {INSTITUTIONS.map((s) => (
             <button key={s.id} type="button" role="radio" aria-checked={school === s.id} onClick={() => setSchool(s.id)} className={tile(school === s.id)} title={s.name}>
-              <SchoolLogo school={s} className="h-8 w-12 rounded-md p-1" />
-              <span className="line-clamp-2">{s.name.replace(/^University of /, "U of ").replace(" University", "")}</span>
+              <SchoolLogo school={s} size={44} />
+              <span className="line-clamp-2">{s.name}</span>
             </button>
           ))}
           <button type="button" role="radio" aria-checked={school === "other"} onClick={() => setSchool("other")} className={tile(school === "other")}>
-            <span className="grid h-8 w-12 place-items-center rounded-md bg-surface-300 text-ink-muted">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-surface-300 text-ink-muted">
               <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
             </span>
             <span>Other school</span>

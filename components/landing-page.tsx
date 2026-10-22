@@ -93,11 +93,11 @@ export function LandingPage() {
         <section aria-labelledby="schools" className="border-y border-line bg-surface-100">
           <div className="mx-auto max-w-6xl px-5 py-10 text-center sm:px-8">
             <h2 id="schools" className="text-sm font-medium text-ink-muted">Sign up with your school email at</h2>
-            <ul className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
+            <ul className="mt-6 grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-4 lg:grid-cols-8">
               {INSTITUTIONS.map((s) => (
-                <li key={s.id} className="flex flex-col items-center gap-2">
-                  <SchoolLogo school={s} className="h-14 w-20 rounded-xl p-2 shadow-card" />
-                  <span className="text-xs leading-4 text-ink-muted">{s.name}</span>
+                <li key={s.id} className="flex flex-col items-center gap-2.5">
+                  <SchoolLogo school={s} size={80} className="shadow-card" />
+                  <span className="max-w-[9rem] text-xs leading-4 text-ink-muted">{s.name}</span>
                 </li>
               ))}
             </ul>

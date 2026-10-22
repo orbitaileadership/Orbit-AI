@@ -27,11 +27,14 @@ function AuthAside() {
         ))}
       </ul>
       <p className="mt-10 text-xs font-medium text-ink-subtle">Students sign up from</p>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <ul className="mt-3 grid grid-cols-4 gap-x-2 gap-y-4">
         {INSTITUTIONS.map((s) => (
-          <SchoolLogo key={s.id} school={s} alt={s.name} className="h-10 w-14 shadow-card" />
+          <li key={s.id} className="flex flex-col items-center gap-1.5 text-center">
+            <SchoolLogo school={s} size={48} />
+            <span className="text-[10px] leading-3 text-ink-muted">{s.name}</span>
+          </li>
         ))}
-      </div>
+      </ul>
     </aside>
   );
 }

@@ -2,14 +2,14 @@
  *  student email domains (subdomains count too); students at any other school pick "My school isn't listed" and sign up
  *  with their school email (lib/auth/eligibility.ts). */
 export const INSTITUTIONS = [
- {id:'western',name:'Western University',city:'London',aliases:'UWO Western',logo:'/institutions/western.svg',login:true,domains:['uwo.ca']},
- {id:'toronto',name:'University of Toronto',city:'Toronto',aliases:'UofT U of T',logo:'/institutions/toronto.svg',login:true,domains:['utoronto.ca']},
- {id:'waterloo',name:'University of Waterloo',city:'Waterloo',aliases:'UW',logo:'/institutions/waterloo.svg',login:true,domains:['uwaterloo.ca']},
+ {id:'western',name:'Western University',city:'London',aliases:'UWO Western',logo:'/institutions/western.png',login:true,domains:['uwo.ca']},
+ {id:'toronto',name:'University of Toronto',city:'Toronto',aliases:'UofT U of T',logo:'/institutions/toronto.png',login:true,domains:['utoronto.ca']},
+ {id:'waterloo',name:'University of Waterloo',city:'Waterloo',aliases:'UW',logo:'/institutions/waterloo.png',login:true,domains:['uwaterloo.ca']},
  {id:'mcmaster',name:'McMaster University',city:'Hamilton',aliases:'Mac',logo:'/institutions/mcmaster.png',login:true,domains:['mcmaster.ca']},
- {id:'queens',name:"Queen’s University",city:'Kingston',aliases:'Queens Queen\'s',logo:'/institutions/queens.svg',login:true,domains:['queensu.ca']},
+ {id:'queens',name:"Queen’s University",city:'Kingston',aliases:'Queens Queen\'s',logo:'/institutions/queens.png',login:true,domains:['queensu.ca']},
  {id:'ottawa',name:'University of Ottawa',city:'Ottawa',aliases:'uOttawa Université Ottawa',logo:'/institutions/ottawa.png',login:true,domains:['uottawa.ca']},
- {id:'york',name:'York University',city:'Toronto',aliases:'YorkU',logo:'/institutions/york.jpg',login:true,domains:['yorku.ca']},
- {id:'tmu',name:'Toronto Metropolitan University',city:'Toronto',aliases:'TMU Ryerson',logo:'/institutions/tmu.svg',login:true,domains:['torontomu.ca','ryerson.ca']},
+ {id:'york',name:'York University',city:'Toronto',aliases:'YorkU',logo:'/institutions/york.png',login:true,domains:['yorku.ca']},
+ {id:'tmu',name:'Toronto Metropolitan University',city:'Toronto',aliases:'TMU Ryerson',logo:'/institutions/tmu.png',login:true,domains:['torontomu.ca','ryerson.ca']},
 ] as const;
 export function institution(id:unknown){return INSTITUTIONS.find(s=>s.id===id);}
 
