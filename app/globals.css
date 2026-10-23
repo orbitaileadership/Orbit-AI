@@ -45,7 +45,7 @@
 }
 
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-color="dark"]) {
     color-scheme: light;
     --surface-000: #f5f8ff;
     --surface-100: #ffffff;
@@ -76,6 +76,38 @@
     --elev-menu: 0 12px 32px rgba(10, 16, 32, 0.14), 0 2px 6px rgba(10, 16, 32, 0.06);
   }
 }
+/* Same, when the student picked light in Settings → General. */
+  :root[data-color="light"] {
+    color-scheme: light;
+    --surface-000: #f5f8ff;
+    --surface-100: #ffffff;
+    --surface-200: #eaf0fb;
+    --surface-300: #dde5f4;
+    --line: #d3dcee;
+    --line-strong: #a9b6d1;
+    --ink: #0a1020;
+    --ink-muted: #4a5470;
+    --ink-subtle: #5f6884;
+    --brand: #1557e0;
+    --brand-strong: #0f47bd;
+    --on-brand: #ffffff;
+    --ice: #5fb6ff;
+    --glow-ring: #b9d4ff;
+    --provider-openai: #0b7a6e;
+    --provider-anthropic: #b0480a;
+    --provider-google: #6d4fd6;
+    --provider-xai: #5b6273;
+    --success: #0b7a50;
+    --warning: #8a4f00;
+    --danger: #b42828;
+    --danger-surface: #fdecec;
+    --info-surface: #e6efff;
+    --elev-card: 0 1px 2px rgba(10, 16, 32, 0.06), 0 8px 24px rgba(10, 16, 32, 0.08);
+    --elev-glow: 0 0 18px rgba(21, 87, 224, 0.25);
+    --elev-focus: 0 0 0 3px rgba(21, 87, 224, 0.35);
+    --elev-menu: 0 12px 32px rgba(10, 16, 32, 0.14), 0 2px 6px rgba(10, 16, 32, 0.06);
+  }
+
 
 @theme inline {
   --color-surface-000: var(--surface-000);
@@ -200,21 +232,21 @@ option {
 }
 
 @media (prefers-color-scheme: light) {
-  [data-theme="openai"] {
+  :root:not([data-color="dark"]) [data-theme="openai"] {
     --surface-000: #ffffff; --surface-100: #f9f9f9; --surface-200: #f4f4f4; --surface-300: #ececec;
     --line: #e5e5e5; --line-strong: #d9d9d9;
     --ink: #0d0d0d; --ink-muted: #5d5d5d; --ink-subtle: #8f8f8f;
     --brand: #0d0d0d; --brand-strong: #000000; --on-brand: #ffffff; --ice: #0d0d0d;
     --bubble: #f4f4f4; --composer: #ffffff; --elev-composer: 0 4px 16px rgba(0, 0, 0, 0.06);
   }
-  [data-theme="anthropic"] {
+  :root:not([data-color="dark"]) [data-theme="anthropic"] {
     --surface-000: #faf9f5; --surface-100: #f5f4ed; --surface-200: #f0eee6; --surface-300: #e8e6dc;
     --line: #e5e3da; --line-strong: #d1cfc5;
     --ink: #141413; --ink-muted: #5e5d59; --ink-subtle: #87867f;
     --brand: #c96442; --brand-strong: #b05730; --on-brand: #ffffff; --ice: #c96442;
     --bubble: #f0eee6; --composer: #ffffff; --elev-composer: 0 4px 20px rgba(0, 0, 0, 0.035);
   }
-  [data-theme="google"] {
+  :root:not([data-color="dark"]) [data-theme="google"] {
     /* Sampled from gemini.google.com (light): white sidebar, warm-grey canvas, white floating composer. */
     --surface-000: #faf9f9; --surface-100: #ffffff; --surface-200: #f2f0f0; --surface-300: #ebe9e9;
     --line: #e3e3e3; --line-strong: #c4c7c5;
@@ -223,7 +255,7 @@ option {
     --bubble: #e9eef6; --composer: #ffffff;
     --elev-composer: 0 2px 6px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.07);
   }
-  [data-theme="xai"] {
+  :root:not([data-color="dark"]) [data-theme="xai"] {
     --surface-000: #fcfcfc; --surface-100: #f5f5f5; --surface-200: #f0f0f0; --surface-300: #e8e8e8;
     --line: #e8e8e8; --line-strong: #d4d4d4;
     --ink: #0f0f0f; --ink-muted: #5c5c5c; --ink-subtle: #8a8a8a;
@@ -231,6 +263,38 @@ option {
     --bubble: #f0f0f0; --composer: #ffffff;
   }
 }
+/* Same, when the student picked light in Settings → General. */
+  :root[data-color="light"] [data-theme="openai"] {
+    --surface-000: #ffffff; --surface-100: #f9f9f9; --surface-200: #f4f4f4; --surface-300: #ececec;
+    --line: #e5e5e5; --line-strong: #d9d9d9;
+    --ink: #0d0d0d; --ink-muted: #5d5d5d; --ink-subtle: #8f8f8f;
+    --brand: #0d0d0d; --brand-strong: #000000; --on-brand: #ffffff; --ice: #0d0d0d;
+    --bubble: #f4f4f4; --composer: #ffffff; --elev-composer: 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+  :root[data-color="light"] [data-theme="anthropic"] {
+    --surface-000: #faf9f5; --surface-100: #f5f4ed; --surface-200: #f0eee6; --surface-300: #e8e6dc;
+    --line: #e5e3da; --line-strong: #d1cfc5;
+    --ink: #141413; --ink-muted: #5e5d59; --ink-subtle: #87867f;
+    --brand: #c96442; --brand-strong: #b05730; --on-brand: #ffffff; --ice: #c96442;
+    --bubble: #f0eee6; --composer: #ffffff; --elev-composer: 0 4px 20px rgba(0, 0, 0, 0.035);
+  }
+  :root[data-color="light"] [data-theme="google"] {
+    /* Sampled from gemini.google.com (light): white sidebar, warm-grey canvas, white floating composer. */
+    --surface-000: #faf9f9; --surface-100: #ffffff; --surface-200: #f2f0f0; --surface-300: #ebe9e9;
+    --line: #e3e3e3; --line-strong: #c4c7c5;
+    --ink: #1f1f1f; --ink-muted: #444746; --ink-subtle: #737373;
+    --brand: #0b57d0; --brand-strong: #0842a0; --on-brand: #ffffff; --ice: #0b57d0;
+    --bubble: #e9eef6; --composer: #ffffff;
+    --elev-composer: 0 2px 6px rgba(0, 0, 0, 0.04), 0 6px 20px rgba(0, 0, 0, 0.07);
+  }
+  :root[data-color="light"] [data-theme="xai"] {
+    --surface-000: #fcfcfc; --surface-100: #f5f5f5; --surface-200: #f0f0f0; --surface-300: #e8e8e8;
+    --line: #e8e8e8; --line-strong: #d4d4d4;
+    --ink: #0f0f0f; --ink-muted: #5c5c5c; --ink-subtle: #8a8a8a;
+    --brand: #0f0f0f; --brand-strong: #000000; --on-brand: #ffffff; --ice: #0f0f0f;
+    --bubble: #f0f0f0; --composer: #ffffff;
+  }
+
 
 /* Gemini's gradient greeting. */
 .gemini-gradient {
@@ -250,8 +314,11 @@ option {
 
 /* Plain-black company logos turn white on dark themes. */
 @media (prefers-color-scheme: dark) {
-  .logo-mono { filter: invert(1); }
+  :root:not([data-color="light"]) .logo-mono { filter: invert(1); }
 }
+/* Same, when the student picked dark in Settings → General. */
+  :root[data-color="dark"] .logo-mono { filter: invert(1); }
+
 
 /* Model menu pop-in. */
 @keyframes menu-in {
@@ -285,11 +352,17 @@ option {
  */
 :root { --hl-kw: #ff7b72; --hl-str: #a5d6ff; --hl-num: #79c0ff; --hl-fn: #d2a8ff; --hl-com: #8b949e; --hl-type: #ffa657; --hl-attr: #7ee787; }
 @media (prefers-color-scheme: light) {
-  :root { --hl-kw: #cf222e; --hl-str: #0a3069; --hl-num: #0550ae; --hl-fn: #8250df; --hl-com: #6e7781; --hl-type: #953800; --hl-attr: #116329; }
-  [data-theme="openai"] { --code-bg: #f9f9f9; --code-head: #f9f9f9; }
-  [data-theme="google"] { --code-bg: #f0f4f9; --code-head: #e9eef6; }
-  [data-theme="anthropic"] { --code-bg: #fdfcf9; --code-head: #f5f4ed; }
+  :root:not([data-color="dark"]) { --hl-kw: #cf222e; --hl-str: #0a3069; --hl-num: #0550ae; --hl-fn: #8250df; --hl-com: #6e7781; --hl-type: #953800; --hl-attr: #116329; }
+  :root:not([data-color="dark"]) [data-theme="openai"] { --code-bg: #f9f9f9; --code-head: #f9f9f9; }
+  :root:not([data-color="dark"]) [data-theme="google"] { --code-bg: #f0f4f9; --code-head: #e9eef6; }
+  :root:not([data-color="dark"]) [data-theme="anthropic"] { --code-bg: #fdfcf9; --code-head: #f5f4ed; }
 }
+/* Same, when the student picked light in Settings → General. */
+  :root[data-color="light"] { --hl-kw: #cf222e; --hl-str: #0a3069; --hl-num: #0550ae; --hl-fn: #8250df; --hl-com: #6e7781; --hl-type: #953800; --hl-attr: #116329; }
+  :root[data-color="light"] [data-theme="openai"] { --code-bg: #f9f9f9; --code-head: #f9f9f9; }
+  :root[data-color="light"] [data-theme="google"] { --code-bg: #f0f4f9; --code-head: #e9eef6; }
+  :root[data-color="light"] [data-theme="anthropic"] { --code-bg: #fdfcf9; --code-head: #f5f4ed; }
+
 
 .md { overflow-wrap: anywhere; }
 .md > :first-child { margin-top: 0; }
@@ -427,8 +500,11 @@ a.md-cite:hover { color: var(--ink); }
    8-slot order (light and dark steps validated against the light/dark chat surfaces). */
 :root { --viz-1: #2a78d6; --viz-2: #eb6834; --viz-3: #1baf7a; --viz-4: #eda100; --viz-5: #e87ba4; --viz-6: #008300; --viz-7: #6250d6; --viz-8: #e34948; }
 @media (prefers-color-scheme: dark) {
-  :root { --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500; --viz-5: #d55181; --viz-6: #008300; --viz-7: #9085e9; --viz-8: #e66767; }
+  :root:not([data-color="light"]) { --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500; --viz-5: #d55181; --viz-6: #008300; --viz-7: #9085e9; --viz-8: #e66767; }
 }
+/* Same, when the student picked dark in Settings → General. */
+  :root[data-color="dark"] { --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500; --viz-5: #d55181; --viz-6: #008300; --viz-7: #9085e9; --viz-8: #e66767; }
+
 .chat-widget { animation: msg-in .35s ease-out both; }
 .widget-range { appearance: none; -webkit-appearance: none; height: 6px; border-radius: 999px; background: linear-gradient(to right, var(--brand) var(--fill, 50%), var(--surface-300) var(--fill, 50%)); outline: none; cursor: pointer; }
 .widget-range::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; border-radius: 999px; background: var(--surface-100); border: 2px solid var(--brand); box-shadow: 0 1px 4px rgba(0,0,0,.25); transition: transform .15s; }
@@ -453,3 +529,12 @@ a.md-cite:hover { color: var(--ink); }
   .landing-preview { animation: landing-rise .8s cubic-bezier(.2,.8,.2,1) .25s both; }
 }
 @keyframes landing-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+/* Settings → General (lib/appearance.ts): chat width, transcript text size, reduced motion. */
+:root[data-width="narrow"] .chat-column { max-width: 40rem; }
+:root[data-width="wide"] .chat-column { max-width: 60rem; }
+:root[data-text="small"] .chat-transcript { zoom: 0.92; }
+:root[data-text="large"] .chat-transcript { zoom: 1.1; }
+:root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after {
+  animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+}
