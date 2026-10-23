@@ -35,3 +35,7 @@ Noah (engineering owner) decided that ChatGPT, Claude, Gemini and Grok each offe
 ## October 20, 2026 — Any-email sign-up comes from main
 
 The interim `OPEN_SIGNUP` switch on this branch was dropped when main was merged: main already accepts any verified email by default (`SCHOOL_EMAILS_ONLY=on` restricts to school addresses). Waitlist/early-access rules still decide app access.
+
+## October 22, 2026 — Orbit Pro shown as "Coming soon" (C$30/month, C$20 of usage)
+
+Noah relayed the plan: students pay C$30/month and get C$20 of AI usage per month (matches `config/economics.ts` and the `subscription_price_cad_micros` / `monthly_allowance_cad_micros` settings). Settings → Billing now describes this plan with a disabled "Coming soon" button and says paid plans aren't available. **Payments stay disabled** (`paymentsEnabled: false`); checkout, renewal, cancellation/refunds and the monthly reset still need Jake's explicit approval before any billing work. The usage meter (sidebar, Orbit, Settings → Usage) shows the real allowance from the budgets table: trial accounts show "Free trial" with the end time; there is no separate session or weekly limit.
