@@ -2,7 +2,7 @@ import type { ProviderId } from "./models";
 
 /** Configured candidates, not claims of comparative model quality. */
 export const ORBIT = {
-  version: "orbit-v1",
+  version: "orbit-v2",
   voters: { openai: "openai-luna", anthropic: "anthropic-haiku", google: "google-default", xai: "xai-default" } satisfies Record<ProviderId, string>,
   candidates: { openai: "openai-default", anthropic: "anthropic-default", google: "google-pro", xai: "xai-default" } satisfies Record<ProviderId, string>,
   ballotOutput: 256,

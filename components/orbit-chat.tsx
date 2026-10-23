@@ -9,7 +9,7 @@ import { ProviderLogo } from "@/components/provider-logo";
 import { AppRail, AppSwitcher, OrbitGlyph } from "@/components/app-rail";
 import { OrbitHero } from "@/components/orbit-hero";
 import { SidebarSection } from "@/components/sidebar-section";
-import { OrbitVotePanel } from "@/components/orbit-vote-panel";
+import { OrbitVotePanel, OrbitAvailabilityNotice } from "@/components/orbit-vote-panel";
 import { FileChip } from "@/components/file-chip";
 import { fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { Markdown } from "@/components/markdown";
@@ -20,11 +20,11 @@ import type { Decision } from "@/lib/orbit/voting";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; status?: string; model_id?: string; orbit_details?: Decision };
 type Chat = { id: string; title: string; projectId: string | null };
-const PHASES: Record<string,string> = {voting:"Four AIs are voting…",retrying_google:"Google is temporarily unavailable. Retrying its vote once…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
+const PHASES: Record<string,string> = {voting:"Checking availability and collecting votes…",voting_without_google:"Google is unavailable. Three AIs are voting without it…",retrying_google:"Google is temporarily unavailable. Retrying its vote once…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
 const ERRORS: Record<string,string> = {
   orbit_not_enabled:"Orbit mode is in preview. The team needs to enable it before live use.",
   orbit_provider_unavailable:"Orbit needs all four providers enabled and configured. No partial vote was started.",
-  orbit_google_unavailable:"Google is temporarily unavailable (503), even after one retry. Orbit needs all four votes. Completed calls may still use allowance.",
+  orbit_google_unavailable:"Google could not join the vote (503). Completed calls may still use allowance.",
   orbit_vote_failed:"The four-model vote could not be completed. No lead was substituted. Completed routing calls may still use allowance.",
   attachment_unavailable:"An attached file is no longer available. Remove it and attach it again.",
   bad_request:"That message could not be sent. Check the attached files (up to 3) and try again.",
@@ -48,12 +48,13 @@ function LeadChip({ decision }: { decision: Decision }) {
     <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
       className="inline-flex max-w-full items-center gap-2 rounded-full border border-line bg-surface-100 py-1 pl-1 pr-3 text-left text-xs text-ink-muted transition hover:border-line-strong hover:text-ink">
       <span className="flex shrink-0 -space-x-1.5">
-        {PROVIDERS.map(p => <span key={p} className={`grid h-6 w-6 place-items-center rounded-full border-2 border-surface-100 bg-surface-200 ${p === decision.lead ? "relative z-10 ring-2 ring-brand" : "opacity-60"}`}><ProviderLogo provider={p} size={13} /></span>)}
+        {PROVIDERS.filter(p => !decision.unavailableProviders?.includes(p)).map(p => <span key={p} className={`grid h-6 w-6 place-items-center rounded-full border-2 border-surface-100 bg-surface-200 ${p === decision.lead ? "relative z-10 ring-2 ring-brand" : "opacity-60"}`}><ProviderLogo provider={p} size={13} /></span>)}
       </span>
       <span className="min-w-0 truncate">{decision.demo ? "Simulated · " : ""}Answered by <span className="font-medium text-ink">{THEMES[decision.lead].appName}</span>
-        {decision.specialist ? <> with <span className="font-medium text-ink">{THEMES[decision.specialist].appName}</span></> : null} · {votes} of 4 votes{decision.tied ? " (tie-break)" : ""}</span>
+        {decision.specialist ? <> with <span className="font-medium text-ink">{THEMES[decision.specialist].appName}</span></> : null} · {votes} of {decision.ballots.length} votes{decision.tied ? " (tie-break)" : ""}</span>
       <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
+    <OrbitAvailabilityNotice decision={decision} />
     {open && <div className="model-menu mt-2 rounded-2xl border border-line bg-surface-100 p-3 text-xs text-ink-muted">
       <ul className="grid gap-2 sm:grid-cols-2">{decision.ballots.map(b => <li key={b.voter} className="flex items-center gap-2">
         <ProviderLogo provider={b.voter} size={16} /><span className="text-ink">{THEMES[b.voter].appName}</span>
@@ -209,9 +210,9 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
             className="grid h-9 w-9 place-items-center rounded-full border border-line text-ink-muted transition hover:bg-surface-200 hover:text-ink disabled:opacity-40">
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
           </button>
-          <span title="Each message: four AIs vote, at most one specialist helps, one lead answers." className="flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs text-ink-muted">
+          <span title="Orbit tries four voters. Google may be retried once; if unavailable, the other three vote without it. At most one specialist helps and one lead answers." className="flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs text-ink-muted">
             <span className="flex -space-x-1">{PROVIDERS.map(p=><span key={p} className="grid h-5 w-5 place-items-center rounded-full border border-surface-100 bg-surface-200"><ProviderLogo provider={p} size={11}/></span>)}</span>
-            <span className="hidden sm:inline">4 AIs vote · one answers</span>
+            <span className="hidden sm:inline">Up to 4 AIs vote · one answers</span>
           </span>
           <span className="flex-1"/>
           {busy
@@ -256,14 +257,14 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         </SidebarSection>
       </div>
       <div className="m-3">
-        <UsageMeter usage={usage}><p className="mt-2 text-xs leading-5 text-ink-muted">Each message runs four short votes plus one answer, so it uses more allowance than a single AI.</p></UsageMeter>
+        <UsageMeter usage={usage}><p className="mt-2 text-xs leading-5 text-ink-muted">Each message tries four voters plus one answer. A Google availability failure may add one retry; the other three can vote without Google. Completed calls use allowance.</p></UsageMeter>
       </div>
       {account&&<div className="border-t border-line px-3 py-2 md:hidden">{account(false)}</div>}
     </aside>
     <main className="relative flex min-w-0 flex-1 flex-col">
       <header className="flex min-h-14 items-center gap-2 px-4 py-2.5">
         <button onClick={()=>setSidebar(true)} className="rounded-md p-1 text-ink-muted hover:text-ink md:hidden" aria-label="Open menu"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
-        <span className="hidden items-center gap-2 text-lg sm:flex">Orbit <span className="text-ink-subtle">4 AIs</span></span>
+        <span className="hidden items-center gap-2 text-lg sm:flex">Orbit <span className="text-ink-subtle">Up to 4 AIs</span></span>
         <div className="ml-auto flex items-center gap-1">
           {active&&<button disabled={busy||loading} onClick={deleteChat} aria-label="Delete chat" title="Delete chat" className="grid h-9 w-9 place-items-center rounded-full text-ink-muted hover:bg-surface-200 hover:text-danger disabled:opacity-40">
             <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
