@@ -1,4 +1,4 @@
-import { beforeEach,describe,expect,it,vi } from "vitest";
+import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { getModel } from "@/config/models";
 import { ProviderError } from "@/lib/providers/types";
 const state=vi.hoisted(()=>({disabled:false,reserve:vi.fn(),settle:vi.fn(),stream:vi.fn()}));
@@ -8,7 +8,8 @@ import { orbitCall, orbitInputTokens } from "./call";
 import { reservationMicros } from "@/lib/chat/context";
 const args=()=>({userId:"u",conversationId:"c",model:getModel("openai-luna")!,operation:"orbit_vote" as const,
  system:"Vote",history:[{role:"user" as const,content:"Synthetic question"}],maxOutput:100,signal:new AbortController().signal});
-beforeEach(()=>{vi.clearAllMocks();state.disabled=false;state.reserve.mockResolvedValue({ok:true});state.settle.mockResolvedValue(undefined);
+afterEach(()=>vi.restoreAllMocks());
+beforeEach(()=>{vi.clearAllMocks();vi.spyOn(console,"error").mockImplementation(()=>{});state.disabled=false;state.reserve.mockResolvedValue({ok:true});state.settle.mockResolvedValue(undefined);
  state.stream.mockImplementation(async function*(){yield {delta:'{"nominee":"google"}'};yield {usage:{input:100,output:20,reasoning:0,cached:0}};yield {finish:"stop"};});});
 describe("Orbit paid calls",()=>{
  it("shares the framing-aware helper estimate with the actual reservation",async()=>{
@@ -48,4 +49,22 @@ it("does not infer a free request from an arbitrary HTTP 400",async()=>{
  state.stream.mockImplementation(async function*(){throw new ProviderError("bad_request",400,false);});
  await expect(orbitCall(args())).rejects.toThrow("orbit_call_failed");
  expect(state.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"orbit_call_failed");
+});
+
+it("records safe provider diagnostics without exposing private error content or changing uncertain charges",async()=>{
+ const privateError=new ProviderError("bad_request",400,false);
+ privateError.message="synthetic-private-prompt synthetic-private-key";
+ state.stream.mockImplementation(async function*(){throw privateError;});
+ await expect(orbitCall(args())).rejects.toThrow("orbit_call_failed");
+ expect(console.error).toHaveBeenCalledWith("[orbit] provider call failed",{
+  requestId:expect.any(String),provider:"openai",modelId:"openai-luna",operation:"orbit_vote",code:"bad_request",status:400,started:false,
+ });
+ expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("synthetic-private");
+ expect(state.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"orbit_call_failed");
+});
+it("does not log arbitrary exception messages",async()=>{
+ state.stream.mockImplementation(async function*(){throw new Error("synthetic-private-message");});
+ await expect(orbitCall(args())).rejects.toThrow();
+ expect(console.error).toHaveBeenCalledWith("[orbit] provider call failed",expect.objectContaining({code:"unknown"}));
+ expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("synthetic-private-message");
 });
