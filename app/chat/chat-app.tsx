@@ -10,6 +10,7 @@ import { signOut } from "../login/actions";
 import { ProviderLogo } from "@/components/provider-logo";
 import { OrbitChat } from "@/components/orbit-chat";
 import { ModelMenu } from "@/components/model-menu";
+import { UsageMeter } from "@/components/usage-meter";
 import { ChatRowMenu } from "@/components/chat-row-menu";
 import { ToolsMenu, type ConnectedApp, type StudyMode } from "@/components/tools-menu";
 import { FolderBrowser } from "@/components/folder-browser";
@@ -82,7 +83,6 @@ const SIDEBAR_KEY = "orbit.sidebar.collapsed";
 const DRAFT = "draft"; // messages key for a chat that hasn't been saved yet
 const tmpId = () => `tmp-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 const perProvider = <T,>(v: () => T) => Object.fromEntries(PROVIDERS.map((p) => [p, v()])) as Record<ProviderId, T>;
-const dollars = (micros: number) => `US$${(micros / 1_000_000).toFixed(2)}`;
 
 function errorText(code: string, label: string, appName: string): string {
   switch (code) {
@@ -1284,7 +1284,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7.75 4v12" stroke="currentColor" strokeWidth="1.5" /></svg>
   );
   const remaining = usage?.live ? usage.allowance - usage.spent - usage.reserved : 0;
-  const usedPct = usage?.live && usage.allowance > 0 ? Math.min(100, ((usage.spent + usage.reserved) / usage.allowance) * 100) : 0;
 
   const settingsDialog = (
     <SettingsDialog
@@ -1401,23 +1400,14 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         </div>
 
         {/* Usage */}
-        <div className="m-3 rounded-2xl bg-surface-200 p-4 text-sm">
-          <div className="mb-1.5 flex justify-between">
-            <span className="font-medium">{usage?.live ? "Budget" : "Demo mode"}</span>
-            <span className="tabular-nums text-ink-muted">
-              {usage?.live ? usage.usdCadRate && usage.allowanceCad!=null ? `C$${(Math.max(0,remaining)*usage.usdCadRate/1e6).toFixed(2)} left of C$${(usage.allowanceCad/1e6).toFixed(2)}` : `${dollars(remaining)} left of ${dollars(usage.allowance)}` : "Replies are fake"}
-            </span>
-          </div>
+        <div className="m-3 text-sm">
+          <UsageMeter usage={usage}>
           {usage?.live && currentModel && (
-            <p className="mb-1.5 text-xs text-ink-muted">
+            <p className="mt-2 text-xs text-ink-muted">
               {answersText(answersLeft(remaining, currentModel, usage.typical)).replace(/^about/, "About")} with {currentModel.short}
               {usage.reserved > 0 && " · a reply is in progress"}
             </p>
           )}
-          <div className="h-1.5 overflow-hidden rounded-full bg-surface-300" role="meter" aria-label="Budget used"
-            aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(usedPct)}>
-            <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${usedPct}%` }} />
-          </div>
           {usage?.live && (
             <details className="mt-2 text-xs text-ink-muted">
               <summary className="cursor-pointer select-none text-ink-subtle hover:text-ink-muted">How your budget works</summary>
@@ -1429,6 +1419,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
               </ul>
             </details>
           )}
+          </UsageMeter>
         </div>
         {/* Phone: account at the bottom of the menu (computers have it at the bottom of the app rail) */}
         <div className="border-t border-line px-3 py-2 md:hidden">

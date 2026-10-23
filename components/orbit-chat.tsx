@@ -14,6 +14,7 @@ import { FileChip } from "@/components/file-chip";
 import { fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { Markdown } from "@/components/markdown";
 import { SpeakButton } from "@/components/speak-button";
+import { UsageMeter, type UsageData } from "@/components/usage-meter";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Decision } from "@/lib/orbit/voting";
 
@@ -86,13 +87,13 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   const [messages,setMessages]=useState<Message[]>([]), [input,setInput]=useState("");
   const [busy,setBusy]=useState(false), [loading,setLoading]=useState(false), [phase,setPhase]=useState(""), [error,setError]=useState("");
   const [decision,setDecision]=useState<Decision|null>(null), [dropped,setDropped]=useState(false), [sidebar,setSidebar]=useState(false);
-  const [remaining,setRemaining]=useState<number|null>(null), [firstName,setFirstName]=useState("");
+  const [usage,setUsage]=useState<UsageData|null>(null), [firstName,setFirstName]=useState("");
   const [files,setFiles]=useState<UploadedFile[]>([]), [uploading,setUploading]=useState(false), picker=useRef<HTMLInputElement>(null);
   const controller=useRef<AbortController|null>(null), bottom=useRef<HTMLDivElement>(null), view=useRef(0);
   const refresh=useCallback(async()=>{
     const [list,usage]=await Promise.all([fetch("/api/conversations?provider=orbit"),fetch("/api/usage")]);
     if(list.ok) setChats((await list.json()).conversations??[]);
-    if(usage.ok){const u=await usage.json();if(u.live)setRemaining(u.allowance-u.spent-u.reserved);}
+    if(usage.ok)setUsage(await usage.json());
   },[]);
   useEffect(() => {
     const changed = (event: Event) => {
@@ -253,9 +254,8 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         </nav>
         </SidebarSection>
       </div>
-      <div className="m-3 rounded-2xl bg-surface-200 p-4 text-xs leading-5 text-ink-muted">
-        {remaining!==null&&<p className="mb-1 flex justify-between text-sm text-ink"><span className="font-medium">Budget</span><span className="tabular-nums text-ink-muted">US${(Math.max(0,remaining)/1e6).toFixed(2)} left</span></p>}
-        Each message runs four short votes plus one answer, so it uses more allowance than a single AI.
+      <div className="m-3">
+        <UsageMeter usage={usage}><p className="mt-2 text-xs leading-5 text-ink-muted">Each message runs four short votes plus one answer, so it uses more allowance than a single AI.</p></UsageMeter>
       </div>
       {account&&<div className="border-t border-line px-3 py-2 md:hidden">{account(false)}</div>}
     </aside>

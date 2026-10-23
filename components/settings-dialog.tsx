@@ -4,13 +4,15 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ProviderId } from "@/config/models";
 import { ImportHistory } from "./import-history";
 import { emptyProfile, LENGTHS, LIMITS, STYLES, type Memory, type Profile } from "@/lib/profile/personal";
+import { ECONOMICS } from "@/config/economics";
+import { moneyFor, UsageMeter, type UsageData } from "./usage-meter";
 import { DEFAULT_APPEARANCE, loadAppearance, saveAppearance, type Appearance } from "@/lib/appearance";
 
 // Settings, laid out like the apps' own: every section in a searchable list on the left, the section on the right.
 // General = appearance on this device; Profile and Memory are used by every AI app; Courses links to course instructions.
-export type SettingsTab = "general" | "profile" | "account" | "usage" | "privacy" | "memory" | "courses" | "import";
+export type SettingsTab = "general" | "profile" | "account" | "usage" | "billing" | "privacy" | "memory" | "courses" | "import";
 const LEVELS = ["", "1st year", "2nd year", "3rd year", "4th year", "5th year+", "Graduate (Master's)", "Graduate (PhD)", "Other"];
-type Usage = { live: boolean; allowance: number; spent: number; reserved: number; expiresAt?: string | null };
+const cad = (micros: number) => `C$${(micros / 1e6).toFixed(micros % 1e6 ? 2 : 0)}`;
 
 const icon = (d: ReactNode) => <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">{d}</svg>;
 const SECTIONS: { group: string; items: { key: SettingsTab | "plugins" | "analytics"; label: string; keywords: string; icon: ReactNode }[] }[] = [
@@ -19,6 +21,7 @@ const SECTIONS: { group: string; items: { key: SettingsTab | "plugins" | "analyt
     { key: "profile", label: "Profile", keywords: "name year program style length about instructions personalization", icon: icon(<><circle cx="10" cy="7.5" r="3" /><path d="M4 16.5c1.2-2.6 3.4-3.8 6-3.8s4.8 1.2 6 3.8" /></>) },
     { key: "account", label: "Account", keywords: "email sign out log out", icon: icon(<><circle cx="10" cy="10" r="7.5" /><circle cx="10" cy="8.5" r="2.4" /><path d="M5.4 15.5c1.1-1.7 2.7-2.6 4.6-2.6s3.5.9 4.6 2.6" /></>) },
     { key: "usage", label: "Usage", keywords: "allowance budget trial limit spent remaining", icon: icon(<><circle cx="10" cy="10" r="7.5" /><path d="M10 10l3.5-3.5" /><path d="M6 13.5h8" /></>) },
+    { key: "billing", label: "Billing", keywords: "plan pro subscription price pay payment upgrade", icon: icon(<><rect x="2.5" y="4.5" width="15" height="11" rx="2" /><path d="M2.5 8h15M5.5 12.5h3" /></>) },
     { key: "privacy", label: "Privacy", keywords: "data policy terms memory search", icon: icon(<><path d="M10 2.8l6 2.4v4.3c0 3.7-2.6 6.4-6 7.7-3.4-1.3-6-4-6-7.7V5.2z" /><path d="M7.6 10l1.7 1.7 3.2-3.4" /></>) },
   ] },
   { group: "Personalization", items: [
@@ -90,7 +93,7 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
   const [newMemory, setNewMemory] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
   const [look, setLook] = useState<Appearance>(DEFAULT_APPEARANCE);
-  const [usage, setUsage] = useState<Usage | null | "error">(null);
+  const [usage, setUsage] = useState<UsageData | null | "error">(null);
 
   useEffect(() => {
     const d = ref.current;
@@ -126,9 +129,9 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
   }, [open, memoryVersion]);
 
   useEffect(() => {
-    if (!open || tab !== "usage") return;
+    if (!open || (tab !== "usage" && tab !== "billing")) return;
     let cancelled = false;
-    fetch("/api/usage").then((r) => (r.ok ? r.json() : Promise.reject())).then((u: Usage) => { if (!cancelled) setUsage(u); }).catch(() => { if (!cancelled) setUsage("error"); });
+    fetch("/api/usage").then((r) => (r.ok ? r.json() : Promise.reject())).then((u: UsageData) => { if (!cancelled) setUsage(u); }).catch(() => { if (!cancelled) setUsage("error"); });
     return () => { cancelled = true; };
   }, [open, tab]);
 
@@ -204,7 +207,6 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
       {description && <p className="mt-1.5 text-sm leading-6 text-ink-muted">{description}</p>}
     </div>
   );
-  const money = (micros: number) => `US$${(Math.max(0, micros) / 1e6).toFixed(2)}`;
 
   return (
     <dialog
@@ -345,27 +347,43 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
                 {heading("Usage", "Every answer uses part of your allowance. Cheaper models stretch it further.")}
                 {usage === null && <p className="py-5 text-sm text-ink-subtle">Loading…</p>}
                 {usage === "error" && <p className="py-5 text-sm text-ink-muted">Couldn&apos;t load your usage. Try again.</p>}
-                {usage && usage !== "error" && !usage.live && <Row title="Demo mode" description="Replies are sample answers right now, so nothing is used."><span className="text-sm text-ink-muted">Free</span></Row>}
-                {usage && usage !== "error" && usage.live && (() => {
-                  const used = usage.spent + usage.reserved;
-                  const pct = usage.allowance > 0 ? Math.min(100, (used / usage.allowance) * 100) : 0;
-                  return (
-                    <>
-                      <div className="mt-4 rounded-2xl border border-line bg-surface-100 p-5">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <p className="text-sm text-ink-muted">Allowance left</p>
-                          <p className="text-2xl font-medium tabular-nums">{money(usage.allowance - used)}</p>
-                        </div>
-                        <div className="mt-3 h-2 overflow-hidden rounded-full bg-surface-300" role="progressbar" aria-label="Allowance used" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
-                          <div className="h-full rounded-full bg-brand transition-[width] duration-500" style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className="mt-2 text-xs tabular-nums text-ink-subtle">{money(used)} of {money(usage.allowance)} used ({Math.round(pct)}%)</p>
-                      </div>
-                      {usage.expiresAt && <Row title="Trial ends"><span className="text-sm text-ink-muted">{new Date(usage.expiresAt).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</span></Row>}
-                      <Row title="In progress" description="Held while an answer is still being written, then settled to the actual cost."><span className="text-sm tabular-nums text-ink-muted">{money(usage.reserved)}</span></Row>
-                    </>
-                  );
-                })()}
+                {usage && usage !== "error" && <div className="mt-4"><UsageMeter usage={usage} size="large" /></div>}
+                {usage && usage !== "error" && usage.live && (
+                  <>
+                    {usage.expiresAt && <Row title="Trial ends"><span className="text-sm text-ink-muted">{new Date(usage.expiresAt).toLocaleString(undefined, { weekday: "short", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></Row>}
+                    <Row title="Used so far"><span className="text-sm tabular-nums text-ink-muted">{moneyFor(usage)(usage.spent)}</span></Row>
+                    <Row title="In progress" description="Held while an answer is still being written, then settled to the actual cost."><span className="text-sm tabular-nums text-ink-muted">{moneyFor(usage)(usage.reserved)}</span></Row>
+                  </>
+                )}
+              </section>
+            )}
+
+            {tab === "billing" && (
+              <section>
+                {heading("Billing", "Orbit's plan, and what you're on now.")}
+                <div className="mt-4 rounded-2xl border border-line bg-surface-100 p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wider text-brand">Orbit Pro</p>
+                      <p className="mt-2 text-3xl font-medium tabular-nums">{cad(ECONOMICS.subscriptionCadMicros)}<span className="text-base font-normal text-ink-muted"> / month</span></p>
+                    </div>
+                    <button type="button" disabled className="rounded-full bg-brand px-5 py-2 text-sm font-medium text-on-brand opacity-50" title="Payments aren't turned on yet">Coming soon</button>
+                  </div>
+                  <ul className="mt-5 space-y-2.5 text-sm">
+                    {[
+                      `${cad(ECONOMICS.monthlyAllowanceCadMicros)} of AI usage every month, across ChatGPT, Claude, Gemini, Grok and Orbit`,
+                      "Every model each app offers, with your chats, courses and files in one place",
+                    ].map((t) => (
+                      <li key={t} className="flex gap-2.5"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="mt-0.5 shrink-0 text-success"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>{t}</li>
+                    ))}
+                  </ul>
+                </div>
+                <Row title="Current plan" description={usage && usage !== "error" && usage.expiresAt ? `Free trial: ${moneyFor(usage)(usage.allowance)} of AI usage until ${new Date(usage.expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}.` : "Your account's allowance is shown on the Usage page."}>
+                  <button type="button" onClick={() => setTab("usage")} className={secondary}>View usage</button>
+                </Row>
+                <Row title="Payments" description="Paid plans aren't available yet, so you won't be charged.">
+                  <span className="text-sm text-ink-muted">Not set up</span>
+                </Row>
               </section>
             )}
 
