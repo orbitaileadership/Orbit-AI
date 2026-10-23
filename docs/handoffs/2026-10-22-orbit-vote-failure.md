@@ -1,0 +1,15 @@
+# Task handoff — Orbit voting failure
+
+- Date / owner: October 22, 2026 / Codex; Jake reported Orbit Mode fails.
+- Status: provider isolated; underlying Google error unresolved; local diagnostic fix awaiting release approval.
+- Repository / branch: `orbitaileadership/Orbit-AI`, `fix/orbit-vote-diagnostics`, based on main `0d5e496`. Signup work remains separate.
+- Verified symptom: owner reports four-model vote could not complete. Vercel's recent production POST `/api/orbit` returned HTTP 200 after about 5.6 seconds; this is a streaming response, not proof of successful completion.
+- Read-only database evidence: aggregate ledger query for the last 30 minutes, restricted to Orbit operations and excluding user IDs, conversation IDs and content, returned two `orbit_vote` rows each for Anthropic/OpenAI/xAI settled, and two Google `google-default` rows uncertain with `orbit_call_failed`. No assistant answer call appeared in this aggregate.
+- Cause confirmed: Google's voting calls failed, preventing all-four-vote completion. The provider's underlying status/cause is not retained by existing Orbit error handling, so credentials, request validation, provider service failure and stream parsing are not yet distinguished. Do not claim a specific root cause or a repaired vote.
+- Other observations: `ORBIT_MODE_ENABLED` exists for Production/Preview, but revealing its value requires Vercel email verification; canceled rather than bypassing it. Recent streamed request passed startup gates. The available approved synthetic test account remains waitlisted, so no access override or paid reproduction was attempted.
+- Local change: `lib/orbit/call.ts` logs only request ID, provider, model, operation, typed error code/status/started. It never logs raw errors, keys, prompts or outputs. Historical accounting and reserve/call/settle semantics are unchanged. Tests verify redaction and continued uncertain handling for ambiguous HTTP 400/network errors.
+- Checks: focused Orbit/provider tests 76 passed; full suite 610 tests / 78 files passed, lint passed, production webpack build including TypeScript passed. Independent second-model review found no blocker and confirmed that no underlying Google repair is claimed.
+- Production changes: none. Only SELECT was run; no migration, billing setting, ledger record, access rule or provider configuration changed. Supabase SQL editor created a private diagnostic query snippet containing no secrets or user data.
+- Known financial impact: other completed ballots may cost money even when Google's ballot fails. Unknown Google costs remain uncertain, not zero. Avoid repeated user retries until diagnosed.
+- Next: approve release of the diagnostic change, then inspect the safe Google code/status on the next owner-authorized attempt. Any agent-run paid reproduction needs explicit spend approval and an approved tester/budget. Preserve the all-four-vote contract; do not silently substitute or drop Google.
+- Rollback: revert this branch's diagnostic commit; no database rollback needed.

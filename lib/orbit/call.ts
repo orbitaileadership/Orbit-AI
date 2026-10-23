@@ -37,6 +37,13 @@ export async function orbitCall(o: {
       if (event.finish) finish = event.finish;
     }
   } catch (error) {
+    // Safe operational diagnostics: never include the provider body, prompt, key or raw error message.
+    console.error("[orbit] provider call failed", {
+      requestId: id, provider: o.model.provider, modelId: o.model.id, operation: o.operation,
+      code: error instanceof ProviderError ? error.code : "unknown",
+      status: error instanceof ProviderError ? error.status : undefined,
+      started: error instanceof ProviderError ? error.started : undefined,
+    });
     if (usage) await settle(id,"settled",costMicros(o.model,usage),usage,"orbit_call_failed");
     else if (error instanceof ProviderError && failureState(error) === "released")
       await settle(id,"released",0,undefined,error.code);
