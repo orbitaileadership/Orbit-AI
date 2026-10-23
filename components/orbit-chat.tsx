@@ -192,7 +192,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   const composer=(
     <form onSubmit={e=>{e.preventDefault();void send();}} className="w-full">
       {course&&<div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 px-2 text-xs text-ink-muted">{folderIcon}<span className="font-medium text-ink">{course.name}</span><span>· relevant course text goes to all four AIs</span></div>}
-      <div className="orbit-composer relative mx-auto max-w-3xl rounded-[28px] border border-line bg-surface-100 p-2.5 pl-4 shadow-composer transition focus-within:border-line-strong">
+      <div className="orbit-composer chat-column relative mx-auto max-w-3xl rounded-[28px] border border-line bg-surface-100 p-2.5 pl-4 shadow-composer transition focus-within:border-line-strong">
         {(files.length>0||uploading)&&<div className="mb-2 flex flex-wrap gap-2 pt-1">
           {files.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={[fileNote(f),"excerpts go to all four AIs"].filter(Boolean).join(" · ")} onRemove={busy?undefined:()=>setFiles(prev=>prev.filter(x=>x.id!==f.id))}/>)}
           {uploading&&<FileChip name="Uploading" state="uploading"/>}
@@ -282,7 +282,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         {error&&<p role="alert" className="mt-5 w-full max-w-3xl rounded-xl border border-line-strong bg-surface-100 p-4 text-sm">{error}</p>}
       </div> : <>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-3xl px-4 py-6">
+          <div className="chat-column chat-transcript mx-auto max-w-3xl px-4 py-6">
             {loading&&<p role="status" className="orbit-shimmer text-sm">Opening chat…</p>}
             {dropped&&<p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">Recent messages and any available summary are used. Older history may be left out or partly summarized. This view shows the latest {ORBIT.contextRows} saved messages.</p>}
             {messages.map((m,idx)=>m.role==="user"

@@ -1249,7 +1249,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       {lowBalance}
       {quizPanel}
       {theme.inlineComposer ? (
-        <div className={`relative mx-auto max-w-3xl py-2.5 pl-3 pr-3 transition ${theme.composerClass}`}>
+        <div className={`chat-column relative mx-auto max-w-3xl py-2.5 pl-3 pr-3 transition ${theme.composerClass}`}>
           {mentionMenu}
           {(pendingChips || mentionChips) && <div className="px-2 pt-1">{mentionChips}{pendingChips}</div>}
           <div className="flex items-center gap-1.5">
@@ -1262,7 +1262,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           </div>
         </div>
       ) : (
-        <div className={`relative mx-auto max-w-3xl p-2.5 pl-4 transition ${theme.composerClass}`}>
+        <div className={`chat-column relative mx-auto max-w-3xl p-2.5 pl-4 transition ${theme.composerClass}`}>
           {mentionMenu}
           {mentionChips}
           {pendingChips}
@@ -1295,6 +1295,9 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       appName={theme.appName}
       courses={projects[provider]}
       memoryVersion={memoryVersion}
+      isAdmin={isAdmin}
+      signOut={signOut}
+      onPlugins={() => { setOrbitMode(false); openPlugins(); }}
       onImported={(p) => setConvs((prev) => ({ ...prev, [p]: null }))} // null = reload that app's chat list (now with the imported chats)
       onOpenCourse={(id) => {
         const p = projects[provider].find((x) => x.id === id);
@@ -1313,13 +1316,13 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     <>
     {(orbitMode || orbitLoaded) && <div hidden={!orbitMode}>
       <OrbitChat visible={orbitMode} dots={railDots} onActivity={setOrbitDot} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
-        account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />}
+        account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("general")} signOut={signOut} />}
         onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />
     </div>}
     <div data-theme={provider} hidden={orbitMode} className="flex h-dvh bg-surface-000 font-ui text-ink">
       {/* App rail */}
       <AppRail active={provider} dots={railDots} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider}
-        account={<AccountMenu compact isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />} />
+        account={<AccountMenu compact isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("general")} signOut={signOut} />} />
 
       {/* This app's projects + chats */}
       <aside className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col bg-surface-100 transition-transform md:static md:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "md:hidden" : ""}`}>
@@ -1429,7 +1432,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         </div>
         {/* Phone: account at the bottom of the menu (computers have it at the bottom of the app rail) */}
         <div className="border-t border-line px-3 py-2 md:hidden">
-          <AccountMenu isAdmin={isAdmin} email={email} onSettings={() => { setSidebarOpen(false); setSettingsOpen("profile"); }} signOut={signOut} />
+          <AccountMenu isAdmin={isAdmin} email={email} onSettings={() => { setSidebarOpen(false); setSettingsOpen("general"); }} signOut={signOut} />
         </div>
       </aside>
       {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} />}
@@ -1534,7 +1537,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         ) : (
           <>
             <div ref={scrollRef} onScroll={onThreadScroll} className="relative flex-1 overflow-y-auto">
-              <div className="mx-auto max-w-3xl px-4 py-6">
+              <div className="chat-column chat-transcript mx-auto max-w-3xl px-4 py-6">
                 {active && (dropped[active.id] || chatSettings.summarized) && (
                   <p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">
                     {chatSettings.summaryIncomplete ? "Some earlier messages have not been summarized yet. Full history is saved; ask again or restate any important details." : chatSettings.summarized
