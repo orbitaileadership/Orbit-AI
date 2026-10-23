@@ -68,3 +68,29 @@ it("does not log arbitrary exception messages",async()=>{
  expect(console.error).toHaveBeenCalledWith("[orbit] provider call failed",expect.objectContaining({code:"unknown"}));
  expect(JSON.stringify(vi.mocked(console.error).mock.calls)).not.toContain("synthetic-private-message");
 });
+
+it("marks only a pre-stream HTTP 503 without usage as eligible for one caller-controlled retry",async()=>{
+ state.stream.mockImplementation(async function*(){throw new ProviderError("unavailable",503,false);});
+ await expect(orbitCall(args())).rejects.toMatchObject({code:"orbit_call_failed",retryableUnavailable:true});
+ expect(state.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"orbit_call_failed");
+});
+it.each([400,401,403,429,500,504])("does not mark HTTP %s as this recovery policy's retry",async status=>{
+ state.stream.mockImplementation(async function*(){throw new ProviderError("unavailable",status,false);});
+ await expect(orbitCall(args())).rejects.toMatchObject({retryableUnavailable:false});
+});
+it("does not retry a started stream or an error after usage",async()=>{
+ state.stream.mockImplementation(async function*(){throw new ProviderError("unavailable",503,true);});
+ await expect(orbitCall(args())).rejects.toMatchObject({retryableUnavailable:false});
+ state.stream.mockImplementation(async function*(){yield {usage:{input:10,output:5,reasoning:0,cached:0}};throw new ProviderError("unavailable",503,false);});
+ await expect(orbitCall(args())).rejects.toMatchObject({retryableUnavailable:false});
+ expect(state.settle).toHaveBeenLastCalledWith(expect.any(String),"settled",expect.any(Number),expect.any(Object),"orbit_call_failed");
+});
+it("reserves separate attempts and retains the first attempt's uncertain charge",async()=>{
+ state.stream.mockImplementationOnce(async function*(){throw new ProviderError("unavailable",503,false);});
+ await expect(orbitCall(args())).rejects.toThrow();
+ await orbitCall(args());
+ expect(state.reserve).toHaveBeenCalledTimes(2);
+ expect(state.reserve.mock.calls[0][1]).not.toBe(state.reserve.mock.calls[1][1]);
+ expect(state.settle.mock.calls[0]).toEqual([expect.any(String),"uncertain",0,undefined,"orbit_call_failed"]);
+ expect(state.settle.mock.calls[1][1]).toBe("settled");
+});

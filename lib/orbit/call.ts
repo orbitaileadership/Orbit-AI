@@ -7,7 +7,7 @@ import { ADAPTERS, apiKeyFor } from "@/lib/providers";
 import { ProviderError, type ChatTurn, type FinishReason, type Usage } from "@/lib/providers/types";
 
 export class OrbitError extends Error {
-  constructor(public code: string) { super(code); }
+  constructor(public code: string, public retryableUnavailable = false) { super(code); }
 }
 
 export function orbitInputTokens(system: string, history: ChatTurn[]): number {
@@ -48,7 +48,7 @@ export async function orbitCall(o: {
     else if (error instanceof ProviderError && failureState(error) === "released")
       await settle(id,"released",0,undefined,error.code);
     else await settle(id,"uncertain",0,undefined,"orbit_call_failed");
-    throw new OrbitError("orbit_call_failed");
+    throw new OrbitError("orbit_call_failed", !usage && error instanceof ProviderError && error.code === "unavailable" && error.status === 503 && !error.started);
   }
   if (usage) await settle(id,"settled",costMicros(o.model,usage),usage,undefined,{finishReason:finish});
   else await settle(id,"uncertain",0,undefined,"no_usage");

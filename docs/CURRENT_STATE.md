@@ -54,3 +54,7 @@ The original launch target was October 19, 2026. A target date, passing tests an
 ## Accounting accuracy branch — October 20, 2026
 
 Phase 1 implementation is integrated on `fix/accounting-accuracy-current-main`, based on current main `1404a26`. See [ACCOUNTING_ACCURACY.md](ACCOUNTING_ACCURACY.md) for semantics, tests, configuration and rollout constraints. Reporting migration 0020 is local-only and has not been applied to the shared database. The app, billing integrations and paid evaluations have not been deployed or run. Production cost reconciliation remains unverified.
+
+## October 22 — Orbit Google voting availability
+
+Deployed diagnostics from PR 21 identified Google `google-default` voting failures as HTTP 503 (`unavailable`) on the owner's post-release attempt. The owner approved deployment of `fix/orbit-google-recovery`: try Google on every turn, retry one eligible pre-stream 503, then explicitly disclose a three-provider vote if Google remains unavailable. Google returns automatically on the next turn where its ballot succeeds. Each attempt retains separate reservation and existing uncertainty handling within the original helper cap. The reviewed change is undergoing final release checks; synthetic tests do not establish live Google recovery. See [recovery handoff](handoffs/2026-10-22-orbit-google-recovery.md).
