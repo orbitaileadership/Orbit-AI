@@ -15,6 +15,7 @@ export const ORBIT = {
   collaborationVotes: 3,
   helperBudgetMicros: 150_000,
   helperTimeoutMs: 30_000,
+  voteRetryDelayMs: 1_000, // one Google HTTP 503 retry, within the original voter timeout and helper cap
   answerTimeoutMs: 150_000,
   enabled: () => process.env.ORBIT_MODE_ENABLED === "on",
 };

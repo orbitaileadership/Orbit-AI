@@ -20,10 +20,11 @@ import type { Decision } from "@/lib/orbit/voting";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; status?: string; model_id?: string; orbit_details?: Decision };
 type Chat = { id: string; title: string; projectId: string | null };
-const PHASES: Record<string,string> = {voting:"Four AIs are voting…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
+const PHASES: Record<string,string> = {voting:"Four AIs are voting…",retrying_google:"Google is temporarily unavailable. Retrying its vote once…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
 const ERRORS: Record<string,string> = {
   orbit_not_enabled:"Orbit mode is in preview. The team needs to enable it before live use.",
   orbit_provider_unavailable:"Orbit needs all four providers enabled and configured. No partial vote was started.",
+  orbit_google_unavailable:"Google is temporarily unavailable (503), even after one retry. Orbit needs all four votes. Completed calls may still use allowance.",
   orbit_vote_failed:"The four-model vote could not be completed. No lead was substituted. Completed routing calls may still use allowance.",
   attachment_unavailable:"An attached file is no longer available. Remove it and attach it again.",
   bad_request:"That message could not be sent. Check the attached files (up to 3) and try again.",

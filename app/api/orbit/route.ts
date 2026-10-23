@@ -1,3 +1,4 @@
+import { setTimeout as delay } from "node:timers/promises";
 import { attachmentContext, AttachmentError } from "@/lib/orbit/attachments";
 import { courseContext } from "@/lib/courses/context";
 import { ORBIT } from "@/config/orbit";
@@ -102,10 +103,34 @@ export async function POST(request: Request) {
         const ballotPlans=PROVIDERS.map(p=>({p,model:getModel(ORBIT.voters[p])!,system:ballotSystem(p,candidates)}));
         helperBound=ballotPlans.reduce((n,b)=>n+reservationMicros(b.model,orbitInputTokens(b.system,voteInput),ORBIT.ballotOutput),0);
         if(helperBound>ORBIT.helperBudgetMicros) throw new OrbitError("orbit_helper_limit");
-        const results=live ? await Promise.allSettled(ballotPlans.map(async b=>parseBallot(b.p,(await orbitCall({userId:user.id,conversationId:conversation.id,model:b.model,
-          operation:"orbit_vote",system:b.system,history:voteInput,maxOutput:ORBIT.ballotOutput,signal:helperSignal()})).text))) :
-          PROVIDERS.map((voter,i)=>({status:"fulfilled" as const,value:{voter,nominee:PROVIDERS[(i+1)%4],collaborate:false,specialist:null}}));
+        const results=live ? await Promise.allSettled(ballotPlans.map(async b=>{
+          // Keep successful ballots; retry only Google's confirmed pre-stream HTTP 503, once.
+          const signal=helperSignal();
+          const call=()=>orbitCall({userId:user.id,conversationId:conversation.id,model:b.model,
+            operation:"orbit_vote",system:b.system,history:voteInput,maxOutput:ORBIT.ballotOutput,signal});
+          let result;
+          try { result=await call(); }
+          catch(error) {
+            if(b.p!=="google" || !(error instanceof OrbitError) || !error.retryableUnavailable) throw error;
+            const retryBound=reservationMicros(b.model,orbitInputTokens(b.system,voteInput),ORBIT.ballotOutput);
+            if(helperBound+retryBound>ORBIT.helperBudgetMicros) throw new OrbitError("orbit_helper_limit");
+            helperBound+=retryBound;
+            emitStage("retrying_google");
+            // The next orbitCall creates its own reservation and rechecks provider/budget limits.
+            try {
+              await delay(ORBIT.voteRetryDelayMs,undefined,{signal});
+              result=await call();
+            } catch(retryError) {
+              if(retryError instanceof OrbitError && retryError.retryableUnavailable) throw new OrbitError("orbit_google_unavailable");
+              throw retryError;
+            }
+          }
+          return parseBallot(b.p,result.text);
+        })) : PROVIDERS.map((voter,i)=>({status:"fulfilled" as const,value:{voter,nominee:PROVIDERS[(i+1)%4],collaborate:false,specialist:null}}));
         // Await every voter, including failures, so reservations settle before releasing the turn lease.
+        const actionable=results.find(r=>r.status==="rejected" && r.reason instanceof OrbitError &&
+          ["orbit_google_unavailable","orbit_helper_limit","budget","trial_expired","paused","fx_not_configured","reserve_failed"].includes(r.reason.code));
+        if(actionable?.status==="rejected") throw actionable.reason;
         if(results.some(r=>r.status==="rejected")) throw new OrbitError("orbit_vote_failed");
         decision=decide(results.flatMap(r=>r.status==="fulfilled"?[r.value]:[]),saved.data.id,!live);
         send({t:"decision",decision});
