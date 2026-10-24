@@ -85,6 +85,22 @@ describe("adapters", () => {
     expect(body.messages[0]).toEqual({ role: "user", content: "hi" });
   });
 
+  it("Anthropic: explicitly disables Haiku 5.5 thinking for capped ballots", async () => {
+    const fetchMock = vi.fn(async () => sseResponse([
+      `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { usage: { input_tokens: 7 } } })}`,
+      `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text: '{"nominee":"openai"}' } })}`,
+      `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 8 } })}`,
+      `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}`,
+    ]));
+    vi.stubGlobal("fetch", fetchMock);
+    const ballotModel = { ...model, apiModel: "claude-haiku-5-5" } as ModelOption;
+    await collect(anthropic.stream({ ...args(), model: ballotModel, maxOutput: 256, disableThinking: true }));
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.thinking).toEqual({ type: "disabled" });
+    expect(body).not.toHaveProperty("output_config");
+    expect(body.max_tokens).toBe(256);
+  });
+
   it("google: maps assistant→model, skips thoughts, bills thinking as output", async () => {
     const fetchMock = vi.fn(async () => sseResponse([
       `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "hmm", thought: true }, { text: "A" }] } }] })}`,

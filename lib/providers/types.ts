@@ -50,6 +50,7 @@ export interface StreamArgs {
   cacheKey?: string; // opaque user/conversation scope, never email or prompt text
   tools?: ToolDef[]; // folder tools, when the student connected a folder
   thinkingLevel?: ThinkingLevel; // explicit effort; never silently retried without it
+  disableThinking?: boolean; // bounded ballots for models that support turning thinking off
   fast?: boolean;    // voice conversations: think as little as possible so the reply starts sooner
 }
 

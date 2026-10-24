@@ -87,3 +87,7 @@ The owner reported another Orbit failure after PR 22. Production logs show a Goo
 ## October 24 — Orbit lead thinking control (local)
 
 `feat/orbit-thinking-level` adds Low / Medium / High immediately left of Orbit Send, default Medium. Selection reaches the lead's native effort parameter; voting, specialist work, output caps and accounting stay unchanged. Invalid/unsupported settings fail before paid calls; no silent fallback drops explicit effort. Local tests: 782 / 91 files and synthetic desktop/375px flows passed; see [handoff](handoffs/2026-10-24-orbit-thinking-level.md). No migration or deployment; production release and paid live tests remain separate approvals.
+
+## October 24 — Orbit cost-selected voters (local)
+
+`feat/orbit-cost-selected-voters` uses price-selected ballot models and explicitly disables Haiku 5.5 thinking for its bounded 256-token ballot. Lead answers and specialist candidates are unchanged; no live quality comparison was run, so voting quality parity remains unverified. The token-price estimate at configured input/output caps decreases from about US$0.0347 to US$0.0149 per four-model vote; this excludes reservation margins, retries and provider billing variance. Existing reservations and reconciliation remain in place. No provider calls, merge or deployment. See [handoff](handoffs/2026-10-24-orbit-cost-selected-voters.md).

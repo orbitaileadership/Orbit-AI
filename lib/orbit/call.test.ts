@@ -3,7 +3,7 @@ import { getModel } from "@/config/models";
 import { ProviderError } from "@/lib/providers/types";
 const state=vi.hoisted(()=>({disabled:false,reserve:vi.fn(),settle:vi.fn(),stream:vi.fn()}));
 vi.mock("@/lib/billing/budget",()=>({isProviderDisabled:async()=>state.disabled,reserve:state.reserve,settle:state.settle}));
-vi.mock("@/lib/providers",()=>({apiKeyFor:()=>"synthetic-key",ADAPTERS:{openai:{stream:state.stream}}}));
+vi.mock("@/lib/providers",()=>({apiKeyFor:()=>"synthetic-key",ADAPTERS:{openai:{stream:state.stream},anthropic:{stream:state.stream}}}));
 import { orbitCall, orbitInputTokens } from "./call";
 import { reservationMicros } from "@/lib/chat/context";
 const args=()=>({userId:"u",conversationId:"c",model:getModel("openai-luna")!,operation:"orbit_vote" as const,
@@ -151,4 +151,13 @@ describe('explicit lead effort accounting',()=>{
   await expect(orbitCall({...args(),operation:'orbit_answer',thinkingLevel:'low'})).rejects.toThrow('orbit_thinking_unavailable');
   expect(state.reserve).not.toHaveBeenCalled();expect(state.stream).not.toHaveBeenCalled();
  });
+});
+
+it("turns off Haiku 5.5 thinking for bounded Orbit ballots only",async()=>{
+ const ballot={...args(),model:getModel("anthropic-haiku-5-5")!};
+ await orbitCall(ballot);
+ expect(state.stream).toHaveBeenCalledWith(expect.objectContaining({disableThinking:true}));
+ const lead={...ballot,operation:"orbit_answer" as const};
+ await orbitCall(lead);
+ expect(state.stream).toHaveBeenLastCalledWith(expect.not.objectContaining({disableThinking:true}));
 });
