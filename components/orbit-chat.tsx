@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_THINKING_LEVEL, THINKING_LEVELS, type ThinkingLevel } from "@/config/thinking";
 import { FolderBrowser } from "./folder-browser";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PROVIDERS, getModel, type ProviderId } from "@/config/models";
@@ -22,6 +23,7 @@ type Message = { id: string; role: "user" | "assistant"; content: string; status
 type Chat = { id: string; title: string; projectId: string | null };
 const PHASES: Record<string,string> = {voting:"Checking availability and collecting votes…",voting_without_google:"Google is unavailable. Three AIs are voting without it…",retrying_google:"Google is temporarily unavailable. Retrying its vote once…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
 const ERRORS: Record<string,string> = {
+  orbit_thinking_unavailable:"The selected thinking level is unavailable for Orbit’s configured models. Contact the team.",
   orbit_not_enabled:"Orbit mode is in preview. The team needs to enable it before live use.",
   orbit_provider_unavailable:"Orbit needs all four providers enabled and configured. No partial vote was started.",
   orbit_google_unavailable:"Google could not join the vote (503). Completed calls may still use allowance.",
@@ -61,7 +63,7 @@ function LeadChip({ decision }: { decision: Decision }) {
         <ProviderLogo provider={b.voter} size={16} /><span className="text-ink">{THEMES[b.voter].appName}</span>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         <ProviderLogo provider={b.nominee} size={16} />{THEMES[b.nominee].appName}{b.collaborate ? " · wants a specialist" : ""}</li>)}</ul>
-      <p className="mt-3 leading-5">{lead ? `Lead model: ${lead}. ` : ""}{decision.tied ? "Tied vote: a stable tie-break selected the lead. " : ""}No AI can vote for itself; a specialist joins when three ask. The vote is a recommendation, not a guarantee of correctness.</p>
+      <p className="mt-3 leading-5">{lead ? `Lead model: ${lead}. ` : ""}{decision.thinkingLevel ? `Thinking level: ${decision.thinkingLevel}. ` : ""}{decision.tied ? "Tied vote: a stable tie-break selected the lead. " : ""}No AI can vote for itself; a specialist joins when three ask. The vote is a recommendation, not a guarantee of correctness.</p>
     </div>}
   </div>;
 }
@@ -84,6 +86,7 @@ const STARTERS = [
 const greetingFor = (name: string) => { const h = new Date().getHours(); return `${h < 5 || h >= 18 ? "Good evening" : h < 12 ? "Good morning" : "Good afternoon"}${name ? `, ${name}` : ""}`; };
 
 export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, account, visible=true, dots, onActivity }: { userId: string; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
+  const [thinkingLevel,setThinkingLevel]=useState<ThinkingLevel>(DEFAULT_THINKING_LEVEL);
   const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
   const [course,setCourse]=useState<{id:string;name:string}|null>(null);
   const [chats,setChats]=useState<Chat[]>([]), [active,setActive]=useState<string|null>(null);
@@ -166,7 +169,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     const abort=new AbortController();controller.current=abort;
     const patch=(change:Partial<Message>)=>setMessages(prev=>prev.map(m=>m.id===localReply?{...m,...change}:m));
     try {
-      const res=await fetch("/api/orbit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,...(attachmentIds.length?{attachmentIds}:{}),...(active?{conversationId:active}:{projectId:course?.id})}),signal:abort.signal});
+      const res=await fetch("/api/orbit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,thinkingLevel,...(attachmentIds.length?{attachmentIds}:{}),...(active?{conversationId:active}:{projectId:course?.id})}),signal:abort.signal});
       if(!res.ok){const d=await res.json();throw new Error(ERRORS[d.error]??"Orbit could not start this turn.");}
       if(!res.body)throw new Error("The response connection could not be opened.");
       const reader=res.body.getReader(),decoder=new TextDecoder();let buffer="",text="";
@@ -216,6 +219,12 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
             <span className="hidden sm:inline">Up to 4 AIs vote · one answers</span>
           </span>
           <span className="flex-1"/>
+          <label className="relative shrink-0" title="Lead answer thinking level. Higher effort may take longer and use more allowance; voting stays unchanged.">
+            <span className="sr-only">Orbit thinking level</span>
+            <select aria-label="Orbit thinking level" value={thinkingLevel} disabled={busy||loading} onChange={e=>setThinkingLevel(e.target.value as ThinkingLevel)} className="max-w-40 cursor-pointer rounded-full bg-transparent px-2 py-1.5 text-sm font-medium text-ink-muted outline-none transition hover:bg-surface-300 focus-visible:ring-2 focus-visible:ring-brand disabled:opacity-50">
+              {THINKING_LEVELS.map(level=><option key={level} value={level} className="bg-surface-100 text-ink">{level[0].toUpperCase()+level.slice(1)} thinking</option>)}
+            </select>
+          </label>
           {busy
             ? <button type="button" onClick={()=>controller.current?.abort()} aria-label="Stop" className="grid h-9 w-9 place-items-center rounded-full bg-ink text-surface-000 transition hover:opacity-85"><span className="h-3 w-3 rounded-[3px] bg-current"/></button>
             : <button disabled={!input.trim()||loading||uploading} aria-label="Send" className="orbit-send grid h-9 w-9 place-items-center rounded-full text-white transition disabled:opacity-35">

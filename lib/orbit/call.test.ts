@@ -136,3 +136,19 @@ it("recognizes a stream reader AbortError caused by its timeout and retains the 
  await expect(orbitCall({...args(),signal:deadline.signal})).rejects.toMatchObject({code:"orbit_call_timeout",retryableUnavailable:false});
  expect(state.settle.mock.calls[0][1]).toBe("uncertain");
 });
+
+
+describe('explicit lead effort accounting',()=>{
+ it('passes effort without changing reservation or actual-usage settlement',async()=>{
+  const o={...args(),model:getModel('openai-default')!,operation:'orbit_answer' as const,thinkingLevel:'high' as const};
+  await orbitCall(o);
+  expect(state.stream).toHaveBeenCalledWith(expect.objectContaining({thinkingLevel:'high',maxOutput:o.maxOutput}));
+  expect(state.reserve.mock.calls[0][4]).toBe(reservationMicros(o.model,orbitInputTokens(o.system,o.history),o.maxOutput));
+  expect(state.settle).toHaveBeenCalledWith(expect.any(String),'settled',expect.any(Number),expect.objectContaining({input:100,output:20}),undefined,expect.any(Object));
+ });
+ it('rejects unsupported models or helper effort before reserving',async()=>{
+  await expect(orbitCall({...args(),thinkingLevel:'low'})).rejects.toThrow('orbit_thinking_unavailable');
+  await expect(orbitCall({...args(),operation:'orbit_answer',thinkingLevel:'low'})).rejects.toThrow('orbit_thinking_unavailable');
+  expect(state.reserve).not.toHaveBeenCalled();expect(state.stream).not.toHaveBeenCalled();
+ });
+});

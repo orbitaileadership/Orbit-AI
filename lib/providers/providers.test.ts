@@ -294,3 +294,23 @@ describe("Gemini full-input preflight", () => {
     await expect(google.countTokens!(args())).rejects.toThrow();
   });
 });
+
+
+describe('explicit Orbit lead thinking',()=>{
+ const bodyOf = (m: ReturnType<typeof vi.fn>, i: number) => JSON.parse((m.mock.calls[i] as unknown as [string, RequestInit])[1].body as string);
+ it.each(['low','medium','high'] as const)('sends %s to all four provider APIs',async thinkingLevel=>{
+  const mock=vi.fn(async()=>sseResponse(['data: '+JSON.stringify({type:'response.completed',response:{}}),'data: '+JSON.stringify({type:'message_delta',delta:{stop_reason:'end_turn'}}),'data: '+JSON.stringify({type:'message_stop'}),'data: '+JSON.stringify({candidates:[{finishReason:'STOP'}]}),'data: '+JSON.stringify({choices:[{finish_reason:'stop'}]})]));vi.stubGlobal('fetch',mock);
+  for(const adapter of [openai,anthropic,google,xai]) await collect(adapter.stream({...args(),thinkingLevel}));
+  expect(bodyOf(mock,0).reasoning).toEqual({effort:thinkingLevel});
+  expect(bodyOf(mock,1).output_config).toEqual({effort:thinkingLevel});
+  expect(bodyOf(mock,2).generationConfig.thinkingConfig).toEqual({thinkingLevel});
+  expect(bodyOf(mock,3).reasoning_effort).toBe(thinkingLevel);
+  expect(bodyOf(mock,0).max_output_tokens).toBe(100);
+  expect(bodyOf(mock,1).max_tokens).toBe(100);
+ });
+ it.each([openai,google])('never silently drops explicit thinking on a 400 ($id)',async adapter=>{
+  const mock=vi.fn(async()=>new Response('{}',{status:400}));vi.stubGlobal('fetch',mock);
+  await expect(collect(adapter.stream({...args(),thinkingLevel:'high',fast:true,cacheKey:'synthetic'}))).rejects.toThrow();
+  expect(mock).toHaveBeenCalledTimes(1);
+ });
+});

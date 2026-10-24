@@ -32,7 +32,7 @@ function toMessage(t: ChatTurn) {
 export const anthropic: ProviderAdapter = {
   id: "anthropic",
 
-  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey }) {
+  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey, thinkingLevel }) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -42,6 +42,7 @@ export const anthropic: ProviderAdapter = {
       },
       body: JSON.stringify({
         model: model.apiModel,
+        ...(thinkingLevel ? { output_config: { effort: thinkingLevel } } : {}),
         max_tokens: maxOutput,
         system,
         ...(cacheKey ? { cache_control: { type: "ephemeral" } } : {}),

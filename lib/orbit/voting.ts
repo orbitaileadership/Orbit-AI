@@ -1,9 +1,10 @@
+import type { ThinkingLevel } from '@/config/thinking';
 import { createHash } from "node:crypto";
 import { isProvider, PROVIDERS, type ProviderId } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
 
 export type Ballot = { voter: ProviderId; nominee: ProviderId; collaborate: boolean; specialist: ProviderId | null };
-export type Decision = { version: string; ballots: Ballot[]; lead: ProviderId; specialist: ProviderId | null; leadModelId: string; specialistModelId: string | null; tied: boolean; demo: boolean; unavailableProviders?: ProviderId[] };
+export type Decision = { thinkingLevel?: ThinkingLevel; version: string; ballots: Ballot[]; lead: ProviderId; specialist: ProviderId | null; leadModelId: string; specialistModelId: string | null; tied: boolean; demo: boolean; unavailableProviders?: ProviderId[] };
 
 /** Strict parsing: prompt text or model assertions cannot override the no-self-vote rule. */
 export function parseBallot(voter: ProviderId, text: string, available: readonly ProviderId[] = PROVIDERS): Ballot {

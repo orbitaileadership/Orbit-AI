@@ -83,3 +83,7 @@ Deployed diagnostics from PR 21 identified Google `google-default` voting failur
 ## October 23 — Google vote timeout correction
 
 The owner reported another Orbit failure after PR 22. Production logs show a Google voting failure without an HTTP status after a 31.34-second invocation, consistent with the configured helper timeout. Branch `fix/orbit-google-timeout` extends the disclosed three-provider fallback to the caller's verified Google voting deadline, with no extra timeout retry or budget increase. User cancellation still stops. PR 24 merged as ab393aa and Vercel production was verified Ready on orbit-ai-sand.vercel.app. 690 synthetic tests / 83 files, lint and production build including TypeScript passed; independent re-review found no blockers. Owner live validation remains pending. Evidence is recorded in [timeout handoff](handoffs/2026-10-23-orbit-google-timeout.md).
+
+## October 24 — Orbit lead thinking control (local)
+
+`feat/orbit-thinking-level` adds Low / Medium / High immediately left of Orbit Send, default Medium. Selection reaches the lead's native effort parameter; voting, specialist work, output caps and accounting stay unchanged. Invalid/unsupported settings fail before paid calls; no silent fallback drops explicit effort. Local tests: 782 / 91 files and synthetic desktop/375px flows passed; see [handoff](handoffs/2026-10-24-orbit-thinking-level.md). No migration or deployment; production release and paid live tests remain separate approvals.

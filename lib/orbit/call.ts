@@ -1,3 +1,4 @@
+import { supportsThinkingLevel, type ThinkingLevel } from '@/config/thinking';
 import { failureState } from "@/lib/billing/outcome";
 import type { ModelOption } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
@@ -17,8 +18,10 @@ export function orbitInputTokens(system: string, history: ChatTurn[]): number {
 /** Every paid phase has its own priced ledger row. Never logs prompt or output text. */
 export async function orbitCall(o: {
   userId: string; conversationId: string; model: ModelOption; operation: "orbit_vote" | "orbit_specialist" | "orbit_answer";
+  thinkingLevel?: ThinkingLevel;
   system: string; history: ChatTurn[]; maxOutput: number; signal: AbortSignal; delta?: (text: string) => void;
 }): Promise<{ text: string; finish: FinishReason }> {
+  if (o.thinkingLevel && (o.operation !== "orbit_answer" || !supportsThinkingLevel(o.model.apiModel))) throw new OrbitError("orbit_thinking_unavailable");
   const key = apiKeyFor(o.model.provider);
   if (!key || await isProviderDisabled(o.model.provider)) throw new OrbitError("orbit_provider_unavailable");
   if (o.signal.aborted) throw new OrbitError(o.signal.reason?.name === "TimeoutError" ? "orbit_call_timeout" : "orbit_cancelled");
@@ -31,7 +34,7 @@ export async function orbitCall(o: {
   if (!r.ok) throw new OrbitError(r.reason === "global_stop" ? "paused" : r.reason === "error" ? "reserve_failed" : r.reason);
   let text = "", usage: Usage | undefined, finish: FinishReason = "unknown";
   try {
-    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,apiKey:key,signal:o.signal })) {
+    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,...(o.thinkingLevel ? {thinkingLevel:o.thinkingLevel} : {}),apiKey:key,signal:o.signal })) {
       if (event.delta) { text += event.delta; o.delta?.(event.delta); }
       if (event.usage) usage = event.usage;
       if (event.finish) finish = event.finish;

@@ -24,12 +24,12 @@ function toInput(t: ChatTurn): object[] {
 export const openai: ProviderAdapter = {
   id: "openai",
 
-  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, fast, cacheKey }) {
+  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, fast, cacheKey, thinkingLevel }) {
     const call = (lowEffort: boolean, useCacheKey = true) => fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...(lowEffort ? { reasoning: { effort: "low" } } : {}),
+        ...(thinkingLevel || lowEffort ? { reasoning: { effort: thinkingLevel ?? "low" } } : {}),
         model: model.apiModel,
         instructions: system,
         input: normalizeTurns(history).flatMap(toInput),
@@ -43,7 +43,7 @@ export const openai: ProviderAdapter = {
     });
     let res = await call(Boolean(fast));
     // A 400 can come from an optional setting this model doesn't accept: retry once with the plain request.
-    if (res.status === 400 && (fast || cacheKey)) res = await call(false, false);
+    if (res.status === 400 && !thinkingLevel && (fast || cacheKey)) res = await call(false, false);
     if (!res.ok || !res.body) throw errorForStatus(res.status);
 
     let finished = false;
