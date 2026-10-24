@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getFeedbackSubmission, type PendingFeedbackSubmission } from "@/lib/feedback/submission";
 
 type FeedbackReport = { id: string; category: string; title: string; status: string; created_at: string };
 const field = "mt-1 w-full rounded-xl border border-line bg-surface-100 px-3 py-2 text-ink outline-none focus:border-brand";
@@ -17,6 +18,7 @@ export function FeedbackForm() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const pendingSubmission = useRef<PendingFeedbackSubmission | null>(null);
 
   const refresh = useCallback(async () => {
     const response = await fetch("/api/feedback", { cache: "no-store" });
@@ -31,19 +33,23 @@ export function FeedbackForm() {
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
+    const payload = {
+      category, title, description, reproductionSteps: steps,
+      pagePath: includePage ? window.location.pathname : null,
+    };
+    const submission = getFeedbackSubmission(payload, pendingSubmission.current);
+    pendingSubmission.current = submission;
     try {
       const response = await fetch("/api/feedback", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          submissionId: crypto.randomUUID(), category, title, description, reproductionSteps: steps,
-          pagePath: includePage ? window.location.pathname : null,
-        }),
+        body: JSON.stringify({ ...payload, submissionId: submission.id }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
         setError(response.status === 429 ? "You’ve sent several reports recently. Please try again later." : "We couldn’t send your report. Please try again.");
         return;
       }
+      pendingSubmission.current = null;
       setNotice(`Thanks — your report was saved (ID ${body.id}).`);
       setTitle(""); setDescription(""); setSteps(""); setIncludePage(false);
       await refresh();

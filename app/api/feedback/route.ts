@@ -75,11 +75,15 @@ export async function POST(request: Request) {
     if (error) return json({ error: "feedback_unavailable" }, 503);
     if (!data?.ok && data?.reason === "rate_limited") return json({ error: "rate_limited" }, 429);
     if (!data?.ok || !isUuid(data.id)) return json({ error: "feedback_unavailable" }, 503);
-    const notified = await sendFeedbackNotification(data.id, new URL("/admin/feedback", request.url).toString());
-    await createAdminClient().from("feedback_reports").update({
-      notification_status: notified.status,
-      notification_sent_at: notified.status === "sent" ? new Date().toISOString() : null,
-    }).eq("id", data.id);
+    // A replay returns the existing report. Do not turn client retries into duplicate mail;
+    // admins can retry a failed notification from the private inbox.
+    if (data.duplicate !== true) {
+      const notified = await sendFeedbackNotification(data.id, new URL("/admin/feedback", request.url).toString());
+      await createAdminClient().from("feedback_reports").update({
+        notification_status: notified.status,
+        notification_sent_at: notified.status === "sent" ? new Date().toISOString() : null,
+      }).eq("id", data.id).neq("notification_status", "sent");
+    }
     return json({ ok: true, id: data.id, duplicate: data.duplicate === true });
   } catch { return json({ error: "feedback_unavailable" }, 503); }
 }

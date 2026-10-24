@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ user: "user-a", denied: false, rpc: vi.fn(), notify: vi.fn(), rows: [] as Record<string, unknown>[], filters: [] as unknown[] }));
+const state = vi.hoisted(() => ({ user: "user-a", denied: false, rpc: vi.fn(), notify: vi.fn(), update: vi.fn(), rows: [] as Record<string, unknown>[], filters: [] as unknown[] }));
 vi.mock("@/lib/api", async original => ({ ...await original<typeof import("@/lib/api")>(), requireAppUser: async () => state.denied ? { error: Response.json({ error: "not_signed_in" }, { status: 401 }) } : { user: { id: state.user } } }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
   rpc: state.rpc,
@@ -10,7 +10,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({
       eq: (key: string, value: unknown) => { state.filters.push([key, value]); return q; },
       order: () => q,
       limit: async () => ({ data: state.rows.filter(r => r.user_id === state.user), error: null }),
-      update: () => ({ eq: async () => ({ error: null }) }),
+      update: () => { state.update(); return { eq: () => ({ neq: async (key: string, value: unknown) => { state.filters.push(["neq", key, value]); return { error: null }; } }) }; },
     };
     return q;
   },
@@ -21,7 +21,7 @@ import { GET, POST } from "./route";
 const id = "11111111-1111-4111-8111-111111111111";
 const payload = { submissionId: id, category: "bug", title: "Orbit vote failed", description: "The voting turn displayed an error instead of a result.", reproductionSteps: "Start a synthetic Orbit vote", pagePath: "/chat" };
 const request = (body: unknown, origin = "https://orbit.test") => new Request("https://orbit.test/api/feedback", { method: "POST", headers: { origin, "content-type": "application/json" }, body: JSON.stringify(body) });
-beforeEach(() => { state.user = "user-a"; state.denied = false; state.rpc.mockReset().mockResolvedValue({ data: { ok: true, id, duplicate: false }, error: null }); state.notify.mockReset().mockResolvedValue({ status: "sent" }); state.rows = [{ id, user_id: "user-a", title: "Mine" }, { id: "22222222-2222-4222-8222-222222222222", user_id: "user-b", title: "Private" }]; state.filters = []; });
+beforeEach(() => { state.user = "user-a"; state.denied = false; state.rpc.mockReset().mockResolvedValue({ data: { ok: true, id, duplicate: false }, error: null }); state.notify.mockReset().mockResolvedValue({ status: "sent" }); state.update.mockClear(); state.rows = [{ id, user_id: "user-a", title: "Mine" }, { id: "22222222-2222-4222-8222-222222222222", user_id: "user-b", title: "Private" }]; state.filters = []; });
 
 it("requires an authenticated app user and rejects cross-origin or malformed submissions", async () => {
   state.denied = true;
@@ -37,6 +37,15 @@ it("attributes feedback to the signed-in user and sends only explicit page path 
   expect(response.status).toBe(200);
   expect(state.rpc).toHaveBeenCalledWith("submit_feedback_report", expect.objectContaining({ p_user_id: "user-a", p_submission_id: id, p_page_path: null }));
   expect(state.notify).toHaveBeenCalledWith(id, "https://orbit.test/admin/feedback");
+  expect(state.update).toHaveBeenCalledOnce();
+  expect(state.filters).toContainEqual(["neq", "notification_status", "sent"]);
+});
+
+it("does not resend notification mail or overwrite notification status for an idempotent replay", async () => {
+  state.rpc.mockResolvedValueOnce({ data: { ok: true, id, duplicate: true }, error: null });
+  expect((await POST(request(payload))).status).toBe(200);
+  expect(state.notify).not.toHaveBeenCalled();
+  expect(state.update).not.toHaveBeenCalled();
 });
 
 it("rejects malformed and oversized request bodies with distinct client errors", async () => {

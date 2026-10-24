@@ -1,14 +1,14 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
-const state = vi.hoisted(() => ({ admin: false, update: vi.fn(), notify: vi.fn(), currentStatus: "failed" }));
+const state = vi.hoisted(() => ({ admin: false, update: vi.fn(), notify: vi.fn(), currentStatus: "failed", neq: vi.fn() }));
 vi.mock("@/lib/analytics/admin", () => ({ requireAnalyticsAdmin: async () => state.admin ? { user: { id: "admin" } } : { error: Response.json({ error: "forbidden" }, { status: 403 }) } }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: () => {
-  const q = { update: (value: unknown) => { state.update(value); return q; }, eq: () => q, select: () => q, maybeSingle: async () => ({ data: { id: "11111111-1111-4111-8111-111111111111", status: "triaged", notification_status: state.currentStatus }, error: null }) };
+  const q = { update: (value: unknown) => { state.update(value); return q; }, eq: () => q, neq: (key: string, value: unknown) => { state.neq(key, value); return q; }, select: () => q, maybeSingle: async () => ({ data: { id: "11111111-1111-4111-8111-111111111111", status: "triaged", notification_status: state.currentStatus }, error: null }) };
   return q;
 } }) }));
 vi.mock("@/lib/feedback/notifications", () => ({ sendFeedbackNotification: state.notify }));
 import { PATCH } from "./route";
-beforeEach(() => { state.admin = false; state.update.mockClear(); state.notify.mockReset().mockResolvedValue({ status: "sent" }); state.currentStatus = "failed"; });
+beforeEach(() => { state.admin = false; state.update.mockClear(); state.neq.mockClear(); state.notify.mockReset().mockResolvedValue({ status: "sent" }); state.currentStatus = "failed"; });
 const request = (body: unknown) => new Request("https://orbit.test/api/admin/feedback", { method: "PATCH", headers: { origin: "https://orbit.test", "content-type": "application/json" }, body: JSON.stringify(body) });
 
 it("denies non-admin feedback status changes before database access", async () => {
@@ -29,6 +29,7 @@ it("lets admins retry failed mail idempotently and refuses to resend an already 
   const body = { id: "11111111-1111-4111-8111-111111111111", action: "retry_notification" };
   expect((await PATCH(request(body))).status).toBe(200);
   expect(state.notify).toHaveBeenCalledWith(body.id, "https://orbit.test/admin/feedback");
+  expect(state.neq).toHaveBeenCalledWith("notification_status", "sent");
   state.currentStatus = "sent";
   expect((await PATCH(request(body))).status).toBe(409);
 });

@@ -36,7 +36,7 @@ export async function PATCH(request: Request) {
       const { error } = await admin.from("feedback_reports").update({
         notification_status: notification.status,
         notification_sent_at: notification.status === "sent" ? new Date().toISOString() : null,
-      }).eq("id", body.id);
+      }).eq("id", body.id).neq("notification_status", "sent");
       if (error) return json({ error: "feedback_update_failed" }, 503);
       return json({ notification_status: notification.status });
     } catch { return json({ error: "feedback_update_failed" }, 503); }
