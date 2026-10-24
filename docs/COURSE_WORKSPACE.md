@@ -1,5 +1,15 @@
 # Course workspace V1 — October 17, 2026
 
+## Local Courses Hub update — October 23, 2026
+
+Implemented on `codex/courses-hub`, not released. The workspace now opens to a searchable course library with grid/list views, term filtering, sorting, and cross-course My week. Each course has Overview, Assignments, Materials, Chats, Study and Syllabus. Materials includes file search/filtering, batch uploads, removal, and the existing folder browser. Assignment files and chats remain grouped in their existing folders; returning from chat refreshes their contents.
+
+Study prepares an editable, unsent prompt for recall, guided practice or exam review. It is not a saved quiz or adaptive learning engine. Navigation makes no provider calls. Existing bounded course/assignment context and billing behavior are unchanged.
+
+Course materials and assignment files share a Drive-style library with grid/list views, natural filename sorting, type grouping, search and filters for PDFs, documents, slides, spreadsheets, images and other files. Upload progress names the current file; new uploads clear filters so they remain visible. Cards distinguish failed/scanned files and image support limits, and show page/slide/sheet counts when available. Assignment files appear before chats, with a persistent drop target and keyboard focus indicators.
+
+Current syllabi and files referenced by reviewed items are marked as course sources and protected against deletion or reassignment. This includes earlier syllabi referenced by retained completed items, even if previously moved. Deleting a chat preserves attachments saved to a course/folder; deleting a folder preserves reviewed evidence. Incomplete file inventories stop deletion. Independent review found no remaining scoped blockers after fixes; guards remain nontransactional and live concurrency/RLS/storage validation is pending. Late UI refreshes are ignored during mutations and reload afterward. See [COURSES_HUB_PLAN.md](COURSES_HUB_PLAN.md) and [handoff](handoffs/2026-10-23-courses-hub.md). This section supersedes the older interface descriptions below; their deployment records remain historical.
+
 Approved interface: a persistent Courses destination beside chat, My week across courses, and Overview / Assignments / Notes / Study / Syllabus within a course. Existing chat and workspace components stay mounted when switching destinations. No model call runs merely for navigation.
 
 Migration 0015 makes existing projects shared across providers without changing course IDs or moving/deleting files or conversations. Existing per-provider duplicates remain separate; we never merge them by name. New course metadata contains editable date-only assignments, exams, and topics, with stable item IDs/status and source chunk IDs. The private original syllabus stays available. Class notes must be uploaded; syllabus topics do not fabricate notes.

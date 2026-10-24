@@ -7,6 +7,8 @@ import { THEMES } from '@/config/themes';
 import { isProvider } from '@/config/models';
 import { ProviderLogo } from './provider-logo';
 import { OrbitGlyph } from './app-rail';
+import { FileTile } from './file-tile';
+import { CourseFileBrowser } from './course-file-browser';
 
 type Folder = { id: string; name: string };
 type FolderFile = { id: string; name: string; status: string; kind?: string; mime?: string; page_count?: number | null };
@@ -19,23 +21,13 @@ async function call(path: string, method = 'GET') {
   return data;
 }
 
-/** File-type tile: extension label on a colour that tells PDFs, documents, slides, sheets and images apart. */
-export function FileTile({ name, kind, size = 40 }: { name: string; kind?: string; size?: number }) {
-  const ext = (name.split('.').pop() ?? '').toLowerCase();
-  const type = kind === 'image' || /^(png|jpe?g|gif|webp|heic)$/.test(ext) ? 'img' : ext === 'pdf' ? 'pdf' : /^(docx?|odt|rtf|txt|md)$/.test(ext) ? 'doc' : /^(pptx?|key|odp)$/.test(ext) ? 'ppt' : /^(xlsx?|csv|tsv|ods)$/.test(ext) ? 'xls' : 'other';
-  return (
-    <span aria-hidden className={`ft ft-${type} grid shrink-0 place-items-center rounded-xl font-semibold uppercase`} style={{ width: size, height: size, fontSize: Math.max(9, size * 0.24) }}>
-      {type === 'img' ? 'IMG' : (ext || 'file').slice(0, 4)}
-    </span>
-  );
-}
-
 /**
  * An assignment's own workspace inside the course — "Drive meets chat": drop the instructions and any related files,
  * see the course files the AI also reads, and start or reopen this assignment's chats in Orbit or any of the four AIs.
  * The folder is created on first upload or chat, never by just looking.
  */
-export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, openFile, onLaunch, onCourse }: {
+export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, openFile, onLaunch, onCourse, active = true }: {
+  active?: boolean;
   course: Course; item: CourseItem; userId: string; ai: string; courseFiles: CourseFile[];
   openFile: (id: string) => void; onLaunch: (launch: CourseLaunch) => void; onCourse: (course: Course) => void;
 }) {
@@ -45,9 +37,9 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<string[]>([]);
   const [error, setError] = useState('');
-  const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
-  const input = useRef<HTMLInputElement>(null);
+  const [revision, setRevision] = useState(0);
+  const working = useRef(false);
   const base = `/api/courses/${course.id}/assignments/${item.id}`;
 
   const apply = useCallback((d: { folder: Folder | null; files: FolderFile[]; chats: FolderChat[]; course?: Course }) => {
@@ -56,10 +48,12 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
   }, [onCourse]);
 
   useEffect(() => {
+    if (!active || busy) return;
     let alive = true;
-    call(base).then(d => { if (alive) { apply(d); setLoading(false); } }).catch(e => { if (alive) { setError(e.message); setLoading(false); } });
+    // A response captured before an upload/delete must never replace its newer results.
+    call(base).then(d => { if (alive && !working.current) { apply(d); setLoading(false); } }).catch(e => { if (alive && !working.current) { setError(e.message); setLoading(false); } });
     return () => { alive = false; };
-  }, [base, apply]);
+  }, [base, apply, active, revision, busy]);
 
   async function ensure(): Promise<Folder> {
     if (folder) return folder;
@@ -68,40 +62,50 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
     return d.folder;
   }
   async function upload(list: File[]) {
-    if (!list.length) return;
+    if (!list.length || working.current || loading) return;
+    working.current = true; setBusy(true);
     setError(''); setUploading(list.map(f => f.name));
     try {
       const f = await ensure();
       let added = 0;
-      for (const file of list) {
-        const out = await uploadFile(file, userId, f.id);
-        setUploading(u => u.filter(n => n !== file.name));
-        if (!('id' in out)) { setError(`${file.name}: ${out.error}`); continue; }
-        setFiles(old => [{ id: out.id, name: out.name, status: out.status, kind: out.kind, mime: out.mime, page_count: out.pageCount }, ...old]);
-        added++;
+      const failures: string[] = [];
+      for (let n = 0; n < list.length; n++) {
+        const file = list[n];
+        try {
+          const out = await uploadFile(file, userId, f.id);
+          if (!('id' in out)) failures.push(`${file.name}: ${out.error}`);
+          else { setFiles(old => [{ id: out.id, name: out.name, status: out.status, kind: out.kind, mime: out.mime, page_count: out.pageCount }, ...old]); added++; }
+        } catch { failures.push(`${file.name}: Upload failed. Please try again.`); }
+        setUploading(list.slice(n + 1).map(file => file.name));
       }
+      if (failures.length) setError(failures.join(' • '));
       if (added) window.dispatchEvent(new CustomEvent('orbit:folders-changed', { detail: { filesFor: f.id } }));
     } catch (e) { setError(e instanceof Error ? e.message : 'Upload failed. Please try again.'); }
-    finally { setUploading([]); }
+    finally { setUploading([]); working.current = false; setBusy(false); }
   }
   async function remove(file: FolderFile) {
+    if (working.current) return;
     if (!window.confirm(`Remove ${file.name} from this assignment?`)) return;
+    working.current = true;
     setBusy(true); setError('');
     try {
       const r = await fetch(`/api/files/${file.id}`, { method: 'DELETE' });
       if (!r.ok) throw new Error();
       setFiles(old => old.filter(f => f.id !== file.id));
+      window.dispatchEvent(new CustomEvent('orbit:folders-changed', { detail: { filesFor: folder?.id } }));
     } catch { setError('Could not remove that file. Please try again.'); }
-    finally { setBusy(false); }
+    finally { working.current = false; setBusy(false); }
   }
   async function startChat() {
+    if (working.current) return;
+    working.current = true;
     setBusy(true); setError('');
     try {
       const f = await ensure();
       const hasFiles = files.length > 0;
       onLaunch({ course, item, folder: f, provider: ai, prompt: hasFiles ? `Help me get started on ${item.title}. Use the assignment files and the course materials.` : `Help me get started on ${item.title}.` });
     } catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); }
-    finally { setBusy(false); }
+    finally { working.current = false; setBusy(false); }
   }
 
   const aiName = ai === 'orbit' ? 'Orbit' : isProvider(ai) ? THEMES[ai].appName : 'AI';
@@ -109,12 +113,15 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
   const card = 'group relative flex items-center gap-3 rounded-2xl border border-line bg-surface-100 p-3 text-left transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-composer';
 
   return (
-    <div className="mt-8 space-y-8"
-      onDragOver={e => { e.preventDefault(); setOver(true); }} onDragLeave={e => { if (e.currentTarget === e.target) setOver(false); }}
-      onDrop={e => { e.preventDefault(); setOver(false); void upload(Array.from(e.dataTransfer.files)); }}>
-      <input ref={input} type="file" multiple hidden onChange={e => { const list = Array.from(e.target.files ?? []); e.target.value = ''; void upload(list); }} />
-      {error && <p role="alert" className="rounded-xl border border-line bg-surface-100 p-3 text-sm">{error}</p>}
+    <div className="mt-8 space-y-8">
+      {error && <div role="alert" className="rounded-xl border border-line bg-surface-100 p-3 text-sm">{error} <button className="underline" disabled={busy} onClick={() => { setError(''); setRevision(v => v + 1); }}>Reload workspace</button></div>}
 
+      <CourseFileBrowser
+        title="Assignment files" description="Keep the instructions, rubric, and supporting work together."
+        searchLabel="Search assignment files" assignment files={files} uploading={uploading}
+        busy={busy} loading={loading} onUpload={list => void upload(list)}
+        onOpen={openFile} onRemove={file => void remove(file)}
+      />
       {/* Chats */}
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -138,47 +145,7 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
             </button>
           ))}
         </div>
-        {!loading && !chats.length && <p className="mt-3 text-sm text-ink-muted">No chats for this assignment yet. Every chat you start here can read the assignment files below and the course syllabus and notes.</p>}
-      </section>
-
-      {/* Assignment files */}
-      <section>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-medium">Assignment files</h3>
-          <button disabled={busy || loading} onClick={() => input.current?.click()} className="rounded-full border border-line px-3.5 py-2 text-sm transition hover:bg-surface-200 disabled:opacity-50">＋ Add files</button>
-        </div>
-        {loading ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{[0, 1, 2].map(n => <div key={n} className="pending-line h-16 rounded-2xl" />)}</div>
-        ) : files.length || uploading.length ? (
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {uploading.map(n => (
-              <div key={`u-${n}`} className={`${card} opacity-70`}><FileTile name={n} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{n}</span><span className="orbit-shimmer block text-xs">Uploading and reading…</span></span></div>
-            ))}
-            {files.map(f => (
-              <div key={f.id} className={card}>
-                <button onClick={() => openFile(f.id)} className="flex min-w-0 flex-1 items-center gap-3 text-left" title={`Open ${f.name}`}>
-                  <FileTile name={f.name} kind={f.kind} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{f.name}</span>
-                    <span className={`block text-xs ${f.status === 'failed' ? 'text-danger' : 'text-ink-subtle'}`}>{f.status === 'failed' ? 'Could not be read' : f.status === 'needs_ocr' ? 'Scanned · read as page images' : f.page_count ? `${f.page_count} page${f.page_count === 1 ? '' : 's'}` : 'Ready'}</span>
-                  </span>
-                </button>
-                <button disabled={busy} onClick={() => remove(f)} aria-label={`Remove ${f.name}`} title="Remove"
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-subtle transition hover:bg-surface-200 hover:text-danger focus-visible:opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100">
-                  <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <button onClick={() => input.current?.click()} disabled={busy}
-            className={`mt-3 flex w-full flex-col items-center gap-2 rounded-3xl border-2 border-dashed px-6 py-9 text-center transition ${over ? 'border-brand bg-info-surface' : 'border-line-strong hover:border-brand hover:bg-surface-100'}`}>
-            <span className="orbit-send grid h-11 w-11 place-items-center rounded-2xl text-white"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden><path d="M12 16V5M7.5 9.5 12 5l4.5 4.5M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
-            <span className="font-medium">Drop the assignment instructions here</span>
-            <span className="max-w-md text-sm text-ink-muted">Instructions, rubrics, starter files, readings — PDF, Word, slides, spreadsheets or images. Chats for this assignment use them as context.</span>
-          </button>
-        )}
-        {over && (files.length > 0 || uploading.length > 0) && <p className="mt-2 text-center text-sm text-brand">Drop to add to this assignment</p>}
+        {!loading && !chats.length && <p className="mt-3 text-sm text-ink-muted">Start a conversation using relevant excerpts from the assignment files and course syllabus and notes. Materials stay here when you switch assistants.</p>}
       </section>
 
       {/* Course files the AI also reads */}

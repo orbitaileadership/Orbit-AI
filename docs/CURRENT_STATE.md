@@ -13,6 +13,12 @@ Seeded October 19, 2026. Update after verified changes; this snapshot will age.
 
 ## Recent implemented changes
 
+### Courses Hub — local branch, October 23, 2026
+
+Follow-up presentation refinement: course and assignment files now share a searchable grid/list library with natural filename/type sorting, complete type filters, upload progress, and truthful reading-status labels. Assignment files precede chats. The focused suite passed 74 tests / 12 files and expanded desktop/320px browser journeys passed; see the handoff for the preceding full-suite result and remaining live-validation limits.
+
+`codex/courses-hub` contains the centralized course library, My week, course sections, assignment/file/chat polish, and reviewed-source deletion protection. It is uncommitted and not deployed. The full local suite passed 631 tests across 81 files; synthetic desktop/mobile flows passed, including 320px layout, partial upload failure, error recovery, syllabus review and assignment-chat return. Independent `gpt-6-astra` review completed: four retention/cascade/inventory findings fixed and final scoped re-review found no blockers. Lint and TypeScript passed. Signed-in staging and concurrent database/storage behavior remain unverified. See [handoff](handoffs/2026-10-23-courses-hub.md) for final checks and limitations.
+
 | Change | Recorded state / source |
 |---|---|
 | Old repository migration | Source/history and legacy branches preserved in the new repository; migration commit `752758f`; `docs/REPOSITORY_MIGRATION.md` |

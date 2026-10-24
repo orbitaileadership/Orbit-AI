@@ -1,5 +1,6 @@
 import { FOLDER_COLUMNS } from "@/lib/folders/types";
 import { dbError, isUuid, json, requireAppUser } from "@/lib/api";
+import { ownedCourseEvidenceFiles } from "@/lib/courses/evidence";
 
 // PATCH /api/projects/:id updates an owned folder, its course, pin or last visit.
 // DELETE /api/projects/:id   (its chats stay, moved out of the folder; its files are deleted, except chat attachments)
@@ -45,10 +46,14 @@ export async function DELETE(_: Request, ctx: RouteContext<"/api/projects/[id]">
   if (folder.error) return dbError(folder.error, "load_failed");
   if (!folder.data) return json({ error: "not_found" }, 404);
   // Folder files are deleted with the folder (storage first). Files that are also a chat's attachment stay in that chat.
-  const { data: files, error: filesError } = await auth.supabase.from("files").select("id, storage_path, conversation_id").eq("project_id", id).eq("user_id", auth.user.id);
+  const { data: files, error: filesError, count } = await auth.supabase.from("files").select("id, storage_path, conversation_id", { count: "exact" }).eq("project_id", id).eq("user_id", auth.user.id);
   if (filesError) return dbError(filesError, "load_failed");
-  const keep = (files ?? []).filter((f) => f.conversation_id);
-  const drop = (files ?? []).filter((f) => !f.conversation_id);
+  if (count != null && count > (files?.length ?? 0)) return json({ error: "load_failed" }, 500);
+  let evidence: Set<string>;
+  try { evidence = files?.length ? await ownedCourseEvidenceFiles(auth.supabase, auth.user.id) : new Set(); }
+  catch { return json({ error: "load_failed" }, 500); }
+  const keep = (files ?? []).filter((f) => f.conversation_id || evidence.has(f.id));
+  const drop = (files ?? []).filter((f) => !f.conversation_id && !evidence.has(f.id));
   if (keep.length) {
     const detached = await auth.supabase.from("files").update({ project_id: null }).in("id", keep.map((f) => f.id as string)).eq("user_id", auth.user.id);
     if (detached.error) return dbError(detached.error, "delete_failed");

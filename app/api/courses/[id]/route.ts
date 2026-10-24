@@ -1,13 +1,16 @@
 import { dbError,isUuid,json,requireAppUser } from '@/lib/api';
 import { validateDraft } from '@/lib/courses/parse';
 import { keepOwnedFolders } from '@/lib/courses/assignment-folders';
+import { courseEvidenceFiles } from '@/lib/courses/evidence';
 export async function GET(_:Request,ctx:RouteContext<'/api/courses/[id]'>){
  const auth=await requireAppUser();if('error'in auth)return auth.error;const{id}=await ctx.params;if(!isUuid(id))return json({error:'bad_request'},400);
  const {supabase,user}=auth;
- const course=await supabase.from('projects').select('id').eq('id',id).eq('user_id',user.id).maybeSingle();
+ const course=await supabase.from('projects').select('id,syllabus_id,course_data').eq('id',id).eq('user_id',user.id).maybeSingle();
  if(course.error)return dbError(course.error,'load_failed');if(!course.data)return json({error:'not_found'},404);
- const [files,chats]=await Promise.all([supabase.from('files').select('id,name,status,project_id').eq('project_id',id).eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('conversations').select('id,title,provider,project_id,orbit_mode').eq('project_id',id).eq('user_id',user.id).order('updated_at',{ascending:false}).limit(100)]);
- if(files.error||chats.error)return dbError(files.error??chats.error,'load_failed');return json({files:files.data,chats:chats.data});
+ const [files,chats]=await Promise.all([supabase.from('files').select('id,name,status,project_id,kind,page_count').eq('project_id',id).eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('conversations').select('id,title,provider,project_id,orbit_mode').eq('project_id',id).eq('user_id',user.id).order('updated_at',{ascending:false}).limit(100)]);
+ if(files.error||chats.error)return dbError(files.error??chats.error,'load_failed');
+ try{const evidence=await courseEvidenceFiles(supabase,user.id,course.data);return json({files:(files.data??[]).map(file=>({...file,retained_for_course:evidence.has(file.id)})),chats:chats.data});}
+ catch{return json({error:'load_failed'},500);}
 }
 export async function PATCH(request:Request,ctx:RouteContext<'/api/courses/[id]'>){
  const auth=await requireAppUser();if('error'in auth)return auth.error;const{id}=await ctx.params;if(!isUuid(id))return json({error:'bad_request'},400);
