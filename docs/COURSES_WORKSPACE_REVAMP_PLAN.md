@@ -1,6 +1,6 @@
 # Courses Workspace revamp — implementation plan
 
-Date: October 23, 2026 (Toronto). Owner: Jake (product), engineering acceptance with Noah. Status: approach approved by the user’s “go ahead”; local implementation complete, awaiting signed-in integration validation and release approval. Branch: plan/courses-workspace-revamp, base main 2cc360f. This plan supersedes the earlier Courses Hub interface direction where they differ. This records the approved scope; implementation evidence and limits are in handoffs/2026-10-23-courses-workspace-revamp.md.
+Date: October 23, 2026 (Toronto). Owner: Jake (product), engineering acceptance with Noah. Status: approach approved by the user’s “go ahead”; local implementation complete, release authorized, awaiting signed-in integration validation. Branch: plan/courses-workspace-revamp, base main 2cc360f. This plan supersedes the earlier Courses Hub interface direction where they differ. This records the approved scope; implementation evidence and limits are in handoffs/2026-10-23-courses-workspace-revamp.md.
 
 ## Outcome and scope
 
@@ -104,4 +104,4 @@ Acceptance tests:
 
 ## Approval record
 
-The user approved the architecture and delivery sequence with “go ahead”: build the complete core workflow first, extend supported Google/Microsoft connections and meetings using existing delegated auth, and clearly label Apple and study-app bridges as export/import until stronger integration access is verified. Implementation is now recorded in the implementation handoff. Migration 0022 remains local; production release, shared migration, paid calls and real invitations are not authorized by that implementation approval.
+The user approved the architecture and delivery sequence with “go ahead”: build the complete core workflow first, extend supported Google/Microsoft connections and meetings using existing delegated auth, and clearly label Apple and study-app bridges as export/import until stronger integration access is verified. Implementation is now recorded in the implementation handoff. The user subsequently requested deployment and explicitly approved production migration 0022, which is now applied and verified. Paid calls and real invitations remain outside that approval.
