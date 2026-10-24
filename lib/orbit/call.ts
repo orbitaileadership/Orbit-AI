@@ -21,7 +21,7 @@ export async function orbitCall(o: {
 }): Promise<{ text: string; finish: FinishReason }> {
   const key = apiKeyFor(o.model.provider);
   if (!key || await isProviderDisabled(o.model.provider)) throw new OrbitError("orbit_provider_unavailable");
-  if (o.signal.aborted) throw new OrbitError("orbit_cancelled");
+  if (o.signal.aborted) throw new OrbitError(o.signal.reason?.name === "TimeoutError" ? "orbit_call_timeout" : "orbit_cancelled");
   const input = orbitInputTokens(o.system,o.history);
   if (input > ORBIT.inputTokens) throw new OrbitError("context_too_large");
   const id = crypto.randomUUID();
@@ -37,10 +37,14 @@ export async function orbitCall(o: {
       if (event.finish) finish = event.finish;
     }
   } catch (error) {
+    // Classify the caller's own deadline, never arbitrary exception messages. User
+    // cancellation has an AbortError reason and must not become provider exclusion.
+    const timedOut = o.signal.aborted && o.signal.reason?.name === "TimeoutError" &&
+      !(error instanceof ProviderError) && (error === o.signal.reason || (error instanceof Error && error.name === "AbortError"));
     // Safe operational diagnostics: never include the provider body, prompt, key or raw error message.
     console.error("[orbit] provider call failed", {
       requestId: id, provider: o.model.provider, modelId: o.model.id, operation: o.operation,
-      code: error instanceof ProviderError ? error.code : "unknown",
+      code: timedOut ? "timeout" : error instanceof ProviderError ? error.code : "unknown",
       status: error instanceof ProviderError ? error.status : undefined,
       started: error instanceof ProviderError ? error.started : undefined,
     });
@@ -48,7 +52,7 @@ export async function orbitCall(o: {
     else if (error instanceof ProviderError && failureState(error) === "released")
       await settle(id,"released",0,undefined,error.code);
     else await settle(id,"uncertain",0,undefined,"orbit_call_failed");
-    throw new OrbitError("orbit_call_failed", !usage && error instanceof ProviderError && error.code === "unavailable" && error.status === 503 && !error.started);
+    throw new OrbitError(timedOut ? "orbit_call_timeout" : "orbit_call_failed", !timedOut && !usage && error instanceof ProviderError && error.code === "unavailable" && error.status === 503 && !error.started);
   }
   if (usage) await settle(id,"settled",costMicros(o.model,usage),usage,undefined,{finishReason:finish});
   else await settle(id,"uncertain",0,undefined,"no_usage");

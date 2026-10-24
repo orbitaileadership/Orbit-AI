@@ -118,15 +118,30 @@ export async function POST(request: Request) {
           const voteFailure=(error:unknown)=>error instanceof OrbitError &&
             ["budget","trial_expired","paused","fx_not_configured","reserve_failed","orbit_provider_unavailable"].includes(error.code) ? error : new OrbitError("orbit_vote_failed");
           let googleResult:Awaited<ReturnType<typeof orbitCall>>|undefined;
+          const googleTimedOut=(error:unknown)=>error instanceof OrbitError && error.code==="orbit_call_timeout";
+          const excludeGoogle=()=>{unavailable.push("google");emitStage("voting_without_google");};
           try{googleResult=await callGoogle();}
           catch(error){
-            if(!(error instanceof OrbitError)||!error.retryableUnavailable) throw voteFailure(error);
-            if(helperBound+google.bound>ORBIT.helperBudgetMicros) throw new OrbitError("orbit_helper_limit");
-            helperBound+=google.bound;emitStage("retrying_google");
-            try{await delay(ORBIT.voteRetryDelayMs,undefined,{signal});googleResult=await callGoogle();}
-            catch(retryError){
-              if(!(retryError instanceof OrbitError)||!retryError.retryableUnavailable) throw voteFailure(retryError);
-              unavailable.push("google");emitStage("voting_without_google");
+            if(request.signal.aborted) throw new OrbitError("orbit_cancelled");
+            if(googleTimedOut(error)) excludeGoogle(); // deadline consumed; do not buy another attempt
+            else {
+              if(!(error instanceof OrbitError)||!error.retryableUnavailable) throw voteFailure(error);
+              if(helperBound+google.bound>ORBIT.helperBudgetMicros) throw new OrbitError("orbit_helper_limit");
+              emitStage("retrying_google");
+              try{
+                await delay(ORBIT.voteRetryDelayMs,undefined,{signal});
+                if(signal.aborted)throw new OrbitError(signal.reason?.name==="TimeoutError"?"orbit_call_timeout":"orbit_cancelled");
+                if(helperBound+google.bound>ORBIT.helperBudgetMicros)throw new OrbitError("orbit_helper_limit");
+                helperBound+=google.bound;
+                googleResult=await callGoogle();
+              }
+              catch(retryError){
+                if(request.signal.aborted) throw new OrbitError("orbit_cancelled");
+                // The original deadline can expire during the retry delay or call.
+                const deadlineExpired=!(retryError instanceof OrbitError) && retryError instanceof Error && retryError.name==="AbortError" && signal.aborted && signal.reason?.name==="TimeoutError";
+                if(!googleTimedOut(retryError)&&!deadlineExpired&&(!(retryError instanceof OrbitError)||!retryError.retryableUnavailable)) throw voteFailure(retryError);
+                excludeGoogle();
+              }
             }
           }
           if(googleResult){try{ballots.push(parseBallot("google",googleResult.text));}catch{throw new OrbitError("orbit_vote_failed");}}

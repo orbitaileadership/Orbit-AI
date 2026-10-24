@@ -73,7 +73,7 @@ Orbit accepts up to `ORBIT.maxAttachments` (3) of the student's own ready text d
 
 Review fixes (same day, after an independent Opus review): attachments are validated and size-checked before any conversation or message is saved; files are linked to the chat only after a complete answer, so a failed turn leaves them reusable and the composer restores the chips; excerpts sit inside an `<attached_files>` block with closing-tag stripping, and the specialist prompt now puts its instructions first. Known remaining gaps: no component test for the attach UI, no RLS test for `search_chunks`, rejected/removed uploads stay as unattached files, reload does not show which files a message used, phone layout of the composer footer unchecked, and the lead may still hit the context cap after paid voting on very large prompts (pre-existing).
 
-## Google availability recovery — October 22, 2026 (local implementation)
+## Google availability recovery — October 22–23, 2026
 
 Production diagnostics confirmed `google-default` returns HTTP 503 (`unavailable`) during `orbit_vote`; the other three providers complete their calls. Google describes 503 as temporary overload or service unavailability ([official errors](https://ai.google.dev/gemini-api/docs/generate-content/api-errors)). This observation does not establish a platform-wide outage or that a different Google model is available.
 
@@ -82,3 +82,12 @@ Jake approved deployment and requested automatic Google return plus explicit non
 The decision's optional `unavailableProviders` metadata records Google’s exclusion; the UI displays it during voting and on the saved answer, with the real ballot denominator (3 rather than 4). New decisions use `orbit-v2`; historical v1 records remain readable. There is no sticky down flag, cooldown, background probe or manual re-enable requirement. Every new turn retries Google's normal vote, so four-provider participation returns on the next turn where that vote succeeds; this is not a promise to detect recovery in the middle of a completed turn or instant global health monitoring.
 
 The retry's reservation estimate is included in the existing helper cap before dispatch (including any later specialist). Each attempt separately reserves and settles through `orbitCall`, rechecking user budget and provider disable state. An ambiguous first attempt remains uncertain; it is not refunded, rewritten or treated as free. A retry may therefore use additional allowance even if it fails. No automatic retry of summaries, specialists or final answers is added. Local implementation and synthetic tests do not prove Google has recovered. The owner approved this release; live paid tests still require their applicable approval.
+
+
+### October 23 timeout correction
+
+PR 22 deployed the 503 fallback. The owner's next production attempts instead stalled on Google for the 30-second helper deadline. Vercel recorded an untyped Google failure after 31.34 seconds, without an HTTP status. The previous 503-only policy did not cover this case.
+
+The same explicit three-provider fallback now also applies when Google's own voting deadline expires, including during the existing retry delay. No retry is dispatched after a timeout. Timeout classification comes from the caller's aborted signal with a TimeoutError reason, not private exception messages. A user cancellation always stops the request; budget, reservation, configuration and other provider errors still stop as before. The existing Google attempt remains settled from reported usage or uncertain without usage, and counts toward the helper cap. Remaining voters receive fresh helper deadlines; Google is attempted normally again on the next turn. No further paid calls, higher caps, persistent disable flag, database edits or invented votes are added by this correction.
+
+The owner requested that Orbit remain available after reporting the repeated failure; this is a continuation of the approved disclosed Google fallback. This does not guarantee responses during all-provider failures, exhausted budgets, invalid ballots or a failed final answer. Broader cross-provider failover would need its own truthful decision and author metadata.

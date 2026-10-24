@@ -213,3 +213,80 @@ it("rejects a nomination for unavailable Google rather than silently moving its 
  const text=await(await POST(req({content:"question"}))).text();expect(text).toContain("orbit_vote_failed");
  expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_answer")).toHaveLength(0);
 });
+
+
+describe("Google voting deadline fallback",()=>{
+ const remainingVote=(o: {model:{provider:string};operation:string;delta?:(text:string)=>void})=>{
+  if(o.operation==="orbit_vote")return {text:JSON.stringify({nominee:o.model.provider==="anthropic"?"openai":"anthropic",collaborate:false,specialist:null}),finish:"stop"};
+  o.delta?.("Synthetic timeout recovery answer");return {text:"Synthetic timeout recovery answer",finish:"stop"};
+ };
+ it.each([false,true])("continues without Google after a timeout on retry=%s, with independent remaining deadlines",async onRetry=>{
+  let googleAttempts=0;let googleSignal:AbortSignal|undefined;
+  s.call.mockImplementation(async o=>{
+   if(o.model.provider==="google"){
+    googleSignal=o.signal;
+    if(onRetry&&++googleAttempts===1)throw new OrbitError("orbit_call_failed",true);
+    throw new OrbitError("orbit_call_timeout");
+   }
+   expect(o.signal).not.toBe(googleSignal);expect(o.signal.aborted).toBe(false);
+   return remainingVote(o);
+  });
+  const text=await(await POST(req({content:"Synthetic timeout question"}))).text();
+  expect(text).toContain('"stage":"voting_without_google"');expect(text).toContain('"t":"done"');
+  const answer=s.fake!.db.messages.find(m=>m.role==="assistant")!;
+  expect(answer.orbit_details).toMatchObject({unavailableProviders:["google"],ballots:expect.any(Array)});
+  expect((answer.orbit_details as {ballots:unknown[]}).ballots).toHaveLength(3);
+  expect(s.call.mock.calls.filter(([o])=>o.model.provider==="google")).toHaveLength(onRetry?2:1);
+  expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_vote"&&o.model.provider!=="google")).toHaveLength(3);
+  expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
+ it("does not fall back after user cancellation even when a timeout is reported",async()=>{
+  const abort=new AbortController();
+  s.call.mockImplementation(async()=>{abort.abort();throw new OrbitError("orbit_call_timeout");});
+  const request=new Request("http://x/api/orbit",{method:"POST",body:JSON.stringify({content:"question"}),signal:abort.signal});
+  const text=await(await POST(request)).text();expect(text).toContain('"code":"orbit_cancelled"');
+  expect(text).not.toContain('"stage":"voting_without_google"');expect(s.call).toHaveBeenCalledTimes(1);
+ });
+ it("does not retry or hide a remaining provider timeout",async()=>{
+  s.call.mockImplementation(async o=>{if(o.model.provider==="google"||o.model.provider==="xai")throw new OrbitError("orbit_call_timeout");return remainingVote(o);});
+  const text=await(await POST(req({content:"question"}))).text();expect(text).toContain("orbit_vote_failed");
+  expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_answer")).toHaveLength(0);
+ });
+ it("includes a timed-out Google attempt in the remaining helper cap",async()=>{
+  s.call.mockImplementation(async o=>{if(o.model.provider==="google"){ORBIT.helperBudgetMicros=0;throw new OrbitError("orbit_call_timeout");}return remainingVote(o);});
+  const text=await(await POST(req({content:"question"}))).text();expect(text).toContain('"code":"orbit_helper_limit"');expect(s.call).toHaveBeenCalledTimes(1);
+ });
+});
+
+it("falls back when the original Google deadline expires during its retry delay",async()=>{
+ const timeout=ORBIT.helperTimeoutMs;
+ const pricing=vi.spyOn(await import("@/lib/chat/context"),"reservationMicros").mockReturnValue(30_000);
+ ORBIT.helperBudgetMicros=120_000; // four real votes fit; a phantom fifth would not
+ ORBIT.helperTimeoutMs=10;ORBIT.voteRetryDelayMs=60_000;
+ try {
+  s.call.mockImplementation(async o=>{
+   if(o.model.provider==="google")throw new OrbitError("orbit_call_failed",true);
+   if(o.operation==="orbit_vote")return {text:JSON.stringify({nominee:o.model.provider==="anthropic"?"openai":"anthropic",collaborate:false,specialist:null}),finish:"stop"};
+   o.delta?.("ok");return {text:"ok",finish:"stop"};
+  });
+  const text=await(await POST(req({content:"question"}))).text();
+  expect(text).toContain('"t":"done"');expect(text).toContain('"unavailableProviders":["google"]');
+  expect(s.call.mock.calls.filter(([o])=>o.model.provider==="google")).toHaveLength(1);
+ } finally {ORBIT.helperTimeoutMs=timeout;pricing.mockRestore();}
+});
+
+
+it("preserves a retry budget rejection even if Google's deadline expires concurrently",async()=>{
+ const timeout=ORBIT.helperTimeoutMs;ORBIT.helperTimeoutMs=5;
+ let attempts=0;
+ try {
+  s.call.mockImplementation(async()=>{
+   if(++attempts===1)throw new OrbitError("orbit_call_failed",true);
+   await new Promise(resolve=>setTimeout(resolve,20));
+   throw new OrbitError("budget");
+  });
+  const text=await(await POST(req({content:"question"}))).text();
+  expect(text).toContain('"code":"budget"');expect(text).not.toContain('"stage":"voting_without_google"');
+  expect(s.call).toHaveBeenCalledTimes(2);
+ } finally {ORBIT.helperTimeoutMs=timeout;}
+});
