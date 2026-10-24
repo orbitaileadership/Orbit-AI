@@ -49,3 +49,8 @@ The interim `OPEN_SIGNUP` switch on this branch was dropped when main was merged
 ## October 22, 2026 — Orbit Pro shown as "Coming soon" (C$30/month, C$20 of usage)
 
 Noah relayed the plan: students pay C$30/month and get C$20 of AI usage per month (matches `config/economics.ts` and the `subscription_price_cad_micros` / `monthly_allowance_cad_micros` settings). Settings → Billing now describes this plan with a disabled "Coming soon" button and says paid plans aren't available. **Payments stay disabled** (`paymentsEnabled: false`); checkout, renewal, cancellation/refunds and the monthly reset still need Jake's explicit approval before any billing work. The usage meter (sidebar, Orbit, Settings → Usage) shows the real allowance from the budgets table: trial accounts show "Free trial" with the end time; there is no separate session or weekly limit.
+
+
+## October 22–23, 2026 — Disclosed Google voting unavailability
+
+Jake explicitly approved deployment of a three-provider vote when Google is unavailable, requested Google return automatically and required visible exclusion. PR 22 implemented the typed pre-stream 503 case; October 23's repeated-failure report and availability requirement extend that same disclosure policy to Google's verified voting deadline. Google is attempted on each new turn, never permanently disabled. Timeout adds no retry; an eligible 503 can still receive the one existing bounded retry. User cancellation, access/configuration gates and spending limits remain enforced. This supersedes all-four-or-fail only for those Google availability cases; it does not authorize invented ballots, hidden answer-model substitution or agent-initiated paid tests. See ORBIT_MODE.md and the October 23 timeout handoff.

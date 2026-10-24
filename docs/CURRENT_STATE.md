@@ -66,3 +66,12 @@ The original launch target was October 19, 2026. A target date, passing tests an
 ## Accounting accuracy branch — October 20, 2026
 
 Phase 1 implementation is integrated on `fix/accounting-accuracy-current-main`, based on current main `1404a26`. See [ACCOUNTING_ACCURACY.md](ACCOUNTING_ACCURACY.md) for semantics, tests, configuration and rollout constraints. Reporting migration 0020 is local-only and has not been applied to the shared database. The app, billing integrations and paid evaluations have not been deployed or run. Production cost reconciliation remains unverified.
+
+## October 22 — Orbit Google voting availability
+
+Deployed diagnostics from PR 21 identified Google `google-default` voting failures as HTTP 503 (`unavailable`) on the owner's post-release attempt. The owner approved deployment of `fix/orbit-google-recovery`: try Google on every turn, retry one eligible pre-stream 503, then explicitly disclose a three-provider vote if Google remains unavailable. Google returns automatically on the next turn where its ballot succeeds. Each attempt retains separate reservation and existing uncertainty handling within the original helper cap. PR 22 merged at d2d5ba1 and its production deployment was verified Ready on orbit-ai-sand.vercel.app. Synthetic tests do not establish live Google recovery. See [recovery handoff](handoffs/2026-10-22-orbit-google-recovery.md).
+
+
+## October 23 — Google vote timeout correction
+
+The owner reported another Orbit failure after PR 22. Production logs show a Google voting failure without an HTTP status after a 31.34-second invocation, consistent with the configured helper timeout. Branch `fix/orbit-google-timeout` extends the disclosed three-provider fallback to the caller's verified Google voting deadline, with no extra timeout retry or budget increase. User cancellation still stops. PR 24 merged as ab393aa and Vercel production was verified Ready on orbit-ai-sand.vercel.app. 690 synthetic tests / 83 files, lint and production build including TypeScript passed; independent re-review found no blockers. Owner live validation remains pending. Evidence is recorded in [timeout handoff](handoffs/2026-10-23-orbit-google-timeout.md).
