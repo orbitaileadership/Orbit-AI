@@ -161,7 +161,7 @@ export const MODELS: ModelOption[] = [
     apiModel: "claude-haiku-4-5-20251001", inputPrice: 1, outputPrice: 5, cachedInputPrice: 0.1, cacheWritePrice: 1.25, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
   // Further Claude models (ids and US$ prices from Anthropic's model reference, cached Oct 6 2026; cache writes = 1.25× input).
-  // The adapter sends no thinking/sampling/tool_choice settings. Fable 5/5.1 always think (counted in max_tokens and billed
+  // Ordinary chat sends no thinking/sampling/tool_choice settings; Orbit may set explicit lead effort. Fable 5/5.1 always think (counted in max_tokens and billed
   // as output) and are unavailable to zero-data-retention orgs; verify tool loops and long answers on staging before launch.
   {
     id: "anthropic-haiku-5-5", label: "Claude Haiku 5.5", short: "Haiku 5.5", description: "Fastest and cheapest",

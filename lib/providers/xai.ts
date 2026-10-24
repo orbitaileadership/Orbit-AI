@@ -27,12 +27,13 @@ function toMessages(t: ChatTurn): object[] {
 export const xai: ProviderAdapter = {
   id: "xai",
 
-  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey }) {
+  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey, thinkingLevel }) {
     const res = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", ...(cacheKey ? { "x-grok-conv-id": cacheKey } : {}) },
       body: JSON.stringify({
         model: model.apiModel,
+        ...(thinkingLevel ? { reasoning_effort: thinkingLevel } : {}),
         messages: [
           { role: "system", content: system },
           ...normalizeTurns(history).flatMap(toMessages),

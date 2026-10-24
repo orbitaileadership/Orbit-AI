@@ -1,3 +1,4 @@
+import type { ThinkingLevel } from '@/config/thinking';
 import type { ImageModel, ModelOption, ProviderId } from "@/config/models";
 import type { ToolDef } from "@/lib/folder/tools";
 
@@ -48,6 +49,7 @@ export interface StreamArgs {
   signal: AbortSignal;
   cacheKey?: string; // opaque user/conversation scope, never email or prompt text
   tools?: ToolDef[]; // folder tools, when the student connected a folder
+  thinkingLevel?: ThinkingLevel; // explicit effort; never silently retried without it
   fast?: boolean;    // voice conversations: think as little as possible so the reply starts sooner
 }
 

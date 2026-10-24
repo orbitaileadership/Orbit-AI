@@ -298,3 +298,26 @@ describe('saved Orbit quiz sessions',()=>{
  it('saves export cards and grades only a completed final answer',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);const text='ATP. [[quiz: right | Cells]]\n[[card: {"front":"ATP source?","back":"Mitochondrion"}]]';o.delta?.(text);return {text,finish:'stop'};});const text=await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();expect(text).toContain('"t":"done"');const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toEqual([{front:'ATP source?',back:'Mitochondrion'}]);expect(reply.content).not.toContain('[[card:');expect(s.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});});
  it('does not advance quiz state when the final model fails after partial output',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);o.delta?.('Partial [[quiz: right | Cells]] [[card: {"front":"A","back":"B"}]]');throw new OrbitError('orbit_incomplete_response');});await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.status).toBe('partial');expect(reply.study_cards).toBeUndefined();expect(s.fake!.db.conversations[0].quiz_state).toBeNull();});
 });
+
+
+describe('Orbit thinking selection',()=>{
+ it.each(['invalid',null,7,{},'HIGH'])('rejects malformed effort before claiming or spending: %j',async thinkingLevel=>{
+  expect((await POST(req({content:'Synthetic question',thinkingLevel}))).status).toBe(400);
+  expect(s.rpc).not.toHaveBeenCalled();expect(s.call).not.toHaveBeenCalled();
+ });
+ it.each(PROVIDERS)('applies effort only to the %s lead and saves the selected setting',async lead=>{
+  for(const thinkingLevel of ['low','medium','high']){
+   s.call.mockClear();s.call.mockImplementation(async o=>{
+    if(o.operation==='orbit_vote')return {text:JSON.stringify({nominee:o.model.provider===lead?PROVIDERS[(PROVIDERS.indexOf(lead)+1)%4]:lead,collaborate:false,specialist:null}),finish:'stop'};
+    o.delta?.('Synthetic answer');return {text:'Synthetic answer',finish:'stop'};
+   });
+   const response=await POST(req({content:'Synthetic question',thinkingLevel}));const events=await response.text();
+   expect(events).toContain('"t":"done"');
+   expect(s.call.mock.calls.filter(([o])=>o.operation==='orbit_vote')).toHaveLength(4);
+   for(const [o] of s.call.mock.calls)expect(o.thinkingLevel).toBe(o.operation==='orbit_answer'?thinkingLevel:undefined);
+   const answer=s.call.mock.calls.find(([o])=>o.operation==='orbit_answer')![0];expect(answer.maxOutput).toBe(ORBIT.answerOutput);
+   expect(events).toContain('"thinkingLevel":"'+thinkingLevel+'"');
+   expect(s.fake!.db.messages.filter((m:Record<string,unknown>)=>m.role==='assistant').at(-1)?.orbit_details).toMatchObject({thinkingLevel});
+  }
+ });
+});

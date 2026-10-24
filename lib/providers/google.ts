@@ -36,12 +36,12 @@ function toContent(t: ChatTurn) {
 }
 
 // Used unchanged by generation and counting, including system/tools/video resolution.
-function requestBody({ system, history, maxOutput, tools }: StreamArgs, lowThinking: boolean) {
+function requestBody({ system, history, maxOutput, tools, thinkingLevel }: StreamArgs, lowThinking: boolean) {
   return {
     systemInstruction: { parts: [{ text: system }] },
     contents: normalizeTurns(history).map(toContent),
     ...(tools?.length ? { tools: [{ functionDeclarations: tools.map(toolSchema) }] } : {}),
-    generationConfig: { maxOutputTokens: maxOutput, ...(history.some(t => t.videos?.length) ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}), ...(lowThinking ? { thinkingConfig: { thinkingLevel: "low" } } : {}) },
+    generationConfig: { maxOutputTokens: maxOutput, ...(history.some(t => t.videos?.length) ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}), ...(thinkingLevel || lowThinking ? { thinkingConfig: { thinkingLevel: thinkingLevel ?? "low" } } : {}) },
   };
 }
 
@@ -70,7 +70,7 @@ export const google: ProviderAdapter = {
       signal,
     });
     let res = await call(Boolean(fast));
-    if (fast && res.status === 400) res = await call(false); // a model without thinking settings: ask normally
+    if (fast && !args.thinkingLevel && res.status === 400) res = await call(false); // a model without thinking settings: ask normally
     if (!res.ok || !res.body) throw errorForStatus(res.status);
 
     let usage: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; cachedContentTokenCount?: number } | undefined;
