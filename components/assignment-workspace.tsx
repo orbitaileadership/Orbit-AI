@@ -110,15 +110,15 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
 
   const aiName = ai === 'orbit' ? 'Orbit' : isProvider(ai) ? THEMES[ai].appName : 'AI';
   const others = courseFiles.filter(f => f.project_id === course.id);
-  const card = 'group relative flex items-center gap-3 rounded-2xl border border-line bg-surface-100 p-3 text-left transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-composer';
+  const card = 'min-w-0 w-full max-w-full group relative flex items-center gap-3 rounded-2xl border border-line bg-surface-100 p-3 text-left transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-composer';
 
   return (
     <div className="mt-8 space-y-8">
       {error && <div role="alert" className="rounded-xl border border-line bg-surface-100 p-3 text-sm">{error} <button className="underline" disabled={busy} onClick={() => { setError(''); setRevision(v => v + 1); }}>Reload workspace</button></div>}
 
       <CourseFileBrowser
-        title="Assignment files" description="Keep the instructions, rubric, and supporting work together."
-        searchLabel="Search assignment files" assignment files={files} uploading={uploading}
+        title="Section resources" description="Keep the instructions, rubric, and supporting work together."
+        searchLabel="Search section resources" assignment files={files} uploading={uploading}
         busy={busy} loading={loading} onUpload={list => void upload(list)}
         onOpen={openFile} onRemove={file => void remove(file)}
       />
@@ -152,7 +152,7 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
       {others.length > 0 && (
         <section>
           <h3 className="text-lg font-medium">From the course</h3>
-          <p className="mt-1 text-sm text-ink-muted">Chats for this assignment can also quote these.</p>
+          <p className="mt-1 text-sm text-ink-muted">Chats for this section can also quote these.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {others.map(f => (
               <button key={f.id} onClick={() => openFile(f.id)} className={card} title={`Open ${f.name}`}>

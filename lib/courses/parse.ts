@@ -15,7 +15,8 @@ export function validateDraft(raw: unknown, sourceIds?: Set<string>): CourseDraf
     if (sourceId && (!/^[0-9a-f-]{36}$/i.test(sourceId) || (sourceIds && !sourceIds.has(sourceId)))) throw new Error('invalid_source');
     // folderId links an assignment to its folder; routes keep it only when that folder is the student's own, inside this course.
     const folderId = typeof x.folderId === 'string' && /^[0-9a-f-]{36}$/i.test(x.folderId) ? x.folderId : undefined;
-    return {...(folderId?{folderId}:{}),title,kind:x.kind as CourseItem['kind'],due:x.due as string|null,weight:str(x.weight,80),details:str(x.details,2000),sourceId,status:['todo','doing','done'].includes(String(x.status))?x.status as CourseItem['status']:'todo',...(typeof x.id==='string' && /^[0-9a-f-]{36}$/i.test(x.id)?{id:x.id}:{})};
+    const eventType=['assignment','quiz','midterm','final','lab','project','presentation','other'].includes(String(x.eventType))?x.eventType as CourseItem['eventType']:undefined;
+    return {...(eventType?{eventType}:{}),...(folderId?{folderId}:{}),title,kind:x.kind as CourseItem['kind'],due:x.due as string|null,weight:str(x.weight,80),details:str(x.details,2000),sourceId,status:['todo','doing','done'].includes(String(x.status))?x.status as CourseItem['status']:'todo',...(typeof x.id==='string' && /^[0-9a-f-]{36}$/i.test(x.id)?{id:x.id}:{})};
   });
   return {name,term:str(v.term,80),instructor:str(v.instructor,300),schedule:str(v.schedule,500),officeHours:str(v.officeHours,300),items};
 }
@@ -36,7 +37,7 @@ export function mergeRevision(current: CourseDraft, incoming: CourseDraft): Cour
     if(index<0)return old;
     const [next]=pending.splice(index,1);
     // Completed work remains as recorded. Active items show proposed syllabus corrections for explicit review.
-    return old.status==='done'?old:{...next,id:old.id,status:old.status,...(old.folderId?{folderId:old.folderId}:{})};
+    return old.status==='done'?old:{...next,id:old.id,status:old.status,...(old.eventType?{eventType:old.eventType}:{}),...(old.folderId?{folderId:old.folderId}:{})};
   });
   return {...incoming,items:[...items,...pending]};
 }

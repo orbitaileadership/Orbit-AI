@@ -1,3 +1,5 @@
+import { claimStudyStart,checkStudyContinuation } from "@/lib/courses/study-start";
+import { parseStudyCards } from "@/lib/courses/quiz";
 import { failureState } from "@/lib/billing/outcome";
 import { courseContext } from "@/lib/courses/context";
 import { RESPONSE_QUALITY_VERSION } from "@/config/quality";
@@ -45,7 +47,7 @@ const VOICE_MAX_OUTPUT = 1_200; // spoken answers are short; a smaller cap also 
 type Body = {
   provider?: unknown; homeProvider?: unknown; modelId?: unknown; content?: unknown; conversationId?: unknown; projectId?: unknown; retry?: unknown;
   attachmentIds?: unknown; mode?: unknown; courseOnly?: unknown; folder?: unknown; run?: unknown; web?: unknown; code?: unknown; voice?: unknown;
-  plugins?: unknown; skills?: unknown; mentions?: unknown;
+  plugins?: unknown; skills?: unknown; mentions?: unknown; startQuiz?: unknown;
 };
 type Row = { id: string; seq: number; role: "user" | "assistant"; content: string; status: string; kind: string; attachment_ids: string[] | null; model_id: string | null };
 
@@ -109,6 +111,7 @@ export async function POST(request: Request): Promise<Response> {
     await trackEvent(user.id,"conversation_created",{modelId:model.id,provider,live:liveFor(provider)},conversation.id,`conversation:${conversation.id}`);
   }
 
+  if(body.startQuiz===true||conversation.mode==="quiz"){const error=await (body.startQuiz===true?claimStudyStart:checkStudyContinuation)(supabase,user.id,conversation.id);if(error)return json({error},409);}
   // Study mode and "only use my course material" stick to the chat once set.
   const settings: Record<string, unknown> = { model_id: model.id, updated_at: new Date().toISOString() };
   if (typeof body.mode === "string" && (STUDY_MODES as string[]).includes(body.mode)) settings.mode = conversation.mode = body.mode;
@@ -478,12 +481,13 @@ export async function POST(request: Request): Promise<Response> {
       // References only point at passages that were really sent: made-up [S#] markers are removed from the saved text.
       // Quiz results: the server keeps the score; the marker lines are removed from the saved answer.
       // Memories: [[remember: …]] lines are saved (only when the student turned memory on) and removed from the answer.
-      const remember = parseRemember(finalText);
+      const study = conversation.mode === "quiz" ? parseStudyCards(finalText) : null;
+      const remember = parseRemember(study?.clean ?? finalText);
       const quiz = conversation.mode === "quiz" ? parseQuiz(remember.clean) : null;
       const savedText = stripInventedCitations(quiz ? quiz.clean : remember.clean, allSources);
       const sources = citedSources(savedText, allSources);
       const ground = grounding(allSources, sources);
-      await supabase.from("messages").update({ content: savedText, status, sources: ground === "none" ? null : sources }).eq("id", replyId);
+      await supabase.from("messages").update({ content: savedText, status, ...(study?.cards.length && status==="complete" ? {study_cards:study.cards}:{}), sources: ground === "none" ? null : sources }).eq("id", replyId);
       await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversation.id);
       if (quiz?.results.length && status==="complete" && finish!=="blocked") {
         quizState = applyResults(quizState, quiz.results);

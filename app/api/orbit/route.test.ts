@@ -290,3 +290,11 @@ it("preserves a retry budget rejection even if Google's deadline expires concurr
   expect(s.call).toHaveBeenCalledTimes(2);
  } finally {ORBIT.helperTimeoutMs=timeout;}
 });
+
+describe('saved Orbit quiz sessions',()=>{
+ const id='b4444444-4444-4444-8444-444444444444';
+ const prepare=()=>s.fake!.db.conversations.push({id,user_id:'u',orbit_mode:true,project_id:null,mode:'quiz',quiz_state:null,study_config:{format:'flashcards',count:5,section_id:'section',start_state:'ready'}});
+ it('requires the initial study claim before any paid voting call',async()=>{prepare();const r=await POST(req({conversationId:id,content:'start'}));expect(r.status).toBe(409);expect(s.call).not.toHaveBeenCalled();});
+ it('saves export cards and grades only a completed final answer',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);const text='ATP. [[quiz: right | Cells]]\n[[card: {"front":"ATP source?","back":"Mitochondrion"}]]';o.delta?.(text);return {text,finish:'stop'};});const text=await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();expect(text).toContain('"t":"done"');const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toEqual([{front:'ATP source?',back:'Mitochondrion'}]);expect(reply.content).not.toContain('[[card:');expect(s.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});});
+ it('does not advance quiz state when the final model fails after partial output',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);o.delta?.('Partial [[quiz: right | Cells]] [[card: {"front":"A","back":"B"}]]');throw new OrbitError('orbit_incomplete_response');});await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.status).toBe('partial');expect(reply.study_cards).toBeUndefined();expect(s.fake!.db.conversations[0].quiz_state).toBeNull();});
+});

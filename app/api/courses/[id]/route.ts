@@ -7,7 +7,10 @@ export async function GET(_:Request,ctx:RouteContext<'/api/courses/[id]'>){
  const {supabase,user}=auth;
  const course=await supabase.from('projects').select('id,syllabus_id,course_data').eq('id',id).eq('user_id',user.id).maybeSingle();
  if(course.error)return dbError(course.error,'load_failed');if(!course.data)return json({error:'not_found'},404);
- const [files,chats]=await Promise.all([supabase.from('files').select('id,name,status,project_id,kind,page_count').eq('project_id',id).eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('conversations').select('id,title,provider,project_id,orbit_mode').eq('project_id',id).eq('user_id',user.id).order('updated_at',{ascending:false}).limit(100)]);
+ const folders=await supabase.from('projects').select('id').eq('parent_course_id',id).eq('user_id',user.id).eq('is_folder',true);
+ if(folders.error)return dbError(folders.error,'load_failed');
+ const chatProjects=[id,...(folders.data??[]).map(f=>f.id)];
+ const [files,chats]=await Promise.all([supabase.from('files').select('id,name,status,project_id,kind,page_count').eq('project_id',id).eq('user_id',user.id).order('created_at',{ascending:false}),supabase.from('conversations').select('id,title,provider,project_id,orbit_mode').in('project_id',chatProjects).eq('user_id',user.id).order('updated_at',{ascending:false}).limit(100)]);
  if(files.error||chats.error)return dbError(files.error??chats.error,'load_failed');
  try{const evidence=await courseEvidenceFiles(supabase,user.id,course.data);return json({files:(files.data??[]).map(file=>({...file,retained_for_course:evidence.has(file.id)})),chats:chats.data});}
  catch{return json({error:'load_failed'},500);}
