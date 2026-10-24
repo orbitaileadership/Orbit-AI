@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## Local Course Workspace V2 — October 24, 2026
+
+On `codex/course-resources-v2`, section Resources remain independent while Course Details holds the shared syllabus. Section chats and quizzes are prepared for parent-course grouping with explicit section context via local migration 0024. Independent review found and prompted fixes for section moves/deletions. Focused synthetic and isolated database checks are recorded in `handoffs/2026-10-24-course-resources-v2.md`. Migration 0024 has not been applied to the shared database; this version has not been deployed or validated in a signed-in browser.
+
 Seeded October 19, 2026. Update after verified changes; this snapshot will age.
 
 ## Shared baseline

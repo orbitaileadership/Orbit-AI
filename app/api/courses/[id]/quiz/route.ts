@@ -15,11 +15,11 @@ export async function POST(request:Request,ctx:Ctx){
  const provider=b.provider==='orbit'?'openai':b.provider;
  const title=`${c.data.name} · ${item.title} · ${b.format==='mcq'?'MCQ':b.format==='short-answer'?'Short answer':'Flashcards'} · ${new Date().toISOString().slice(0,10)}`.slice(0,120);
  const row={id:b.launchId,user_id:auth.user.id,project_id:folder.data.id,provider,orbit_mode:b.provider==='orbit',model_id:defaultModelFor(provider),mode:'quiz',title,study_config:config};
- const existing=await auth.supabase.from('conversations').select('id,project_id,provider,orbit_mode,study_config,title,model_id').eq('id',b.launchId).eq('user_id',auth.user.id).maybeSingle();
+ const existing=await auth.supabase.from('conversations').select('id,project_id,section_folder_id,provider,orbit_mode,study_config,title,model_id').eq('id',b.launchId).eq('user_id',auth.user.id).maybeSingle();
  if(existing.error)return dbError(existing.error,'load_failed');
  let conversation=existing.data;
- if(!conversation){const created=await auth.supabase.from('conversations').insert(row).select('id,project_id,provider,orbit_mode,study_config,title,model_id').single();if(created.error?.code==='23505')return json({error:'quiz_launch_pending'},409);if(created.error)return dbError(created.error,'save_failed');conversation=created.data;}
- if(!conversation||conversation.project_id!==folder.data.id||conversation.provider!==provider||conversation.orbit_mode!==(b.provider==='orbit'))return json({error:'quiz_launch_conflict'},409);
+ if(!conversation){const created=await auth.supabase.from('conversations').insert(row).select('id,project_id,section_folder_id,provider,orbit_mode,study_config,title,model_id').single();if(created.error?.code==='23505')return json({error:'quiz_launch_pending'},409);if(created.error)return dbError(created.error,'save_failed');conversation=created.data;}
+ if(!conversation||(conversation.project_id!==id||conversation.section_folder_id!==folder.data.id)||conversation.provider!==provider||conversation.orbit_mode!==(b.provider==='orbit'))return json({error:'quiz_launch_conflict'},409);
  let prior;try{prior=studyConfig(conversation.study_config);}catch{return json({error:'quiz_launch_conflict'},409);}if(prior.format!==config.format||prior.count!==config.count||prior.section_id!==config.section_id)return json({error:'quiz_launch_conflict'},409);
  return json({conversation,folder:folder.data,prompt:studyPrompt(c.data as Course,item,config)});
 }
@@ -33,14 +33,14 @@ export async function GET(request:Request,ctx:Ctx){
   if(!folderIds.length)return json({sessions:[]});
   const owned=await auth.supabase.from('projects').select('id').in('id',folderIds).eq('parent_course_id',id).eq('user_id',auth.user.id).eq('is_folder',true);
   if(owned.error)return dbError(owned.error,'load_failed');
-  const sessions=await auth.supabase.from('conversations').select('id,title,provider,orbit_mode,model_id,study_config').in('project_id',(owned.data??[]).map(f=>f.id)).eq('user_id',auth.user.id).eq('mode','quiz').order('updated_at',{ascending:false}).limit(100);
+  const sessions=await auth.supabase.from('conversations').select('id,title,provider,orbit_mode,model_id,study_config').eq('project_id',id).in('section_folder_id',(owned.data??[]).map(f=>f.id)).eq('user_id',auth.user.id).eq('mode','quiz').order('updated_at',{ascending:false}).limit(100);
   if(sessions.error)return dbError(sessions.error,'load_failed');return json({sessions:(sessions.data??[]).filter(s=>s.study_config)});
  }
- const r=await auth.supabase.from('conversations').select('id,title,project_id,provider,orbit_mode,model_id,mode,study_config').eq('id',cid).eq('user_id',auth.user.id).eq('mode','quiz').maybeSingle();
+ const r=await auth.supabase.from('conversations').select('id,title,project_id,section_folder_id,provider,orbit_mode,model_id,mode,study_config').eq('id',cid).eq('user_id',auth.user.id).eq('mode','quiz').maybeSingle();
  if(r.error)return dbError(r.error,'load_failed');if(!r.data)return json({error:'not_found'},404);
  let config;try{config=studyConfig(r.data.study_config);}catch{return json({error:'invalid_quiz'},400);}
- const item=(c.data.course_data as CourseDraft|null)?.items.find(i=>i.id===config.section_id&&i.folderId===r.data!.project_id);if(!item)return json({error:'not_found'},404);
- const folder=await auth.supabase.from('projects').select('id').eq('id',r.data.project_id).eq('parent_course_id',id).eq('user_id',auth.user.id).maybeSingle();if(folder.error)return dbError(folder.error,'load_failed');if(!folder.data)return json({error:'not_found'},404);
+ const item=(c.data.course_data as CourseDraft|null)?.items.find(i=>i.id===config.section_id&&i.folderId===r.data!.section_folder_id&&r.data!.project_id===id);if(!item)return json({error:'not_found'},404);
+ const folder=await auth.supabase.from('projects').select('id').eq('id',r.data.section_folder_id).eq('parent_course_id',id).eq('user_id',auth.user.id).maybeSingle();if(folder.error)return dbError(folder.error,'load_failed');if(!folder.data)return json({error:'not_found'},404);
  const messages=await auth.supabase.from('messages').select('id,role,content,status,study_cards').eq('conversation_id',cid).eq('user_id',auth.user.id).order('seq');
  if(messages.error)return dbError(messages.error,'load_failed');return json({conversation:r.data,messages:(messages.data??[]).map(m=>({...m,study_cards:m.status==='complete'?validStudyCards(m.study_cards):[]})),prompt:studyPrompt(c.data as Course,item,config)});
 }

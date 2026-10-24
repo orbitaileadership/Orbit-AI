@@ -67,7 +67,12 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/conversati
 
   const patch: Record<string, unknown> = {};
   if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim().slice(0, 120);
-  if (body.projectId === null || isUuid(body.projectId)) patch.project_id = body.projectId;
+  if (body.projectId === null || isUuid(body.projectId)) {
+    patch.project_id = body.projectId;
+    // A deliberate move to a course clears the old section context. The database
+    // trigger sets it again when the destination is a section folder.
+    patch.section_folder_id = null;
+  }
   if (typeof body.modelId === "string") {
     const { data: conv } = await auth.supabase.from("conversations").select("provider").eq("id", id).maybeSingle();
     const model = getModel(body.modelId);

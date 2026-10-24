@@ -1,5 +1,11 @@
 # Course workspace V1 — October 17, 2026
 
+## October 24, 2026 — Course resources V2 (local, awaiting validation)
+
+The course Resources tab is removed. Every graded section retains its own Resources and Chats views; the course syllabus remains in Course Details and is the only parent file inherited into section AI context. Previously saved non-syllabus course files remain readable in Course Details but no longer enter section prompts automatically. Small course-color, priority, and section-type accents use existing design tokens.
+
+Migration `0024_course_chat_grouping.sql` groups new and existing section chats under the parent course while retaining `section_folder_id` for section chat lists and context. Quiz sessions use the same grouping. Folder moves update linked chats atomically; after a section is deleted, its history stays under the course and further turns reject with `section_unavailable` rather than widening context. A direct course chat also sees only the syllabus as a reusable course file. Migration 0024 is local-only and must be applied before this app version. Signed-in staging and phone/desktop validation remain pending.
+
 ## Courses Workspace revamp — October 23, 2026, awaiting validation
 
 The approved revamp replaces the earlier Overview/Assignments/Study arrangement with **Dashboard / Sections / Quiz**, retaining Resources, Chats and Course details. Released through [PR #26](https://github.com/orbitaileadership/Orbit-AI/pull/26), merge `a2ab9f9`; Vercel production Ready and live domain verified. Signed-in integration validation remains pending. See [release handoff](handoffs/2026-10-23-courses-workspace-release.md). This section supersedes historical interface and unsent-study-prompt descriptions below. See [approved plan](COURSES_WORKSPACE_REVAMP_PLAN.md) and [implementation handoff](handoffs/2026-10-23-courses-workspace-revamp.md).

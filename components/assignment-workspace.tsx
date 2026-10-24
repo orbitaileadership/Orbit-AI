@@ -104,13 +104,13 @@ export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFile
     try {
       const f = await ensure();
       const hasFiles = files.length > 0;
-      onLaunch({ course, item, folder: f, provider: ai, prompt: hasFiles ? `Help me get started on ${item.title}. Use the assignment files and the course materials.` : `Help me get started on ${item.title}.` });
+      onLaunch({ course, item, folder: f, provider: ai, prompt: hasFiles ? `Help me get started on ${item.title}. Use the section resources and the course syllabus.` : `Help me get started on ${item.title}.` });
     } catch (e) { setError(e instanceof Error ? e.message : 'Please try again.'); }
     finally { working.current = false; setBusy(false); }
   }
 
   const aiName = ai === 'orbit' ? 'Orbit' : isProvider(ai) ? THEMES[ai].appName : 'AI';
-  const others = courseFiles.filter(f => f.project_id === course.id);
+  const others = courseFiles.filter(f => f.id === course.syllabus_id);
   const card = 'min-w-0 w-full max-w-full group relative flex items-center gap-3 rounded-2xl border border-line bg-surface-100 p-3 text-left transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-composer';
 
   return (
@@ -128,7 +128,7 @@ export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFile
       {/* Chats stay scoped to this graded section. */}
       <section hidden={sectionTab !== 'chats'}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-medium">Section chats</h3>
+          <div><h3 className="text-lg font-medium">Section chats</h3><p className="text-xs text-ink-muted">Saved together under {course.name}</p></div>
           <label className="hub-ai"><span>Ask with</span><select aria-label="Section AI" value={ai} onChange={e => onAi(e.target.value)}><option value="orbit">Orbit</option>{PROVIDERS.map(provider => <option key={provider} value={provider}>{THEMES[provider].appName}</option>)}</select></label>
           <button disabled={busy || loading} onClick={startChat} className="orbit-send flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50">
             {ai === 'orbit' ? <OrbitGlyph size={16} /> : isProvider(ai) ? <span className="grid h-5 w-5 place-items-center rounded-full bg-white"><ProviderLogo provider={ai} size={13} /></span> : null}
@@ -149,14 +149,14 @@ export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFile
             </button>
           ))}
         </div>
-        {!loading && !chats.length && <p className="mt-3 text-sm text-ink-muted">Start a conversation using relevant excerpts from the assignment files and course syllabus and notes. Materials stay here when you switch assistants.</p>}
+        {!loading && !chats.length && <p className="mt-3 text-sm text-ink-muted">Start a conversation using relevant excerpts from the section resources and the course syllabus. Materials stay here when you switch assistants.</p>}
       </section>
 
       {/* Course files the AI also reads */}
       {sectionTab === 'resources' && others.length > 0 && (
         <section>
-          <h3 className="text-lg font-medium">From the course</h3>
-          <p className="mt-1 text-sm text-ink-muted">Chats for this section can also quote these.</p>
+          <h3 className="text-lg font-medium">Shared syllabus</h3>
+          <p className="mt-1 text-sm text-ink-muted">Available to this section and every other section in the course.</p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {others.map(f => (
               <button key={f.id} onClick={() => openFile(f.id)} className={card} title={`Open ${f.name}`}>

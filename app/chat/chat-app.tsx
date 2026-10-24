@@ -75,7 +75,7 @@ type Message = {
 type Pending = { key: string; file?: UploadedFile; name: string; uploading: boolean; error?: string };
 type ChatSettings = { mode: StudyMode; courseOnly: boolean; web?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null };
 type ConvSummary = { id: string; title: string; modelId: string; projectId: string | null; updatedAt: string };
-type Project = { id: string; name: string; instructions: string };
+type Project = { id: string; name: string; instructions: string; parent_course_id?: string | null };
 type Usage = import("@/components/usage-meter").UsageData & { live: boolean; liveProviders?: ProviderId[]; allowance: number; spent: number; reserved: number; typical?: Record<string, number>; allowanceCad?: number | null; usdCadRate?: number | null; expiresAt?: string | null };
 
 const APP_KEY = "polar.app.v1";
@@ -99,6 +99,7 @@ function errorText(code: string, label: string, appName: string): string {
     case "provider_disabled": return `${appName} is turned off by the team right now. Try another app on the left.`;
     case "no_image_model": return `${appName} can't make images.`;
     case "message_too_long": return "That message is too long. Try splitting it up.";
+    case "section_unavailable": return "This section was removed. You can read the saved chat, then start a new chat in a current section.";
     case "model_unavailable": return `${label} isn't available on this API key. Pick another model in the menu.`;
     case "auth": return `${appName} rejected the API key. It may have expired or been revoked.`;
     case "rate_limit": return `${appName} is rate-limiting us or the API account is out of credit. Try again shortly.`;
@@ -214,7 +215,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const theme = THEMES[provider];
   const appConvs = convs[provider];
   const filter = projectFilter[provider];
-  const visibleConvs = (appConvs ?? []).filter((c) => !filter || c.projectId === filter);
+  const groupProjectId = (id: string | null) => projects[provider].find(p => p.id === id)?.parent_course_id ?? id;
+  const visibleConvs = (appConvs ?? []).filter((c) => !filter || groupProjectId(c.projectId) === groupProjectId(filter));
   const activeId = activeIds[provider];
   const active = appConvs?.find((c) => c.id === activeId) ?? null;
   const msgKey = active ? active.id : `${DRAFT}:${provider}`;
@@ -475,7 +477,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       const existing = list.find((c) => c.id === newId);
       const summary: ConvSummary = existing
         ? { ...existing, modelId, updatedAt: new Date().toISOString() }
-        : { id: newId, title, modelId, projectId: filter, updatedAt: new Date().toISOString() };
+        : { id: newId, title, modelId, projectId: groupProjectId(filter), updatedAt: new Date().toISOString() };
       return { ...prev, [provider]: [summary, ...list.filter((c) => c.id !== newId)] };
     });
     moveRun(fromKey, newId);
@@ -1365,13 +1367,14 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
+          <SidebarSection storageKey="course-chats" title="Course chats"><nav aria-label="Course chat folders">{courseProjects.map(c => <button key={c.id} onClick={() => selectCourse(c.id)} className="block w-full truncate rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-200">{c.name}</button>)}</nav></SidebarSection>
           <FolderBrowser userId={userId} onOpen={folder => {
             setProjects(prev => Object.fromEntries(PROVIDERS.map(p => [p, [folder, ...prev[p].filter(f => f.id !== folder.id)]])) as Record<ProviderId, Project[]>);
             selectCourse(folder.id);
           }}/>
 
           {/* Chats */}
-          <SidebarSection storageKey="recents" title={filter ? `In ${(projects[provider].find(f => f.id === filter) ?? courseProjects.find(f => f.id === filter))?.name ?? "this folder"}` : theme.recentsLabel}
+          <SidebarSection storageKey="recents" title={filter ? `In ${(projects[provider].find(f => f.id === filter) ?? courseProjects.find(f => f.id === groupProjectId(filter)))?.name ?? "this folder"}` : theme.recentsLabel}
             actionVisible action={filter ? <button type="button" className="rounded-lg px-2 py-1 text-xs text-ink-muted transition hover:bg-surface-300 hover:text-ink" onClick={() => selectCourse(null)}>Show all</button> : undefined}>
             <nav className="space-y-0.5" aria-label={`${theme.appName} chats`}>
               {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}
