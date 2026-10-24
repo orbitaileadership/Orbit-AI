@@ -34,7 +34,7 @@ export async function orbitCall(o: {
   if (!r.ok) throw new OrbitError(r.reason === "global_stop" ? "paused" : r.reason === "error" ? "reserve_failed" : r.reason);
   let text = "", usage: Usage | undefined, finish: FinishReason = "unknown";
   try {
-    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,...(o.thinkingLevel ? {thinkingLevel:o.thinkingLevel} : {}),apiKey:key,signal:o.signal })) {
+    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,...(o.thinkingLevel ? {thinkingLevel:o.thinkingLevel} : {}),...(o.operation === "orbit_vote" && o.model.apiModel === "claude-haiku-5-5" ? {disableThinking:true} : {}),apiKey:key,signal:o.signal })) {
       if (event.delta) { text += event.delta; o.delta?.(event.delta); }
       if (event.usage) usage = event.usage;
       if (event.finish) finish = event.finish;
