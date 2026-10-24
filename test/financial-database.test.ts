@@ -26,7 +26,7 @@ beforeAll(async()=>{
  insert into public.conversations(id,user_id,provider,model_id) values('${C}','${U}','openai','openai-default');`);
 },30_000);
 afterAll(async()=>{await db?.close();});
-async function reserve(id:string,bound:number=1000000){
+async function reserve(id:string,bound:number=300000){
  return (await db.query<{r:{ok:boolean;reason?:string}}>(`select public.reserve_budget_v2($1,$2,'openai-default','text',$3,$4::jsonb,'{}') as r`,[U,id,bound,JSON.stringify({provider:'openai',operation:'chat',conversationId:C})])).rows[0].r;
 }
 describe('financial SQL and RLS',()=>{
@@ -60,11 +60,11 @@ describe('financial SQL and RLS',()=>{
  it('settles only once and distinguishes unknown provider cost from a charged reservation',async()=>{
    await db.exec(`select public.settle_budget_v2('r1','uncertain',0); select public.settle_budget_v2('r1','settled',100);`);
    const l=(await db.query<{actual_micros:number;actual_usd_micros:number|null}>(`select * from public.ledger where request_id='r1'`)).rows[0];
-   expect(Number(l.actual_micros)).toBe(1_000_000);expect(l.actual_usd_micros).toBeNull();
-   expect(await reserve('r2',500_000)).toMatchObject({ok:true});
+   expect(Number(l.actual_micros)).toBe(300_000);expect(l.actual_usd_micros).toBeNull();
+   expect(await reserve('r2',200_000)).toMatchObject({ok:true});
    await db.exec(`select public.settle_budget_v2('r2','settled',50000,1000,100,20,200,null,100); select public.settle_budget_v2('r2','settled',999999);`);
    const b=(await db.query<{spent_micros:number;reserved_micros:number}>(`select * from public.budgets where user_id=$1`,[U])).rows[0];
-   expect(Number(b.spent_micros)).toBe(1_050_000);expect(Number(b.reserved_micros)).toBe(0);
+   expect(Number(b.spent_micros)).toBe(350_000);expect(Number(b.reserved_micros)).toBe(0);
  });
  it('blocks expired trials even when balance remains',async()=>{
    await db.exec(`update public.budgets set expires_at=now()-interval '1 day' where user_id='${U}'`);

@@ -1,13 +1,17 @@
 "use client";
+import type { UsageWindow } from '@/lib/billing/usage-windows';
 
-// The allowance card (sidebar, Orbit, Settings → Usage), laid out like the apps' usage limits: what the allowance is,
-// when it ends, how much is used, and a bar whose colour says how much is left (green, then amber, then red).
-// Figures come from /api/usage (budgets table): USD micros, shown in CAD when the account has a CAD allowance.
+// Shared rolling-window meter for Settings, chat and Orbit. Students see percentages only.
+// The server controls monetary detail visibility; all enforcement stays in the reservation RPC.
 export type UsageData = {
   live: boolean;
   allowance: number; spent: number; reserved: number;  // USD micros
   allowanceCad?: number | null; usdCadRate?: number | null;
   expiresAt?: string | null;                           // set for trials
+  windows?: UsageWindow[];
+  canViewCosts?: boolean;
+  available?: number;
+  expired?: boolean;
 };
 
 /** Share of the allowance used (spent + held for running answers), 0–100. */
@@ -53,37 +57,38 @@ export function UsageMeter({ usage, size = "compact", children }: { usage: Usage
       </div>
     );
   }
-  const pct = usedPercent(usage);
-  const tone = leftTone(pct);
-  const money = moneyFor(usage);
+  if (!usage.windows?.length) return <div role="status" className="rounded-2xl border border-line p-4 text-sm text-ink-muted">Usage limits are temporarily unavailable. Refresh to try again.</div>;
   const trial = Boolean(usage.expiresAt);
-  const left = usage.allowance - usage.spent - usage.reserved;
-  return (
-    <div className={`rounded-2xl border border-line bg-surface-100 ${large ? "p-5" : "p-3.5"}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className={`${large ? "text-sm" : "text-xs"} text-ink-muted`}>Usage limits · {trial ? "Free trial" : "Orbit"}</p>
-        <span className="inline-flex items-center gap-1.5 text-[11px] text-ink-muted">
-          <span aria-hidden className="h-2 w-2 rounded-full" style={{ background: TONE[tone] }} />{TONE_LABEL[tone]}
-        </span>
-      </div>
-      <div className={large ? "mt-4" : "mt-2.5"}>
-        <div className="flex items-baseline justify-between gap-3">
-          <p className={`${large ? "text-[15px]" : "text-sm"} truncate font-medium`}>{trial ? "Trial allowance" : "Allowance"}</p>
-          <p className="flex shrink-0 items-baseline gap-2 text-xs tabular-nums text-ink-muted">
-            {large && usage.expiresAt && <span className="hidden sm:inline">{endsLabel(usage.expiresAt)}</span>}
-            <span className="font-medium text-ink">{Math.round(pct)}%</span>
-          </p>
-        </div>
-        <div className={`mt-2 ${large ? "h-2.5" : "h-2"} overflow-hidden rounded-full bg-surface-300`} role="meter" aria-label="Allowance used"
-          aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(pct)} aria-valuetext={`${Math.round(pct)}% used, ${money(left)} left`}>
-          <div className="h-full rounded-full transition-[width,background-color] duration-500" style={{ width: `${Math.max(pct, pct > 0 ? 2 : 0)}%`, background: TONE[tone] }} />
-        </div>
-        <p className="mt-1.5 flex justify-between gap-2 text-[11px] tabular-nums text-ink-subtle">
-          <span>{money(left)} left of {money(usage.allowance)}</span>
-          {usage.expiresAt && <span className={large ? "sm:hidden" : ""}>{endsLabel(usage.expiresAt)}</span>}
-        </p>
-      </div>
-      {children}
+  const accountLeft = Math.max(0, 100 - usedPercent(usage));
+  const labels = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
+  const periods = { daily: 'Past 24 hours', weekly: 'Past 7 days', monthly: 'Past 30 days' };
+  return <div className={`rounded-2xl border border-line bg-surface-100 ${large ? 'p-5' : 'p-3.5'}`}>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className={`${large ? 'text-base' : 'text-sm'} font-medium`}>Usage limits</h3>
+      {trial && <span className="rounded-full bg-surface-200 px-2 py-1 text-[11px] text-ink-muted">Free trial</span>}
     </div>
-  );
+    <p className="mt-1 text-xs leading-relaxed text-ink-muted">Shared across all your AIs and models.</p>
+    {usage.expired ? <p role="status" className="mt-3 rounded-xl bg-danger-surface p-3 text-xs text-danger">Your trial has ended. Rolling limits do not extend your trial.</p> : accountLeft <= 0 ? <p role="status" className="mt-3 rounded-xl bg-danger-surface p-3 text-xs text-danger">Your account allowance is exhausted. Recovering daily or weekly capacity does not refill it.</p> : null}
+    <div className={large ? 'mt-6 space-y-6' : 'mt-4 space-y-4'}>
+      {usage.windows.map(window => {
+        const left = window.remainingPercent;
+        const tone = leftTone(100 - left);
+        const displayed = Math.floor(left);
+        return <section key={window.key} aria-label={`${labels[window.key]} usage limit`}>
+          <div className="flex items-center justify-between gap-3 text-sm"><span className="font-medium">{labels[window.key]}</span><span className="tabular-nums font-medium">{left > 0 && left < 1 ? '<1' : displayed}% left</span></div>
+          <div role="meter" aria-label={`${labels[window.key]} allowance remaining`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={left} aria-valuetext={`${left.toFixed(1)}% remaining`}
+            className={`mt-2 overflow-hidden rounded-full bg-surface-300 ${large ? 'h-2.5' : 'h-2'}`}>
+            <div className="h-full rounded-full transition-[width,background-color] duration-500 motion-reduce:transition-none" style={{ width: `${left}%`, background: TONE[tone] }} />
+          </div>
+          <div className="mt-1.5 flex flex-wrap justify-between gap-1 text-[11px] text-ink-subtle"><span>{periods[window.key]}</span><span>{left <= 0 ? 'Limit reached' : TONE_LABEL[tone]}</span></div>
+          {large && window.nextReleaseAt && <p className="mt-1 text-[11px] text-ink-subtle">Usage starts freeing up {new Date(window.nextReleaseAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.</p>}
+          {window.heldPercent > 0 && <p className="mt-1 text-[11px] text-ink-subtle">Includes {window.heldPercent < 1 ? '<1' : Math.ceil(window.heldPercent)}% held for work in progress.</p>}
+          {usage.canViewCosts && window.costs && <p className="mt-1 text-[11px] text-ink-muted">Admin · US${((window.costs.spent + window.costs.reserved) / 1e6).toFixed(2)} used/held of US${(window.costs.limit / 1e6).toFixed(2)}</p>}
+        </section>;
+      })}
+    </div>
+    <p className="mt-4 text-[11px] leading-relaxed text-ink-subtle">Limits recover gradually as usage leaves each window. Work in progress remains held until its cost is confirmed.</p>
+    <p className="mt-2 text-[11px] leading-relaxed text-ink-muted">{trial ? 'Trial' : 'Account'} allowance: {Math.floor(accountLeft)}% left. {usage.expiresAt ? endsLabel(usage.expiresAt) + '.' : 'Your account allowance also applies.'}</p>
+    {children}
+  </div>;
 }

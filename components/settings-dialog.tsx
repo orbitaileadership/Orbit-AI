@@ -94,6 +94,7 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
   const [confirmClear, setConfirmClear] = useState(false);
   const [look, setLook] = useState<Appearance>(DEFAULT_APPEARANCE);
   const [usage, setUsage] = useState<UsageData | null | "error">(null);
+  const [usageRefresh, setUsageRefresh] = useState(0);
 
   useEffect(() => {
     const d = ref.current;
@@ -131,9 +132,24 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
   useEffect(() => {
     if (!open || (tab !== "usage" && tab !== "billing")) return;
     let cancelled = false;
-    fetch("/api/usage").then((r) => (r.ok ? r.json() : Promise.reject())).then((u: UsageData) => { if (!cancelled) setUsage(u); }).catch(() => { if (!cancelled) setUsage("error"); });
-    return () => { cancelled = true; };
-  }, [open, tab]);
+    let pending = false;
+    const refresh = async () => {
+      if (pending || document.visibilityState === 'hidden') return;
+      pending = true;
+      try {
+        const response = await fetch('/api/usage', { cache: 'no-store' });
+        if (!response.ok) throw new Error('usage_unavailable');
+        const next: UsageData = await response.json();
+        if (!cancelled) setUsage(next);
+      } catch { if (!cancelled) setUsage('error'); }
+      finally { pending = false; }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 60_000);
+    const onVisible = () => void refresh();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; window.clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [open, tab, usageRefresh]);
 
   async function save(next: Profile, note = "Saved.") {
     setStatus("Saving…");
@@ -346,9 +362,9 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
               <section>
                 {heading("Usage", "Every answer uses part of your allowance. Cheaper models stretch it further.")}
                 {usage === null && <p className="py-5 text-sm text-ink-subtle">Loading…</p>}
-                {usage === "error" && <p className="py-5 text-sm text-ink-muted">Couldn&apos;t load your usage. Try again.</p>}
+                {usage === "error" && <p role="alert" className="py-5 text-sm text-ink-muted">Couldn&apos;t load your usage. <button className="underline" onClick={() => { setUsage(null); setUsageRefresh(v => v + 1); }}>Try again</button></p>}
                 {usage && usage !== "error" && <div className="mt-4"><UsageMeter usage={usage} size="large" /></div>}
-                {usage && usage !== "error" && usage.live && (
+                {usage && usage !== "error" && usage.live && usage.canViewCosts && (
                   <>
                     {usage.expiresAt && <Row title="Trial ends"><span className="text-sm text-ink-muted">{new Date(usage.expiresAt).toLocaleString(undefined, { weekday: "short", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></Row>}
                     <Row title="Used so far"><span className="text-sm tabular-nums text-ink-muted">{moneyFor(usage)(usage.spent)}</span></Row>
@@ -371,14 +387,14 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
                   </div>
                   <ul className="mt-5 space-y-2.5 text-sm">
                     {[
-                      `${cad(ECONOMICS.monthlyAllowanceCadMicros)} of AI usage every month, across ChatGPT, Claude, Gemini, Grok and Orbit`,
+                      "Monthly AI usage shared across ChatGPT, Claude, Gemini, Grok and Orbit",
                       "Every model each app offers, with your chats, courses and files in one place",
                     ].map((t) => (
                       <li key={t} className="flex gap-2.5"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="mt-0.5 shrink-0 text-success"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>{t}</li>
                     ))}
                   </ul>
                 </div>
-                <Row title="Current plan" description={usage && usage !== "error" && usage.expiresAt ? `Free trial: ${moneyFor(usage)(usage.allowance)} of AI usage until ${new Date(usage.expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}.` : "Your account's allowance is shown on the Usage page."}>
+                <Row title="Current plan" description={usage && usage !== "error" && usage.expiresAt ? `Free trial until ${new Date(usage.expiresAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}.` : "Your account's allowance is shown on the Usage page."}>
                   <button type="button" onClick={() => setTab("usage")} className={secondary}>View usage</button>
                 </Row>
                 <Row title="Payments" description="Paid plans aren't available yet, so you won't be charged.">
