@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Course, CourseFile, CourseItem, CourseLaunch } from '@/lib/courses/types';
 import { uploadFile } from '@/lib/files/upload-client';
 import { THEMES } from '@/config/themes';
-import { isProvider } from '@/config/models';
+import { isProvider, PROVIDERS } from '@/config/models';
 import { ProviderLogo } from './provider-logo';
 import { OrbitGlyph } from './app-rail';
 import { FileTile } from './file-tile';
@@ -26,11 +26,12 @@ async function call(path: string, method = 'GET') {
  * see the course files the AI also reads, and start or reopen this assignment's chats in Orbit or any of the four AIs.
  * The folder is created on first upload or chat, never by just looking.
  */
-export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, openFile, onLaunch, onCourse, active = true }: {
+export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFiles, openFile, onLaunch, onCourse, active = true }: {
   active?: boolean;
-  course: Course; item: CourseItem; userId: string; ai: string; courseFiles: CourseFile[];
+  course: Course; item: CourseItem; userId: string; ai: string; onAi: (ai: string) => void; courseFiles: CourseFile[];
   openFile: (id: string) => void; onLaunch: (launch: CourseLaunch) => void; onCourse: (course: Course) => void;
 }) {
+  const [sectionTab, setSectionTab] = useState<'resources' | 'chats'>('resources');
   const [folder, setFolder] = useState<Folder | null>(null);
   const [files, setFiles] = useState<FolderFile[]>([]);
   const [chats, setChats] = useState<FolderChat[]>([]);
@@ -116,16 +117,19 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
     <div className="mt-8 space-y-8">
       {error && <div role="alert" className="rounded-xl border border-line bg-surface-100 p-3 text-sm">{error} <button className="underline" disabled={busy} onClick={() => { setError(''); setRevision(v => v + 1); }}>Reload workspace</button></div>}
 
-      <CourseFileBrowser
+      <nav className="hub-tabs" aria-label="Section workspace"><button aria-current={sectionTab === 'resources' ? 'page' : undefined} onClick={() => setSectionTab('resources')}>Resources</button><button aria-current={sectionTab === 'chats' ? 'page' : undefined} onClick={() => setSectionTab('chats')}>Chats</button></nav>
+      <div hidden={sectionTab !== 'resources'}><CourseFileBrowser
         title="Section resources" description="Keep the instructions, rubric, and supporting work together."
         searchLabel="Search section resources" assignment files={files} uploading={uploading}
         busy={busy} loading={loading} onUpload={list => void upload(list)}
         onOpen={openFile} onRemove={file => void remove(file)}
       />
-      {/* Chats */}
-      <section>
+      </div>
+      {/* Chats stay scoped to this graded section. */}
+      <section hidden={sectionTab !== 'chats'}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="text-lg font-medium">Chats</h3>
+          <h3 className="text-lg font-medium">Section chats</h3>
+          <label className="hub-ai"><span>Ask with</span><select aria-label="Section AI" value={ai} onChange={e => onAi(e.target.value)}><option value="orbit">Orbit</option>{PROVIDERS.map(provider => <option key={provider} value={provider}>{THEMES[provider].appName}</option>)}</select></label>
           <button disabled={busy || loading} onClick={startChat} className="orbit-send flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50">
             {ai === 'orbit' ? <OrbitGlyph size={16} /> : isProvider(ai) ? <span className="grid h-5 w-5 place-items-center rounded-full bg-white"><ProviderLogo provider={ai} size={13} /></span> : null}
             New chat with {aiName}
@@ -149,7 +153,7 @@ export function AssignmentWorkspace({ course, item, userId, ai, courseFiles, ope
       </section>
 
       {/* Course files the AI also reads */}
-      {others.length > 0 && (
+      {sectionTab === 'resources' && others.length > 0 && (
         <section>
           <h3 className="text-lg font-medium">From the course</h3>
           <p className="mt-1 text-sm text-ink-muted">Chats for this section can also quote these.</p>

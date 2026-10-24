@@ -91,3 +91,7 @@ The owner reported another Orbit failure after PR 22. Production logs show a Goo
 ## October 24 — Orbit cost-selected voters (local)
 
 `feat/orbit-cost-selected-voters` uses price-selected ballot models and explicitly disables Haiku 5.5 thinking for its bounded 256-token ballot. Lead answers and specialist candidates are unchanged; no live quality comparison was run, so voting quality parity remains unverified. The token-price estimate at configured input/output caps decreases from about US$0.0347 to US$0.0149 per four-model vote; this excludes reservation margins, retries and provider billing variance. Existing reservations and reconciliation remain in place. No provider calls, merge or deployment. See [handoff](handoffs/2026-10-24-orbit-cost-selected-voters.md).
+
+## Courses simplification — October 24, 2026, local
+
+`codex/courses-simplify` contains Noah's course-only list, Graded Sections/section Chats navigation, removed slogans/term filter/duplicate calendar links, equal priority-card heights and centered event dialog. Lint and TypeScript passed; browser validation and release remain pending. No database migration. See [handoff](handoffs/2026-10-24-courses-simplify.md).

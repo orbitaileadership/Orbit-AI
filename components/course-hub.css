@@ -35,7 +35,7 @@
 .hub-link { font-size: 12px; font-weight: 550; color: var(--brand); text-align: left; line-height: 1.5; }
 .hub-link:hover { text-decoration: underline; text-underline-offset: 4px; }
 .hub-mobile-toggle { display: none; }
-.hub-quick-actions { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 14px; margin-bottom: 38px; }
+.hub-quick-actions { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; margin-bottom: 38px; }
 .hub-quick-action { padding: 22px 18px; display: flex; align-items: center; gap: 13px; border: 1px solid var(--line); border-radius: 16px; text-align: left; background: var(--surface-100); transition: border-color .2s, transform .2s; }
 .hub-quick-action:hover { border-color: var(--line-strong); transform: translateY(-2px); }
 .hub-quick-action>span:nth-child(2) { flex: 1; }
@@ -219,3 +219,5 @@
   .hub-material-browser .hub-toolbar .hub-toggle { margin-left: auto; }
   .hub-file-drop { gap: 12px; padding: 24px 14px; }
 }
+
+.hub-sort-label { color: var(--ink-muted); font-size: 12px; white-space: nowrap; padding: 10px 0; }
