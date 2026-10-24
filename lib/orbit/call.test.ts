@@ -94,3 +94,45 @@ it("reserves separate attempts and retains the first attempt's uncertain charge"
  expect(state.settle.mock.calls[0]).toEqual([expect.any(String),"uncertain",0,undefined,"orbit_call_failed"]);
  expect(state.settle.mock.calls[1][1]).toBe("settled");
 });
+
+
+it.each([false,true])("classifies the actual helper deadline and preserves usage=%s settlement",async hasUsage=>{
+ const deadline=new AbortController();
+ state.stream.mockImplementation(async function*(){
+  if(hasUsage)yield {usage:{input:100,output:20,reasoning:0,cached:0}};
+  deadline.abort(new DOMException("Synthetic deadline","TimeoutError"));
+  throw deadline.signal.reason;
+ });
+ await expect(orbitCall({...args(),signal:deadline.signal})).rejects.toMatchObject({code:"orbit_call_timeout",retryableUnavailable:false});
+ expect(state.settle.mock.calls[0][1]).toBe(hasUsage?"settled":"uncertain");
+ expect(state.reserve).toHaveBeenCalledTimes(1);
+ expect(console.error).toHaveBeenCalledWith("[orbit] provider call failed",expect.objectContaining({code:"timeout"}));
+});
+it("does not infer a deadline from a thrown TimeoutError when the caller signal is active",async()=>{
+ state.stream.mockImplementation(async function*(){throw new DOMException("Private synthetic text","TimeoutError");});
+ await expect(orbitCall(args())).rejects.toMatchObject({code:"orbit_call_failed",retryableUnavailable:false});
+});
+it("never classifies user cancellation as a helper deadline",async()=>{
+ const cancellation=new AbortController();
+ state.stream.mockImplementation(async function*(){cancellation.abort();throw cancellation.signal.reason;});
+ await expect(orbitCall({...args(),signal:cancellation.signal})).rejects.toMatchObject({code:"orbit_call_failed",retryableUnavailable:false});
+ expect(state.settle.mock.calls[0][1]).toBe("uncertain");
+});
+it("does not reserve or dispatch when its deadline already expired",async()=>{
+ const deadline=new AbortController();deadline.abort(new DOMException("Synthetic deadline","TimeoutError"));
+ await expect(orbitCall({...args(),signal:deadline.signal})).rejects.toMatchObject({code:"orbit_call_timeout",retryableUnavailable:false});
+ expect(state.reserve).not.toHaveBeenCalled();expect(state.stream).not.toHaveBeenCalled();
+});
+
+
+it.each([new ProviderError("auth",401,false),new ProviderError("bad_request",404,false),new SyntaxError("synthetic malformed event")])("does not hide an unrelated error when the deadline expires concurrently: %s",async error=>{
+ const deadline=new AbortController();
+ state.stream.mockImplementation(async function*(){deadline.abort(new DOMException("Synthetic deadline","TimeoutError"));throw error;});
+ await expect(orbitCall({...args(),signal:deadline.signal})).rejects.toMatchObject({code:"orbit_call_failed",retryableUnavailable:false});
+});
+it("recognizes a stream reader AbortError caused by its timeout and retains the uncertain reservation",async()=>{
+ const deadline=new AbortController();
+ state.stream.mockImplementation(async function*(){deadline.abort(new DOMException("Synthetic deadline","TimeoutError"));throw new DOMException("Synthetic reader cancellation","AbortError");});
+ await expect(orbitCall({...args(),signal:deadline.signal})).rejects.toMatchObject({code:"orbit_call_timeout",retryableUnavailable:false});
+ expect(state.settle.mock.calls[0][1]).toBe("uncertain");
+});
