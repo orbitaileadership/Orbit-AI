@@ -12,13 +12,16 @@ One mobile-friendly web app where a student can chat with models from four provi
 3. **Chat.** Saved text conversations: list, open, rename, delete. Streaming replies. Each assistant message shows the model that wrote it.
 4. **Model switching.** Change the model in the same chat. The new model gets the earlier history, including replies from other models.
 5. **Context policy.** Long chats use an explicit, disclosed limit: send the most recent N tokens of history that fit the model's window and the budget reserve, and show a notice in the UI when older messages are left out. Never claim unlimited memory.
-6. **Usage and limits.** A dollar budget for each user (not a message count). Show used and remaining. Pause generation with a clear explanation when the remaining budget can't cover a request.
+6. **Usage and limits.** Enforce cost budgets shared across providers with rolling 24-hour, 7-day and 30-day caps. The monthly cap is C$20 converted to USD at the configured account rate; daily is 1/30 and weekly is 7/30 of monthly. Students see percentages and colored remaining-allowance bars in Settings → Usage; authorized admins can see costs. Existing trial expiry and smaller/lifetime allowances also apply. Pause generation when allowance cannot cover the request. See [USAGE_WINDOWS_PLAN.md](USAGE_WINDOWS_PLAN.md) for implementation and rollout status.
 7. **Status.** The UI clearly shows trial or subscription status.
 8. **Controls.** Per-user rate limits, a team-wide spending stop, a disable switch for each provider.
 9. **Reporting.** Admin view or report for Jake: spend by user and model, total API cost, errors. No message content.
 10. **UX states.** Sending, streaming, waiting, errors, rate limits and budget pauses all make sense on phone and desktop.
 
-## Provisional economics (settings, not hardcoded)
+## Historical provisional economics (superseded where noted below)
+
+October 23 update: C$30 subscription price and C$20 API allowance are the approved sizing; rolling usage caps are approved. Paid enrollment, renewals and payment activation remain pending. See [DECISIONS.md](DECISIONS.md).
+
 | Setting | Provisional value | Owner / due |
 |---|---|---|
 | Currency | TBD | Jake, Oct 5 |

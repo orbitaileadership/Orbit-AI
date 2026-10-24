@@ -13,11 +13,17 @@ Seeded October 19, 2026. Update after verified changes; this snapshot will age.
 
 ## Recent implemented changes
 
+### Rolling usage limits — local branch, October 23, 2026
+
+`codex/usage-windows` implements shared rolling 24-hour / 7-day / 30-day caps, with daily = monthly / 30 and weekly = monthly × 7 / 30. Monthly sizing is C$20 converted at the configured account FX rate. Settings and shared meters show colored percentages for students; authorized admins retain monetary details. Trial/lifetime entitlements still cap availability; payments remain disabled. Migration `0022_usage_windows.sql` is **not applied** and must precede application rollout. Changes are uncommitted, not pushed or deployed.
+
+Local checks passed: 668 tests / 86 files, lint, TypeScript, production webpack build, and synthetic actual-Settings desktop/mobile/dark/error/admin/student browser checks. Independent `gpt-6-astra` accounting review found no remaining blockers after corrections. Signed-in staging and true multi-session PostgreSQL contention remain unverified. See [handoff](handoffs/2026-10-23-usage-windows.md).
+
 ### Courses Hub — local branch, October 23, 2026
 
 Follow-up presentation refinement: course and assignment files now share a searchable grid/list library with natural filename/type sorting, complete type filters, upload progress, and truthful reading-status labels. Assignment files precede chats. The focused suite passed 74 tests / 12 files and expanded desktop/320px browser journeys passed; see the handoff for the preceding full-suite result and remaining live-validation limits.
 
-`codex/courses-hub` contains the centralized course library, My week, course sections, assignment/file/chat polish, and reviewed-source deletion protection. It is uncommitted and not deployed. The full local suite passed 631 tests across 81 files; synthetic desktop/mobile flows passed, including 320px layout, partial upload failure, error recovery, syllabus review and assignment-chat return. Independent `gpt-6-astra` review completed: four retention/cascade/inventory findings fixed and final scoped re-review found no blockers. Lint and TypeScript passed. Signed-in staging and concurrent database/storage behavior remain unverified. See [handoff](handoffs/2026-10-23-courses-hub.md) for final checks and limitations.
+`codex/courses-hub` contains the centralized course library, My week, course sections, assignment/file/chat polish, and reviewed-source deletion protection. It was committed and pushed at `8e8d730`; deployment is not verified here. The full local suite passed 631 tests across 81 files; synthetic desktop/mobile flows passed, including 320px layout, partial upload failure, error recovery, syllabus review and assignment-chat return. Independent `gpt-6-astra` review completed: four retention/cascade/inventory findings fixed and final scoped re-review found no blockers. Lint and TypeScript passed. Signed-in staging and concurrent database/storage behavior remain unverified. See [handoff](handoffs/2026-10-23-courses-hub.md) for final checks and limitations.
 
 | Change | Recorded state / source |
 |---|---|

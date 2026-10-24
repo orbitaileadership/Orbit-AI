@@ -1,7 +1,8 @@
-// Proposal, not payment authorization. Provider expenses/legacy budget counters remain USD micros.
+// Approved allowance sizing; payment activation remains separately gated. Counters are USD micros.
 export const ECONOMICS = {
   subscriptionCadMicros: 30_000_000,
   monthlyAllowanceCadMicros: 20_000_000,
+  usageWindowDays: { daily: 1, weekly: 7, monthly: 30 },
   trialAllowanceCadMicros: 2_500_000,
   trialDays: 7,
   paymentsEnabled: false,

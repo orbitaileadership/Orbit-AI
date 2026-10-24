@@ -9,7 +9,7 @@ it("fails closed before invalid monetary bounds reach SQL",async()=>{
 });
 it("snapshots configured model, rate, currency and units",async()=>{
  await reserve("u","r","voice-speak","text",1000,{apiModel:"gpt-4o-mini-tts",unitType:"1000_characters",unitCostUsdMicros:20000});
- expect(state.rpc).toHaveBeenCalledWith("reserve_budget_v2",expect.objectContaining({p_price_snapshot:expect.objectContaining({apiModel:"gpt-4o-mini-tts",currency:"USD",unitType:"1000_characters",unitCostUsdMicros:20000})}));
+ expect(state.rpc).toHaveBeenCalledWith("reserve_budget_v3",expect.objectContaining({p_price_snapshot:expect.objectContaining({apiModel:"gpt-4o-mini-tts",currency:"USD",unitType:"1000_characters",unitCostUsdMicros:20000})}));
 });
 it("separates estimates, exact provider cost and unreported token details",async()=>{
  await settle("r","settled",1000);

@@ -76,7 +76,7 @@ type Pending = { key: string; file?: UploadedFile; name: string; uploading: bool
 type ChatSettings = { mode: StudyMode; courseOnly: boolean; web?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null };
 type ConvSummary = { id: string; title: string; modelId: string; projectId: string | null; updatedAt: string };
 type Project = { id: string; name: string; instructions: string };
-type Usage = { live: boolean; liveProviders?: ProviderId[]; allowance: number; spent: number; reserved: number; typical?: Record<string, number>; allowanceCad?: number | null; usdCadRate?: number | null; expiresAt?: string | null };
+type Usage = import("@/components/usage-meter").UsageData & { live: boolean; liveProviders?: ProviderId[]; allowance: number; spent: number; reserved: number; typical?: Record<string, number>; allowanceCad?: number | null; usdCadRate?: number | null; expiresAt?: string | null };
 
 const APP_KEY = "polar.app.v1";
 const SIDEBAR_KEY = "orbit.sidebar.collapsed";
@@ -1070,7 +1070,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   );
 
   // Warn while there's still room to finish the session, in answers rather than dollars, and offer the cheapest model.
-  const remainingNow = usage?.live ? usage.allowance - usage.spent - usage.reserved : Infinity;
+  const remainingNow = usage?.live ? (usage.available ?? usage.allowance - usage.spent - usage.reserved) : Infinity;
   const cheapest = modelsFor(generationProvider).filter((m) => MENU_MAIN[generationProvider].includes(m.id)).sort((a, b) => typicalAnswerMicros(a, usage?.typical) - typicalAnswerMicros(b, usage?.typical))[0];
   const perAnswer = currentModel ? typicalAnswerMicros(currentModel, usage?.typical) : 0;
   const cheapPerAnswer = cheapest ? typicalAnswerMicros(cheapest, usage?.typical) : 0;
@@ -1283,7 +1283,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const sidebarIcon = (
     <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7.75 4v12" stroke="currentColor" strokeWidth="1.5" /></svg>
   );
-  const remaining = usage?.live ? usage.allowance - usage.spent - usage.reserved : 0;
+  const remaining = usage?.live ? (usage.available ?? usage.allowance - usage.spent - usage.reserved) : 0;
 
   const settingsDialog = (
     <SettingsDialog

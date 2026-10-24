@@ -16,6 +16,12 @@ Seeded from the conversation and existing engineering protocol on October 19, 20
 
 New entry format: decision; owner; date; source/link; affected behavior; what it supersedes. Preserve changed decisions as superseded rather than keeping contradictory active instructions.
 
+## October 23, 2026 — Rolling usage allowances
+
+Noah requested a C$20 API allowance within the planned C$30 subscription price, converted to USD using the configured account exchange rate, shared across providers and models. He explicitly chose rolling **24 hours / 7 days / 30 days**: daily = monthly / 30; weekly = monthly × 7 / 30. Students see percentage remaining and colored bars in Settings → Usage; only authorized admins see monetary usage details. This supersedes the October 22 single-meter/no-weekly-limit presentation and student-facing allowance dollars. See [USAGE_WINDOWS_PLAN.md](USAGE_WINDOWS_PLAN.md).
+
+Implementation caps existing entitlements and preserves trial expiry and smaller/lifetime allowances; it does not create paid entitlements or renew balances. Payments remain disabled. Shared migration and production rollout require separate authorization.
+
 ## October 23, 2026 — Centralized Courses Hub
 
 Noah approved revamping Courses into a centralized academic hub inspired by Google Docs, using the supplied Courses Workspace memo and continuing implementation. The core hub organizes courses, upcoming work, materials, assignment folders, chats and study preparation. It supersedes the previous scattered course navigation while retaining existing course records, reviewed evidence and context limits. Study in this iteration prepares unsent chat prompts; advanced adaptive learning and external integrations remain later work. See `COURSES_HUB_PLAN.md`. Approval covers implementation; production release, shared migrations and paid provider checks still require their existing authorization.

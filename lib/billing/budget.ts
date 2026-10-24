@@ -5,7 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Usage } from "@/lib/providers/types";
 import type { UsageContext } from '@/lib/analytics/context';
 
-// SQL v2 functions from migration 0009. No paid call may fall back to the legacy functions.
+// v3 reservations add rolling windows; v2 settlement retains the existing accounting semantics.
 export type ReserveResult =
   | { ok: true; remaining: number }
   | { ok: false; reason: "budget" | "global_stop" | "duplicate" | "trial_expired" | "fx_not_configured" | "error"; remaining?: number };
@@ -21,7 +21,7 @@ export type CallMetadata = {
 };
 export async function reserve(userId: string, requestId: string, modelId: string, kind: "text" | "image", boundMicros: number, metadata: CallMetadata = {}): Promise<ReserveResult> {
   if (!Number.isFinite(boundMicros) || boundMicros <= 0 || !Number.isSafeInteger(Math.ceil(boundMicros))) return { ok: false, reason: "error" };
-  const { data, error } = await createAdminClient().rpc("reserve_budget_v2", {
+  const { data, error } = await createAdminClient().rpc("reserve_budget_v3", {
     p_user_id: userId,
     p_request_id: requestId,
     p_model_id: modelId,
