@@ -16,6 +16,10 @@ Seeded from the conversation and existing engineering protocol on October 19, 20
 
 New entry format: decision; owner; date; source/link; affected behavior; what it supersedes. Preserve changed decisions as superseded rather than keeping contradictory active instructions.
 
+## October 23, 2026 — Centralized Courses Hub
+
+Noah approved revamping Courses into a centralized academic hub inspired by Google Docs, using the supplied Courses Workspace memo and continuing implementation. The core hub organizes courses, upcoming work, materials, assignment folders, chats and study preparation. It supersedes the previous scattered course navigation while retaining existing course records, reviewed evidence and context limits. Study in this iteration prepares unsent chat prompts; advanced adaptive learning and external integrations remain later work. See `COURSES_HUB_PLAN.md`. Approval covers implementation; production release, shared migrations and paid provider checks still require their existing authorization.
+
 ## October 19, 2026 — Courses contain folders
 
 Jake requested folders in the main sidebar, with pinned and recent folders. Folders group chats and files; courses can contain multiple folders, including assignment folders, and expose them through the course workspace. Implemented on `folders-course-navigation`; migration 0018 and deployment remain pending. Existing courses and their direct chat/file links are preserved.

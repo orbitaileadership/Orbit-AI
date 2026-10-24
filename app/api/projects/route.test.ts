@@ -45,3 +45,19 @@ it('rejects invalid JSON shapes without modifying records',async()=>{
  }
  expect(s.fake!.db.projects).toHaveLength(3);
 });
+
+it('preserves reviewed evidence previously moved into a deleted folder',async()=>{
+ s.fake!.db.projects[0].syllabus_id='source';
+ s.fake!.db.files.push({id:'source',user_id:'u',project_id:folder,conversation_id:null,storage_path:'u/source'});
+ s.fake!.storage['u/source']={bytes:new Uint8Array([1]),type:'text/plain'};
+ expect((await DELETE(request({}),ctx())).status).toBe(200);
+ expect(s.fake!.db.files[0].project_id).toBeNull();
+ expect(s.fake!.storage['u/source']).toBeDefined();
+ expect(s.fake!.db.projects.some(p=>p.id===folder)).toBe(false);
+});
+
+it('refuses folder deletion when its files inventory is truncated',async()=>{
+ s.fake=fakeSupabase({projects:[{id:folder,user_id:'u',is_folder:true}],files:[{id:'source',user_id:'u',project_id:folder}]},{files:0});
+ expect((await DELETE(request({}),ctx())).status).toBe(500);
+ expect(s.fake.db.projects).toHaveLength(1);
+});

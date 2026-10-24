@@ -2,7 +2,7 @@
 // it holds one user's rows, which is what RLS would expose.
 type Row = Record<string, unknown>;
 
-export function fakeSupabase(tables: Record<string, Row[]> = {}) {
+export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record<string, number> = {}) {
   let seq = 0;
   const db: Record<string, Row[]> = { conversations: [], messages: [], projects: [], files: [], file_chunks: [], ...tables };
   const storage: Record<string, { bytes: Uint8Array; type: string }> = {};
@@ -14,8 +14,9 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}) {
     private payload: Row | Row[] | null = null;
     private orderBy: string | null = null;
     private returning = false;
+    private exactCount = false;
     constructor(private table: string) {}
-    select() { if (this.op !== "select") this.returning = true; return this; }
+    select(_columns?: string, options?: { count?: string }) { if (this.op !== "select") this.returning = true; this.exactCount = options?.count === "exact"; return this; }
     insert(p: Row | Row[]) { this.op = "insert"; this.payload = p; return this; }
     // upsert with ignoreDuplicates: rows matching an existing row on the onConflict columns are skipped
     upsert(p: Row | Row[], o: { onConflict?: string; ignoreDuplicates?: boolean } = {}) {
@@ -56,8 +57,9 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}) {
     }
     async single() { const r = this.run(); return { data: r[0] ?? null, error: r[0] ? null : { message: "none" } }; }
     async maybeSingle() { return { data: this.run()[0] ?? null, error: null }; }
-    then(ok?: (v: { data: Row[]; error: null }) => unknown, bad?: (e: unknown) => unknown) {
-      return Promise.resolve({ data: this.run(), error: null as null }).then(ok, bad);
+    then(ok?: (v: { data: Row[]; error: null; count: number | null }) => unknown, bad?: (e: unknown) => unknown) {
+      const rows = this.run();
+      return Promise.resolve({ data: this.op === "select" ? rows.slice(0, rowCaps[this.table] ?? rows.length) : rows, error: null as null, count: this.exactCount ? rows.length : null }).then(ok, bad);
     }
   }
   const client = {
