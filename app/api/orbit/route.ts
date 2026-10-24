@@ -1,3 +1,6 @@
+import { claimStudyStart,checkStudyContinuation } from "@/lib/courses/study-start";
+import { parseStudyCards } from "@/lib/courses/quiz";
+import { applyResults, parseQuiz, quizContext } from "@/lib/chat/quiz";
 import { setTimeout as delay } from "node:timers/promises";
 import { attachmentContext, AttachmentError } from "@/lib/orbit/attachments";
 import { courseContext } from "@/lib/courses/context";
@@ -66,16 +69,17 @@ export async function POST(request: Request) {
     if(body.projectId){const owned=await supabase.from("projects").select("id").eq("id",body.projectId).eq("user_id",user.id).maybeSingle();if(owned.error||!owned.data){await release();return json({error:"course_unavailable"},404);}}
 
     if (body.conversationId) {
-      const r=await supabase.from("conversations").select("id,title,summary,summary_upto,project_id").eq("id",body.conversationId).eq("orbit_mode",true).maybeSingle();
+      const r=await supabase.from("conversations").select("id,title,summary,summary_upto,project_id,mode,quiz_state").eq("id",body.conversationId).eq("orbit_mode",true).maybeSingle();
       if(r.error) {await release();return dbError(r.error,"load_failed");}
       if(!r.data) {await release();return json({error:"not_found"},404);}
       conversation=r.data;
     } else {
       const r=await supabase.from("conversations").insert({user_id:user.id,provider:"openai",model_id:"openai-default",orbit_mode:true,project_id:body.projectId??null,title:content.slice(0,60)})
-        .select("id,title,summary,summary_upto,project_id").single();
+        .select("id,title,summary,summary_upto,project_id,mode,quiz_state").single();
       if(r.error||!r.data) {await release();return dbError(r.error,"save_failed");}
       conversation=r.data;
     }
+    if(body.startQuiz===true||conversation.mode==="quiz"){const error=await (body.startQuiz===true?claimStudyStart:checkStudyContinuation)(supabase,user.id,conversation.id);if(error){await release();return json({error},409);}}
     const course=conversation.project_id?await courseContext(supabase,user.id,conversation.project_id,content):null;
     const courseBlock=[course?.block??"",attached.block].filter(Boolean).join("\n\n");
     const {data:previous,error:historyError}=await supabase.from("messages").select("id,seq,role,content,model_id")
@@ -174,7 +178,8 @@ export async function POST(request: Request) {
             existing:summary,existingUpto:conversation.summary_upto,dropped});
         }
         const contextNotice=ctx.dropped||(previous?.length??0)>=ORBIT.contextRows ? "Earlier messages may be omitted or only partially summarized. Do not claim complete recall." : "";
-        const system=`You are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. ${decision.unavailableProviders?.includes("google") ? "Google was unavailable and did not participate in this turn; only three providers voted." : "All four providers participated in this vote."} Do not claim voting proves correctness. Only supplied course and attached-file excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
+        const quizInstructions=conversation.mode==="quiz"?quizContext(conversation.quiz_state,null):"";
+        const system=`${quizInstructions}\nYou are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. ${decision.unavailableProviders?.includes("google") ? "Google was unavailable and did not participate in this turn; only three providers voted." : "All four providers participated in this vote."} Do not claim voting proves correctness. Only supplied course and attached-file excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
         let contribution="";
         if(decision.specialist) {
           emitStage("collaborating");
@@ -194,10 +199,13 @@ export async function POST(request: Request) {
         if(live) await orbitCall({userId:user.id,conversationId:conversation.id,model:lead,operation:"orbit_answer",system:finalSystem,history:ctx.turns,maxOutput:ORBIT.answerOutput,
           signal:AbortSignal.timeout(ORBIT.answerTimeoutMs),delta:text=>{answer+=text;send({t:"delta",v:text});}});
         else {answer="(Orbit demo — simulated votes, no API cost) Orbit will ask all four providers to vote, then stream one answer from the selected lead. For complex tasks, three collaboration votes add one specialist. This preview does not evaluate your question or select a measured best model.";send({t:"delta",v:answer});}
-        const remembered=parseRemember(answer);
-        const final=await supabase.from("messages").update({content:remembered.clean,status:"complete"}).eq("id",replyId);
+        const study=conversation.mode==="quiz"?parseStudyCards(answer):null;
+        const quiz=conversation.mode==="quiz"?parseQuiz(study?.clean??answer):null;
+        const remembered=parseRemember(quiz?.clean??study?.clean??answer);
+        const final=await supabase.from("messages").update({content:remembered.clean,status:"complete",...(study?.cards.length?{study_cards:study.cards}:{})}).eq("id",replyId);
         if(final.error) throw new OrbitError("save_failed");
         await supabase.from("conversations").update({model_id:lead.id,updated_at:new Date().toISOString()}).eq("id",conversation.id);
+        if(quiz?.results.length)await supabase.from("conversations").update({quiz_state:applyResults(conversation.quiz_state,quiz.results)}).eq("id",conversation.id);
         if(live&&personal.profile?.memory_enabled&&remembered.saved.length) await saveMemories(supabase,user.id,conversation.id,personal.memories,remembered.saved);
         // Consume the files only after a complete answer, so a failed turn leaves them attachable for a retry.
         if(attached.fileIds.length) await supabase.from("files").update({conversation_id:conversation.id}).in("id",attached.fileIds).eq("user_id",user.id).is("project_id",null).is("conversation_id",null);

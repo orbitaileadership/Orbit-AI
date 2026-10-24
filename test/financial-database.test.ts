@@ -323,3 +323,29 @@ it("cache share pairs known cache and known total input from the same calls",asy
   expect(Number(report.context.cache_read_ratio)).toBeCloseTo((Number(baseline.cached)+10)/(Number(baseline.input)+100),10);
  } finally {await db.exec("rollback");}
 });
+
+describe('course workspace calendar and quiz schema',()=>{
+ it('isolates calendar rows and rejects foreign course associations',async()=>{
+  const own='a1111111-1111-4111-8111-111111111111',foreign='b1111111-1111-4111-8111-111111111111',event='c1111111-1111-4111-8111-111111111111';
+  await db.exec(`insert into public.projects(id,user_id,name,is_folder) values('${own}','${U}','Synthetic course',false),('${foreign}','${V}','Other course',false);`);
+  try{
+   await db.exec(`set role authenticated;select set_config('app.user_id','${U}',false);`);
+   await db.exec(`insert into public.course_calendar_events(id,user_id,course_id,title,start_value,end_value,all_day,time_zone) values('${event}','${U}','${own}','Study','2026-10-23','2026-10-24',true,'America/Toronto');`);
+   await expect(db.exec(`update public.course_calendar_events set course_id='${foreign}' where id='${event}'`)).rejects.toThrow(/row-level security/);
+   await db.exec(`select set_config('app.user_id','${V}',false);`);
+   expect((await db.query(`select * from public.course_calendar_events where id='${event}'`)).rows).toHaveLength(0);
+   expect((await db.query(`delete from public.course_calendar_events where id='${event}' returning id`)).rows).toHaveLength(0);
+   await expect(db.exec(`insert into public.course_calendar_events(id,user_id,title,start_value,end_value,all_day,time_zone) values('d1111111-1111-4111-8111-111111111111','${U}','Forged','2026-10-23','2026-10-24',true,'UTC')`)).rejects.toThrow(/row-level security/);
+  }finally{await db.exec('reset role');}
+ });
+ it('rejects invalid calendar ranges and malformed quiz configuration at the database boundary',async()=>{
+  await expect(db.exec(`insert into public.course_calendar_events(id,user_id,title,start_value,end_value,all_day,time_zone) values('e1111111-1111-4111-8111-111111111111','${U}','Backwards','2026-10-24','2026-10-23',true,'UTC')`)).rejects.toThrow(/check constraint/);
+  await expect(db.query(`update public.conversations set study_config=$1::jsonb where id=$2`,[JSON.stringify({format:'mcq'}),C])).rejects.toThrow(/check constraint/);
+ });
+ it('permits only one initial study generation claim',async()=>{
+  const config={format:'mcq',count:5,section_id:'synthetic',start_state:'ready'};
+  await db.query(`update public.conversations set study_config=$1::jsonb where id=$2`,[JSON.stringify(config),C]);
+  const claim=()=>db.query(`update public.conversations set study_config=jsonb_set(study_config,'{start_state}','"started"') where id=$1 and study_config->>'start_state'='ready' returning id`,[C]);
+  const results=await Promise.all([claim(),claim()]);expect(results.reduce((n,r)=>n+r.rows.length,0)).toBe(1);
+ });
+});

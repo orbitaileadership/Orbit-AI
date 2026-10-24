@@ -14,8 +14,8 @@ describe('assignment folder context',()=>{
   projects:[{id:'c',user_id:'u',name:'Biology',instructions:'Explain with examples',is_folder:false,course_data:{items:[{id:'a',title:'Lab report 2',kind:'assignment',details:'Write up osmosis lab',due:'2026-11-02',status:'todo',folderId:'f'}]}},
    {id:'f',user_id:'u',name:'Lab report 2',instructions:'',is_folder:true,parent_course_id:'c'},
    {id:'g',user_id:'u',name:'Loose folder',instructions:'',is_folder:true,parent_course_id:null}],
-  files:[{id:'x',user_id:'u',project_id:'f',name:'lab-instructions.pdf'},{id:'y',user_id:'u',project_id:'c',name:'syllabus.pdf'}],
-  file_chunks:[{id:'1',file_id:'x',page:1,content:'Osmosis report must include a hypothesis'},{id:'2',file_id:'y',page:3,content:'Osmosis lab reports lose 10% per late day'}]});
+  files:[{id:'x',user_id:'u',project_id:'f',name:'lab-instructions.pdf',status:'ready',created_at:'2026-10-01'},{id:'y',user_id:'u',project_id:'c',name:'syllabus.pdf',status:'ready',created_at:'2026-10-01'}],
+  file_chunks:[{id:'1',user_id:'u',file_id:'x',page:1,content:'Osmosis report must include a hypothesis'},{id:'2',user_id:'u',file_id:'y',page:3,content:'Osmosis lab reports lose 10% per late day'}]});
  const run=(f:ReturnType<typeof db>,id:string,q:string,inst=true)=>courseContext(f.client as unknown as Parameters<typeof courseContext>[0],'u',id,q,inst);
  it('gives an assignment folder its own files plus the parent course details, syllabus and preferences',async()=>{
   const c=await run(db(),'f','What does the osmosis report need?',false);
@@ -39,5 +39,23 @@ describe('assignment folder context',()=>{
  it("never reads another student's parent course",async()=>{
   const f=db();f.db.projects[0].user_id='v';
   const c=await run(f,'f','osmosis report');expect(c.block).not.toContain('Biology');expect(c.block).not.toContain('syllabus.pdf');
+ });
+});
+
+describe('supplementary resource eligibility',()=>{
+ it('uses newly ready owned material on the next request and excludes removed, processing and foreign files',async()=>{
+  const f=fakeSupabase({projects:[{id:'c',user_id:'u',name:'Biology',course_data:{items:[]}}],files:[
+   {id:'old',user_id:'u',project_id:'c',name:'old.pdf',status:'ready',created_at:'2026-10-01'},
+   {id:'new',user_id:'u',project_id:'c',name:'new.pdf',status:'processing',created_at:'2026-10-23'},
+   {id:'private',user_id:'v',project_id:'c',name:'private.pdf',status:'ready',created_at:'2026-10-24'}],
+   file_chunks:[{file_id:'old',user_id:'u',chunk_index:0,content:'Older material'},
+    {file_id:'new',user_id:'u',chunk_index:0,content:'New supplementary evidence'},
+    {file_id:'private',user_id:'v',chunk_index:0,content:'Private evidence'}]});
+  const run=()=>courseContext(f.client as unknown as Parameters<typeof courseContext>[0],'u','c','Quiz me');
+  expect((await run()).block).not.toContain('New supplementary evidence');
+  f.db.files[1].status='ready';
+  const ready=await run();expect(ready.block).toContain('New supplementary evidence');expect(ready.block).toContain('only opening excerpts');expect(ready.block).not.toContain('Private evidence');expect(estimateTokens(ready.block)).toBeLessThan(1700);
+  f.db.files=f.db.files.filter(x=>x.id!=='new');
+  expect((await run()).block).not.toContain('New supplementary evidence');
  });
 });

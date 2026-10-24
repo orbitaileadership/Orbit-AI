@@ -1,3 +1,4 @@
+import { hideStudyCards } from "@/lib/courses/quiz";
 // "Quiz me" progress. After grading each answer, the model adds a hidden line like
 //   [[quiz: wrong | Sampling variance]]
 // The server reads these, keeps the score itself (the model never sets it), saves it on the chat, and removes
@@ -29,7 +30,7 @@ export function parseQuiz(text: string): { clean: string; results: QuizResult[] 
 
 /** Hide markers while an answer is still streaming (including a half-written one at the end). */
 export function hideQuizMarkers(text: string): string {
-  return text.replace(MARKER, "").replace(/\[\[(q(u(i(z(:[^\]]*)?)?)?)?)?$/i, "");
+  return hideStudyCards(text.replace(MARKER, "").replace(/\[\[(q(u(i(z(:[^\]]*)?)?)?)?)?$/i, ""));
 }
 
 const tidy = (s: string) => s.replace(/\s+/g, " ").trim().replace(/^./, (c) => c.toUpperCase()).slice(0, 80);
