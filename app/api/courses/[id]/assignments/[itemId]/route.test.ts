@@ -48,7 +48,7 @@ it("refuses another student's course, topics and unknown items", async () => {
 it("lists only the folder's own files and chats", async () => {
   const { folder } = await (await POST(req(), ctx())).json();
   s.fake!.db.files.push({ id: 'f1', user_id: 'u', project_id: folder.id, name: 'instructions.pdf' }, { id: 'f2', user_id: 'u', project_id: course, name: 'syllabus.pdf' }, { id: 'f3', user_id: 'v', project_id: folder.id, name: 'not mine.pdf' });
-  s.fake!.db.conversations.push({ id: 'c1', user_id: 'u', project_id: folder.id, title: 'Plan the report' });
+  s.fake!.db.conversations.push({ id: 'c1', user_id: 'u', project_id: course, section_folder_id: folder.id, title: 'Plan the report' });
   const out = await (await GET(req(), ctx())).json();
   expect(out.files.map((f: { name: string }) => f.name)).toEqual(['instructions.pdf']);
   expect(out.chats.map((c: { title: string }) => c.title)).toEqual(['Plan the report']);

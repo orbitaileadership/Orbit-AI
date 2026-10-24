@@ -11,7 +11,7 @@ describe('course chat context',()=>{
 });
 describe('assignment folder context',()=>{
  const db=()=>fakeSupabase({
-  projects:[{id:'c',user_id:'u',name:'Biology',instructions:'Explain with examples',is_folder:false,course_data:{items:[{id:'a',title:'Lab report 2',kind:'assignment',details:'Write up osmosis lab',due:'2026-11-02',status:'todo',folderId:'f'}]}},
+  projects:[{id:'c',user_id:'u',name:'Biology',instructions:'Explain with examples',syllabus_id:'y',is_folder:false,course_data:{items:[{id:'a',title:'Lab report 2',kind:'assignment',details:'Write up osmosis lab',due:'2026-11-02',status:'todo',folderId:'f'}]}},
    {id:'f',user_id:'u',name:'Lab report 2',instructions:'',is_folder:true,parent_course_id:'c'},
    {id:'g',user_id:'u',name:'Loose folder',instructions:'',is_folder:true,parent_course_id:null}],
   files:[{id:'x',user_id:'u',project_id:'f',name:'lab-instructions.pdf',status:'ready',created_at:'2026-10-01'},{id:'y',user_id:'u',project_id:'c',name:'syllabus.pdf',status:'ready',created_at:'2026-10-01'}],
@@ -20,7 +20,7 @@ describe('assignment folder context',()=>{
  it('gives an assignment folder its own files plus the parent course details, syllabus and preferences',async()=>{
   const c=await run(db(),'f','What does the osmosis report need?',false);
   expect(c.block).toContain('Lab report 2');expect(c.block).toContain('2026-11-02');expect(c.block).toContain('Biology');
-  expect(c.block).toContain('lab-instructions.pdf (assignment folder)');expect(c.block).toContain('syllabus.pdf (course files)');
+  expect(c.block).toContain('lab-instructions.pdf (assignment folder)');expect(c.block).toContain('syllabus.pdf (course syllabus)');
   expect(c.block).toContain('Explain with examples');expect(c.block).not.toContain('folderId');expect(estimateTokens(c.block)).toBeLessThan(1700);
  });
  it('leaves folders outside a course and plain courses as before',async()=>{
@@ -44,7 +44,7 @@ describe('assignment folder context',()=>{
 
 describe('supplementary resource eligibility',()=>{
  it('uses newly ready owned material on the next request and excludes removed, processing and foreign files',async()=>{
-  const f=fakeSupabase({projects:[{id:'c',user_id:'u',name:'Biology',course_data:{items:[]}}],files:[
+  const f=fakeSupabase({projects:[{id:'c',user_id:'u',name:'Biology',syllabus_id:'old',course_data:{items:[]}}],files:[
    {id:'old',user_id:'u',project_id:'c',name:'old.pdf',status:'ready',created_at:'2026-10-01'},
    {id:'new',user_id:'u',project_id:'c',name:'new.pdf',status:'processing',created_at:'2026-10-23'},
    {id:'private',user_id:'v',project_id:'c',name:'private.pdf',status:'ready',created_at:'2026-10-24'}],
@@ -54,7 +54,7 @@ describe('supplementary resource eligibility',()=>{
   const run=()=>courseContext(f.client as unknown as Parameters<typeof courseContext>[0],'u','c','Quiz me');
   expect((await run()).block).not.toContain('New supplementary evidence');
   f.db.files[1].status='ready';
-  const ready=await run();expect(ready.block).toContain('New supplementary evidence');expect(ready.block).toContain('only opening excerpts');expect(ready.block).not.toContain('Private evidence');expect(estimateTokens(ready.block)).toBeLessThan(1700);
+  const ready=await run();expect(ready.block).not.toContain('New supplementary evidence');expect(ready.block).not.toContain('Private evidence');expect(estimateTokens(ready.block)).toBeLessThan(1700);
   f.db.files=f.db.files.filter(x=>x.id!=='new');
   expect((await run()).block).not.toContain('New supplementary evidence');
  });

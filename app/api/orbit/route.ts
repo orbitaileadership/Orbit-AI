@@ -4,6 +4,7 @@ import { parseStudyCards } from "@/lib/courses/quiz";
 import { applyResults, parseQuiz, quizContext } from "@/lib/chat/quiz";
 import { setTimeout as delay } from "node:timers/promises";
 import { attachmentContext, AttachmentError } from "@/lib/orbit/attachments";
+import { conversationScope } from "@/lib/courses/conversation-scope";
 import { courseContext } from "@/lib/courses/context";
 import { ORBIT } from "@/config/orbit";
 import { getModel, PROVIDERS, type ProviderId } from "@/config/models";
@@ -72,18 +73,21 @@ export async function POST(request: Request) {
     if(body.projectId){const owned=await supabase.from("projects").select("id").eq("id",body.projectId).eq("user_id",user.id).maybeSingle();if(owned.error||!owned.data){await release();return json({error:"course_unavailable"},404);}}
 
     if (body.conversationId) {
-      const r=await supabase.from("conversations").select("id,title,summary,summary_upto,project_id,mode,quiz_state").eq("id",body.conversationId).eq("orbit_mode",true).maybeSingle();
+      const r=await supabase.from("conversations").select("id,title,summary,summary_upto,project_id,section_folder_id,section_unavailable,mode,quiz_state").eq("id",body.conversationId).eq("orbit_mode",true).maybeSingle();
       if(r.error) {await release();return dbError(r.error,"load_failed");}
       if(!r.data) {await release();return json({error:"not_found"},404);}
       conversation=r.data;
     } else {
       const r=await supabase.from("conversations").insert({user_id:user.id,provider:"openai",model_id:"openai-default",orbit_mode:true,project_id:body.projectId??null,title:content.slice(0,60)})
-        .select("id,title,summary,summary_upto,project_id,mode,quiz_state").single();
+        .select("id,title,summary,summary_upto,project_id,section_folder_id,section_unavailable,mode,quiz_state").single();
       if(r.error||!r.data) {await release();return dbError(r.error,"save_failed");}
       conversation=r.data;
     }
     if(body.startQuiz===true||conversation.mode==="quiz"){const error=await (body.startQuiz===true?claimStudyStart:checkStudyContinuation)(supabase,user.id,conversation.id);if(error){await release();return json({error},409);}}
-    const course=conversation.project_id?await courseContext(supabase,user.id,conversation.project_id,content):null;
+    let scopeId: string | null;
+    try { scopeId=await conversationScope(supabase,user.id,conversation); }
+    catch { await release(); return json({error:"section_unavailable"},409); }
+    const course=scopeId?await courseContext(supabase,user.id,scopeId,content):null;
     const courseBlock=[course?.block??"",attached.block].filter(Boolean).join("\n\n");
     const {data:previous,error:historyError}=await supabase.from("messages").select("id,seq,role,content,model_id")
       .eq("conversation_id",conversation.id).eq("status","complete").eq("kind","text").order("seq",{ascending:false}).limit(ORBIT.contextRows);

@@ -18,3 +18,15 @@
 
 .workspace-dashboard-priorities{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:1fr;align-items:stretch;gap:18px;margin-bottom:26px}.workspace-dashboard-priorities .hub-panel{padding:18px;margin:0;min-height:160px}.workspace-dashboard-priorities .hub-task{gap:8px}.workspace-dashboard-priorities .hub-task-meta{display:none}.workspace-task-group{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);margin-top:16px}
 @media(max-width:1000px){.workspace-dashboard-priorities{grid-template-columns:1fr}.workspace-dashboard-priorities .hub-task-meta{display:flex}}
+/* V2: one course accent, with small semantic cues for priorities and graded work. */
+.hub-course-heading{border-left:4px solid var(--course-color);padding:20px;border-radius:16px;background:linear-gradient(110deg,color-mix(in srgb,var(--course-color) 12%,var(--surface-100)),var(--surface-100));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--course-color) 20%,var(--line))}
+.hub-tabs button[aria-current=page]{color:var(--ink);background:color-mix(in srgb,var(--course-color) 14%,var(--surface-100));border-color:var(--course-color)}
+.hub-course-info{border-top:3px solid var(--course-color);background:linear-gradient(180deg,color-mix(in srgb,var(--course-color) 6%,var(--surface-100)),var(--surface-100))}
+.workspace-dashboard-priorities [data-priority]{border-top:3px solid var(--priority-color);background:linear-gradient(180deg,color-mix(in srgb,var(--priority-color) 6%,var(--surface-100)),var(--surface-100))}
+.workspace-dashboard-priorities [data-priority=Overdue]{--priority-color:var(--danger)}
+.workspace-dashboard-priorities [data-priority=Today]{--priority-color:var(--brand)}
+.workspace-dashboard-priorities [data-priority="Coming up"]{--priority-color:var(--viz-3)}
+.section-type-badge{display:inline-block;margin-right:8px;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:600;text-transform:capitalize;color:var(--ink);background:color-mix(in srgb,var(--course-color) 15%,var(--surface-100));border:1px solid color-mix(in srgb,var(--course-color) 28%,var(--line))}
+.section-type-badge[data-kind=exam],.section-type-badge[data-kind=midterm],.section-type-badge[data-kind=final]{background:color-mix(in srgb,var(--viz-5) 15%,var(--surface-100));border-color:color-mix(in srgb,var(--viz-5) 30%,var(--line))}
+.hub-task:hover{background:color-mix(in srgb,var(--course-color) 7%,var(--surface-100))}
+@media(max-width:520px){.hub-course-heading{padding:16px}.section-type-badge{margin-bottom:3px}}

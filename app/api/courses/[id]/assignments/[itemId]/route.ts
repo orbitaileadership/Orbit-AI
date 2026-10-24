@@ -27,10 +27,10 @@ async function load(db: SupabaseClient, userId: string, courseId: string, itemId
   return { course: course.data, draft, item, folder };
 }
 
-async function contents(db: SupabaseClient, userId: string, folderId: string) {
+async function contents(db: SupabaseClient, userId: string, courseId: string, folderId: string) {
   const [files, chats] = await Promise.all([
     db.from('files').select('id,name,status,kind,mime,page_count,project_id,created_at').eq('project_id', folderId).eq('user_id', userId).order('created_at', { ascending: false }),
-    db.from('conversations').select('id,title,provider,project_id,orbit_mode,updated_at').eq('project_id', folderId).eq('user_id', userId).order('updated_at', { ascending: false }).limit(100),
+    db.from('conversations').select('id,title,provider,project_id,orbit_mode,updated_at').eq('project_id', courseId).eq('section_folder_id', folderId).eq('user_id', userId).order('updated_at', { ascending: false }).limit(100),
   ]);
   return files.error || chats.error ? { error: dbError(files.error ?? chats.error, 'load_failed') } : { files: files.data ?? [], chats: chats.data ?? [] };
 }
@@ -40,7 +40,7 @@ export async function GET(_: Request, ctx: Ctx): Promise<Response> {
   const { id, itemId } = await ctx.params; if (!isUuid(id) || !isUuid(itemId)) return json({ error: 'bad_request' }, 400);
   const got = await load(auth.supabase, auth.user.id, id, itemId); if (got.error) return got.error;
   if (!got.folder) return json({ folder: null, files: [], chats: [] });
-  const c = await contents(auth.supabase, auth.user.id, got.folder.id); if (c.error) return c.error;
+  const c = await contents(auth.supabase, auth.user.id, id, got.folder.id); if (c.error) return c.error;
   return json({ folder: got.folder, ...c });
 }
 
@@ -52,7 +52,7 @@ export async function POST(_: Request, ctx: Ctx): Promise<Response> {
   for (let attempt = 0; attempt < 2; attempt++) {
     const got = await load(supabase, user.id, id, itemId); if (got.error) return got.error;
     if (got.folder) {
-      const c = await contents(supabase, user.id, got.folder.id); if (c.error) return c.error;
+      const c = await contents(supabase, user.id, id, got.folder.id); if (c.error) return c.error;
       return json({ folder: got.folder, course: got.course, ...c });
     }
     const created = await supabase.from('projects')

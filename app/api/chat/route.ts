@@ -1,6 +1,7 @@
 import { claimStudyStart,checkStudyContinuation } from "@/lib/courses/study-start";
 import { parseStudyCards } from "@/lib/courses/quiz";
 import { failureState } from "@/lib/billing/outcome";
+import { conversationScope } from "@/lib/courses/conversation-scope";
 import { courseContext } from "@/lib/courses/context";
 import { RESPONSE_QUALITY_VERSION } from "@/config/quality";
 import { fitToolContext } from "@/lib/chat/tool-context";
@@ -90,8 +91,8 @@ export async function POST(request: Request): Promise<Response> {
   if (content.length > MAX_MESSAGE_CHARS) return json({ error: "message_too_long" }, 400);
 
   // ---- conversation (RLS: only the user's own rows are visible or writable)
-  let conversation: { id: string; title: string; provider: string; project_id: string | null; mode: string; course_only: boolean; summary: string | null; summary_upto: number | null };
-  const convCols = "id, title, provider, project_id, mode, course_only, summary, summary_upto, orbit_mode";
+  let conversation: { id: string; title: string; provider: string; project_id: string | null; section_folder_id: string | null; section_unavailable: boolean; mode: string; course_only: boolean; summary: string | null; summary_upto: number | null };
+  const convCols = "id, title, provider, project_id, section_folder_id, section_unavailable, mode, course_only, summary, summary_upto, orbit_mode";
   if (isUuid(body.conversationId)) {
     const { data, error } = await supabase.from("conversations").select(convCols).eq("id", body.conversationId).maybeSingle();
     if (error) return dbError(error, "load_failed");
@@ -111,6 +112,9 @@ export async function POST(request: Request): Promise<Response> {
     await trackEvent(user.id,"conversation_created",{modelId:model.id,provider,live:liveFor(provider)},conversation.id,`conversation:${conversation.id}`);
   }
 
+  let contextProjectId: string | null;
+  try { contextProjectId = await conversationScope(supabase, user.id, conversation); }
+  catch { return json({ error: "section_unavailable" }, 409); }
   if(body.startQuiz===true||conversation.mode==="quiz"){const error=await (body.startQuiz===true?claimStudyStart:checkStudyContinuation)(supabase,user.id,conversation.id);if(error)return json({error},409);}
   // Study mode and "only use my course material" stick to the chat once set.
   const settings: Record<string, unknown> = { model_id: model.id, updated_at: new Date().toISOString() };
@@ -182,11 +186,19 @@ export async function POST(request: Request): Promise<Response> {
   const question = [...rows].reverse().find((m) => m.role === "user")?.content ?? content;
 
   // ---- course + material from files
-  let project: { name: string; instructions: string; parent_course_id?: string | null } | null = null;
-  if (conversation.project_id) {
-    const { data } = await supabase.from("projects").select("name, instructions, parent_course_id").eq("id", conversation.project_id).maybeSingle();
+  let parentSyllabusId: string | null = null;
+  let project: { name: string; instructions: string; parent_course_id?: string | null; course_data?: unknown; syllabus_id?: string | null } | null = null;
+  if (contextProjectId) {
+    const { data } = await supabase.from("projects").select("name, instructions, parent_course_id, course_data, syllabus_id").eq("id", contextProjectId).eq("user_id", user.id).maybeSingle();
     project = data;
-    if(project){const context=await courseContext(supabase,user.id,conversation.project_id,content,false);project.instructions += "\n"+context.block;}
+    if (project?.parent_course_id) {
+      const parent = await supabase.from("projects").select("syllabus_id").eq("id", project.parent_course_id).eq("user_id", user.id).maybeSingle();
+      if (parent.error || !parent.data) throw new Error("course_unavailable");
+      parentSyllabusId = parent.data.syllabus_id;
+    } else if (project?.course_data) {
+      parentSyllabusId = project.syllabus_id ?? null;
+    }
+    if(project){const context=await courseContext(supabase,user.id,contextProjectId!,content,false);project.instructions += "\n"+context.block;}
   }
   const attachmentImageCandidates = [...new Set(rows.flatMap(r => r.attachment_ids ?? []))];
   const { data: imageFiles } = attachmentImageCandidates.length
@@ -195,7 +207,7 @@ export async function POST(request: Request): Promise<Response> {
   const imageCount = Math.min(MAX_IMAGES, imageFiles?.length ?? 0);
   const largeMaterialTask = /\b(summari[sz]e|review|compare|entire|whole)\b/i.test(question);
   const material = await gatherMaterial(supabase, {
-    conversationId: conversation.id, projectId: conversation.project_id, parentProjectId: project?.parent_course_id ?? null, question,
+    conversationId: conversation.id, projectId: project?.course_data ? null : contextProjectId, parentFileId: parentSyllabusId, parentProjectId: project?.parent_course_id ?? (project?.course_data ? contextProjectId : null), question,
     newAttachmentIds: retry ? rows.at(-1)?.attachment_ids ?? [] : linked,
     pdfInput: PDF_INPUT[provider], imageSlots: Math.max(0, MAX_IMAGES - imageCount),
     tokenBudget: largeMaterialTask ? CONTEXT.largeTaskMaterialTokens : CONTEXT.materialTokens,

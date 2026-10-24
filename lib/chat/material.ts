@@ -46,6 +46,7 @@ export async function gatherMaterial(
   supabase: SupabaseClient,
   opts: {
     conversationId: string; projectId: string | null; question: string; newAttachmentIds: string[]; pdfInput: boolean; imageSlots?: number;
+    parentFileId?: string | null; // only the parent syllabus is inherited by a section
     parentProjectId?: string | null; // a folder's course: its syllabus/notes are searched too (assignment folders)
     tokenBudget?: number;
     referencedAttachmentIds?: string[]; // most recently attached batch, for an explicit generic file reference
@@ -55,8 +56,10 @@ export async function gatherMaterial(
   const cols = "id, name, kind, status, char_count, page_count, project_id, conversation_id, storage_path, mime";
   const load = (extra: string) => {
     const q = supabase.from("files").select(cols + extra);
-    const projects = [opts.projectId, opts.parentProjectId].filter((p): p is string => Boolean(p));
-    return projects.length ? q.or([`conversation_id.eq.${opts.conversationId}`, ...projects.map((p) => `project_id.eq.${p}`)].join(",")) : q.eq("conversation_id", opts.conversationId);
+    const clauses = [`conversation_id.eq.${opts.conversationId}`];
+    if (opts.projectId) clauses.push(`project_id.eq.${opts.projectId}`);
+    if (opts.parentProjectId && opts.parentFileId) clauses.push(`and(project_id.eq.${opts.parentProjectId},id.eq.${opts.parentFileId})`);
+    return clauses.length > 1 ? q.or(clauses.join(",")) : q.eq("conversation_id", opts.conversationId);
   };
   // visual_pages/image_count come with migration 0005; still works before it's run.
   const first = (await load(", visual_pages, image_count")) as unknown as { data: FileRow[] | null; error: unknown };

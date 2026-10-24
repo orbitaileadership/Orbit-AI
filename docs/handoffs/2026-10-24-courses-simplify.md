@@ -15,3 +15,7 @@
 - Recovery: revert focused API/UI changes; no database rollback.
 - Next / owner: preview desktop/mobile, especially unequal priority counts, calendar dialog and section chat navigation, then release with owner authorization.
 - Authorization: deployment/merge not requested for these new UI changes; no paid provider calls needed.
+
+## Release confirmation — October 24, 2026
+
+User explicitly requested push and deployment. Implementation pushed as `bc1dfbc167526e69f3522d273d96a9388e1c9627`; PR #31 merged as `731eeef0793c9adb21484fed6b4a4509c0b57d8f`. Local production webpack build including TypeScript passed. Vercel preview `9z1ZVzAk5v95W734VG27Peve64jC` succeeded; Vercel reported successful deployment for the exact main merge commit at `https://vercel.com/orbit-ai7/orbit-ai/8KK5VigGhTm48vwqfxemvdsSKNzK`. Public site `https://orbit-ai-sand.vercel.app/` returned 200; unauthenticated `/api/courses` returned 401. No migration, paid calls or data deletion. Signed-in visual verification remains pending. This supersedes the earlier uncommitted/not-deployed checkpoint. Revert PR #31 for application rollback.

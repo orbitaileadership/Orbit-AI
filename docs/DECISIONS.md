@@ -62,3 +62,7 @@ The user requested Dashboard / Sections / Quiz, a visual calendar and graded-eve
 ## October 24, 2026 — Courses workspace simplification
 
 Noah requested course-only navigation, equal-height Overdue/Today/Coming up panels, centered event dialogs, removal of promotional slogans and term filtering, one sidebar calendar entry, and section-scoped chats. The interface now uses **Graded Sections**; chat navigation and its AI picker appear inside a specific section. Name search and A–Z ordering replace term/recent sorting. Existing records remain intact; older chat projects without course metadata no longer appear as courses. This supersedes the course-level Chats/recent-chat presentation. Quiz configuration remains available through its existing dedicated workflow.
+
+## October 24, 2026 — Section resources and parent-course chat grouping
+
+Noah requested independent Resources per graded section, with only the syllabus shared across sections, restrained color cues, and every section chat/quiz grouped in its parent course. The section relationship remains explicit for context and section chat lists. Existing non-syllabus course files stay readable but are not silently inserted into section context. Deleted-section chats remain readable under their course but cannot continue with a different scope. Migration 0024 is required before the matching app code; applying it to the shared database and deploying remain separate release steps.

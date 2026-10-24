@@ -7,12 +7,12 @@ import {estimateTokens} from '@/lib/chat/context';
  * see the assignment's own files plus the course syllabus and notes. Passages share the same token bound.
  */
 export async function courseContext(db:SupabaseClient,userId:string,id:string,question:string,includeInstructions=true){
- const p=await db.from('projects').select('name,course_data,instructions,parent_course_id').eq('id',id).eq('user_id',userId).maybeSingle();
+ const p=await db.from('projects').select('name,course_data,instructions,parent_course_id,syllabus_id').eq('id',id).eq('user_id',userId).maybeSingle();
  if(p.error||!p.data)throw new Error('course_unavailable');
- let course:{id:string;name:string;course_data:unknown;instructions:string|null}={id,name:p.data.name,course_data:p.data.course_data,instructions:p.data.instructions};
+ let course:{id:string;name:string;course_data:unknown;instructions:string|null;syllabus_id?:string|null}={id,name:p.data.name,course_data:p.data.course_data,instructions:p.data.instructions};
  let folderName:string|null=null;
  if(p.data.parent_course_id){
-  const parent=await db.from('projects').select('id,name,course_data,instructions').eq('id',p.data.parent_course_id).eq('user_id',userId).eq('is_folder',false).maybeSingle();
+  const parent=await db.from('projects').select('id,name,course_data,instructions,syllabus_id').eq('id',p.data.parent_course_id).eq('user_id',userId).eq('is_folder',false).maybeSingle();
   if(parent.error)throw new Error('course_unavailable');
   if(parent.data){folderName=p.data.name;course=parent.data;}
  }
@@ -33,9 +33,11 @@ export async function courseContext(db:SupabaseClient,userId:string,id:string,qu
  const prefs=[includeInstructions?p.data.instructions:null,folderName?course.instructions:null].filter((s):s is string=>Boolean(s?.trim()));
  for(const text of prefs)block='Student course preferences (bounded): '+text.slice(0,1000)+(text.length>1000?' [preferences shortened]':'')+'\n'+block;
  // The folder's own files first, so a large course can't crowd the assignment files out of the search.
- const own=await db.from('files').select('id,name,project_id').eq('project_id',id).eq('user_id',userId).in('status',['ready','needs_ocr']).order('created_at',{ascending:false}).limit(folderName?60:100);
+ let ownQuery=db.from('files').select('id,name,project_id').eq('project_id',id).eq('user_id',userId).in('status',['ready','needs_ocr']);
+ if(!folderName && p.data.course_data) ownQuery=ownQuery.eq('id',p.data.syllabus_id??'00000000-0000-0000-0000-000000000000');
+ const own=await ownQuery.order('created_at',{ascending:false}).limit(folderName?60:100);
  if(own.error)throw new Error('course_unavailable');
- const parentFiles=folderName?await db.from('files').select('id,name,project_id').eq('project_id',course.id).eq('user_id',userId).in('status',['ready','needs_ocr']).order('created_at',{ascending:false}).limit(90):{data:[],error:null};
+ const parentFiles=folderName?await db.from('files').select('id,name,project_id').eq('project_id',course.id).eq('id',course.syllabus_id??'00000000-0000-0000-0000-000000000000').eq('user_id',userId).in('status',['ready','needs_ocr']).order('created_at',{ascending:false}).limit(90):{data:[],error:null};
  if(parentFiles.error)throw new Error('course_unavailable');
  const files={data:[...(own.data??[]),...(parentFiles.data??[])]};
  if(files.data.length){
@@ -55,7 +57,7 @@ export async function courseContext(db:SupabaseClient,userId:string,id:string,qu
    }
    if(selected.length)block+='\nNo indexed matches; only opening excerpts of the newest available resources follow.';
   }
-  for(const c of selected){const f=files.data.find(x=>x.id===c.file_id);if(!f)continue;const where=folderName?(f.project_id===id?' (assignment folder)':' (course files)'):'';const passage=`\nSource: ${f.name}${where}${c.page?`, page ${c.page}`:''}\n${c.content}`;if(estimateTokens(block+passage)>1600)continue;block+=passage;}
+  for(const c of selected){const f=files.data.find(x=>x.id===c.file_id);if(!f)continue;const where=folderName?(f.project_id===id?' (assignment folder)':' (course syllabus)'):'';const passage=`\nSource: ${f.name}${where}${c.page?`, page ${c.page}`:''}\n${c.content}`;if(estimateTokens(block+passage)>1600)continue;block+=passage;}
  }
  return {name:folderName??course.name,block:block+'\nOnly selected text excerpts are available. Images and other passages may be missing; say when evidence is insufficient.'};
 }

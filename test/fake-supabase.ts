@@ -2,7 +2,7 @@
 // it holds one user's rows, which is what RLS would expose.
 type Row = Record<string, unknown>;
 
-export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record<string, number> = {}) {
+export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record<string, number> = {}, options: { groupCourseChats?: boolean } = {}) {
   let seq = 0;
   const db: Record<string, Row[]> = { conversations: [], messages: [], projects: [], files: [], file_chunks: [], ...tables };
   const storage: Record<string, { bytes: Uint8Array; type: string }> = {};
@@ -45,9 +45,16 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
       const t = (db[this.table] ??= []);
       if (this.op === "insert") {
         const defaults: Row = this.table === "messages" ? { status: "complete", kind: "text", attachment_ids: [] } : this.table === "conversations" ? { mode: "chat", course_only: false, summary: null, summary_upto: null, project_id: null } : {};
-        const rows = (Array.isArray(this.payload) ? this.payload : [this.payload!]).map((r) => ({
+        const rows: Row[] = (Array.isArray(this.payload) ? this.payload : [this.payload!]).map((r) => ({
           id: uuid(), seq: ++seq, ...defaults, ...r,
         }));
+        if (options.groupCourseChats && this.table === "conversations") for (const row of rows) {
+          const project = db.projects.find((p) => p.id === row.project_id && p.user_id === row.user_id);
+          if (project?.is_folder && project.parent_course_id) {
+            row.section_folder_id = project.id;
+            row.project_id = project.parent_course_id;
+          }
+        }
         t.push(...rows);
         return rows;
       }

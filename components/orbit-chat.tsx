@@ -23,6 +23,7 @@ type Message = { id: string; role: "user" | "assistant"; content: string; status
 type Chat = { id: string; title: string; projectId: string | null };
 const PHASES: Record<string,string> = {voting:"Checking availability and collecting votes…",voting_without_google:"Google is unavailable. Three AIs are voting without it…",retrying_google:"Google is temporarily unavailable. Retrying its vote once…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
 const ERRORS: Record<string,string> = {
+  section_unavailable:"This section was removed, so its saved chat can be read but cannot use section materials. Start a new chat in a current section.",
   orbit_thinking_unavailable:"The selected thinking level is unavailable for Orbit’s configured models. Contact the team.",
   orbit_not_enabled:"Orbit mode is in preview. The team needs to enable it before live use.",
   orbit_provider_unavailable:"Orbit needs all four providers enabled and configured. No partial vote was started.",
@@ -88,6 +89,7 @@ const greetingFor = (name: string) => { const h = new Date().getHours(); return 
 export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, account, visible=true, dots, onActivity }: { userId: string; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
   const [thinkingLevel,setThinkingLevel]=useState<ThinkingLevel>(DEFAULT_THINKING_LEVEL);
   const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
+  const [courseGroups,setCourseGroups]=useState<{id:string;name:string}[]>([]);
   const [course,setCourse]=useState<{id:string;name:string}|null>(null);
   const [chats,setChats]=useState<Chat[]>([]), [active,setActive]=useState<string|null>(null);
   const [messages,setMessages]=useState<Message[]>([]), [input,setInput]=useState("");
@@ -97,7 +99,8 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   const [files,setFiles]=useState<UploadedFile[]>([]), [uploading,setUploading]=useState(false), picker=useRef<HTMLInputElement>(null);
   const controller=useRef<AbortController|null>(null), bottom=useRef<HTMLDivElement>(null), view=useRef(0);
   const refresh=useCallback(async()=>{
-    const [list,usage]=await Promise.all([fetch("/api/conversations?provider=orbit"),fetch("/api/usage")]);
+    const [list,usage,groups]=await Promise.all([fetch("/api/conversations?provider=orbit"),fetch("/api/usage"),fetch("/api/courses")]);
+    if(groups.ok)setCourseGroups((await groups.json()).courses??[]);
     if(list.ok) setChats((await list.json()).conversations??[]);
     if(usage.ok)setUsage(await usage.json());
   },[]);
@@ -137,7 +140,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     if(!courseLaunch)return;
     // A deliberate workspace navigation opens a draft or saved course conversation.
     setCourse({id:courseLaunch.folder?.id??courseLaunch.course.id,name:courseLaunch.folder?.name??courseLaunch.course.name}); // eslint-disable-line react-hooks/set-state-in-effect
-    setFolderFilter(courseLaunch.folder??null);
+    setFolderFilter({id:courseLaunch.course.id,name:courseLaunch.course.name});
     if(courseLaunch.conversationId){void openChat(courseLaunch.conversationId);return;}
     view.current++;setActive(null);setMessages([]);setDecision(null);setDropped(false);setLoading(false);
     setInput(courseLaunch.prompt+(courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
@@ -194,7 +197,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     finally{controller.current=null;setBusy(false);setPhase("");await refresh().catch(()=>{});}
   }
   const empty=!messages.length&&!loading;
-  const openFolder=(folder:{id:string;name:string})=>{view.current++;setSidebar(false);setLoading(false);setError("");setFolderFilter({id:folder.id,name:folder.name});setCourse({id:folder.id,name:folder.name});setActive(null);setMessages([]);setInput("");setDecision(null);setDropped(false);setFiles([]);};
+  const openFolder=(folder:{id:string;name:string;parent_course_id?:string|null})=>{view.current++;setSidebar(false);setLoading(false);setError("");setFolderFilter({id:folder.parent_course_id??folder.id,name:courseGroups.find(c=>c.id===folder.parent_course_id)?.name??folder.name});setCourse({id:folder.id,name:folder.name});setActive(null);setMessages([]);setInput("");setDecision(null);setDropped(false);setFiles([]);};
   const folderIcon=<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden className="shrink-0"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>;
   const composer=(
     <form onSubmit={e=>{e.preventDefault();void send();}} className="w-full">
@@ -256,6 +259,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
+        <SidebarSection storageKey="orbit-course-chats" title="Course chats"><nav aria-label="Course chat folders">{courseGroups.map(c=><button key={c.id} disabled={busy||loading} className="block w-full truncate rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-200" onClick={()=>openFolder(c)}>{c.name}</button>)}</nav></SidebarSection>
         <FolderBrowser userId={userId} disabled={busy||loading} onOpen={openFolder}/>
         <SidebarSection storageKey="orbit-recents" title={folderFilter?`In ${folderFilter.name}`:"Recents"} actionVisible
           action={folderFilter?<button type="button" className="rounded-lg px-2 py-1 text-xs text-ink-muted transition hover:bg-surface-300 hover:text-ink" onClick={()=>setFolderFilter(null)}>Show all</button>:undefined}>
