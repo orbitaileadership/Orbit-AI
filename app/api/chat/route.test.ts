@@ -727,3 +727,26 @@ it("keeps the shared image cap when attachment images precede the recent exchang
   await readEvents(await POST(req({provider:"anthropic",modelId:"anthropic-default",conversationId,content:"Label cells"})));
   expect(state.lastArgs!.history.reduce((n,t)=>n+(t.images?.length??0),0)).toBeLessThanOrEqual(4);
 });
+
+describe('saved course quiz generation',()=>{
+ const id='a4444444-4444-4444-8444-444444444444';
+ function session(){state.live=true;state.fake!.db.conversations.push({id,user_id:'user-1',provider:'anthropic',project_id:null,mode:'quiz',study_config:{format:'flashcards',count:5,section_id:'section',start_state:'ready'}});}
+ it('requires the initial claim and prevents a sidebar request from bypassing it',async()=>{
+  session();const before=vi.mocked(budget.reserve).mock.calls.length;
+  expect((await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Start'}))).status).toBe(409);
+  expect(vi.mocked(budget.reserve).mock.calls.length).toBe(before);
+ });
+ it('persists completed cards and quiz progress while settling the actual provider call',async()=>{
+  session();state.events=[{delta:'ATP. [[quiz: right | Cells]]\n[[card: {"front":"ATP source?","back":"Mitochondrion"}]]'},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
+  const events=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Reveal',startQuiz:true})));
+  expect(events.at(-1)).toMatchObject({t:'done',status:'complete'});
+  const reply=state.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toEqual([{front:'ATP source?',back:'Mitochondrion'}]);expect(reply.content).not.toContain('[[card:');expect(reply.content).not.toContain('[[quiz:');expect(state.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});
+  expect(budget.settle).toHaveBeenCalledWith(expect.any(String),'settled',expect.any(Number),expect.objectContaining({input:100}),undefined,expect.any(Object));
+  expect((await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Start again',startQuiz:true}))).status).toBe(409);
+ });
+ it('does not save export cards or advance scores for incomplete output',async()=>{
+  session();state.events=[{delta:'Partial [[quiz: right | Cells]]\n[[card: {"front":"A","back":"B"}]]'},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'length'}];
+  await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Reveal',startQuiz:true})));
+  const reply=state.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.status).toBe('partial');expect(reply.study_cards).toBeUndefined();expect(state.fake!.db.conversations[0].quiz_state).toBeUndefined();expect(budget.settle).toHaveBeenCalled();
+ });
+});

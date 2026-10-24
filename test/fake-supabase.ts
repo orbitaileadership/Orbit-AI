@@ -13,6 +13,7 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
     private op: "select" | "insert" | "update" | "delete" = "select";
     private payload: Row | Row[] | null = null;
     private orderBy: string | null = null;
+    private descending=false;
     private returning = false;
     private exactCount = false;
     constructor(private table: string) {}
@@ -27,7 +28,8 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
     }
     update(p: Row) { this.op = "update"; this.payload = p; return this; }
     delete() { this.op = "delete"; return this; }
-    eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
+    eq(c: string, v: unknown) { this.filters.push((r) => (c.includes("->>") ? (r[c.split("->>")[0]] as Record<string,unknown>|undefined)?.[c.split("->>")[1]] : r[c]) === v); return this; }
+    lt(c:string,v:string){this.filters.push(r=>String(r[c])<v);return this;}
     gt(c: string, v: number) { this.filters.push((r) => (r[c] as number) > v); return this; }
     in(c: string, vs: unknown[]) { this.filters.push((r) => vs.includes(r[c])); return this; }
     is(c: string, v: null) { this.filters.push((r) => (r[c] ?? null) === v); return this; }
@@ -37,7 +39,7 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
       this.filters.push((r) => parts.some(([c, op, v]) => (op === "is" ? (r[c] ?? null) === null : String(r[c]) === v)));
       return this;
     }
-    order(c: string) { this.orderBy = c; return this; }
+    order(c: string,o?:{ascending?:boolean}) { this.orderBy = c; this.descending=o?.ascending===false; return this; }
     limit() { return this; }
     private run(): Row[] {
       const t = (db[this.table] ??= []);
@@ -52,7 +54,7 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
       const hit = t.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") hit.forEach((r) => Object.assign(r, this.payload));
       if (this.op === "delete") db[this.table] = t.filter((r) => !hit.includes(r));
-      if (this.orderBy) hit.sort((a, b) => (a[this.orderBy!] as number) - (b[this.orderBy!] as number));
+      if (this.orderBy) hit.sort((a,b)=>{const x=a[this.orderBy!] as string|number,y=b[this.orderBy!] as string|number;const n=x===y?0:x<y?-1:1;return this.descending?-n:n;});
       return hit;
     }
     async single() { const r = this.run(); return { data: r[0] ?? null, error: r[0] ? null : { message: "none" } }; }

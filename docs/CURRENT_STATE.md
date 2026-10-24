@@ -11,6 +11,10 @@ Seeded October 19, 2026. Update after verified changes; this snapshot will age.
 - Audience/access rule: exact verified `uwo.ca`, with existing early-access/waitlist enforcement. Other Canadian institutions register waitlist interest; they do not receive app access through that form.
 - Keep reserve → call → reconcile, ownership/RLS, privacy and disabled-payment requirements intact. Final pricing/billing lifecycle is not established by this file.
 
+## Latest local Courses Workspace revamp — October 23, 2026
+
+User-approved implementation is on `plan/courses-workspace-revamp` (base main `2cc360f`). Dashboard / Sections / Quiz, persistent local calendar, delegated Google/Outlook adapters, Apple `.ics`, named quiz sessions and Anki/Quizlet exports are implemented locally. **Awaiting signed-in integration validation and release approval; not deployed.** Migration `0022_course_workspace_calendar.sql` has only run in the isolated local test database, not the shared Supabase project. No paid provider calls or real invitations were made. Final local suite: **744 tests / 87 files passed**, lint and TypeScript passed; synthetic desktop/375px journeys passed. See [implementation handoff](handoffs/2026-10-23-courses-workspace-revamp.md). This supersedes older local Courses interface descriptions below, without establishing deployment or live integration quality.
+
 ## Recent implemented changes
 
 ### Courses Hub — local branch, October 23, 2026

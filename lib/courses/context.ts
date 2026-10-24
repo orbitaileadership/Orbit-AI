@@ -33,15 +33,29 @@ export async function courseContext(db:SupabaseClient,userId:string,id:string,qu
  const prefs=[includeInstructions?p.data.instructions:null,folderName?course.instructions:null].filter((s):s is string=>Boolean(s?.trim()));
  for(const text of prefs)block='Student course preferences (bounded): '+text.slice(0,1000)+(text.length>1000?' [preferences shortened]':'')+'\n'+block;
  // The folder's own files first, so a large course can't crowd the assignment files out of the search.
- const own=await db.from('files').select('id,name,project_id').eq('project_id',id).eq('user_id',userId).limit(folderName?60:100);
+ const own=await db.from('files').select('id,name,project_id').eq('project_id',id).eq('user_id',userId).in('status',['ready','needs_ocr']).order('created_at',{ascending:false}).limit(folderName?60:100);
  if(own.error)throw new Error('course_unavailable');
- const parentFiles=folderName?await db.from('files').select('id,name,project_id').eq('project_id',course.id).eq('user_id',userId).limit(90):{data:[],error:null};
+ const parentFiles=folderName?await db.from('files').select('id,name,project_id').eq('project_id',course.id).eq('user_id',userId).in('status',['ready','needs_ocr']).order('created_at',{ascending:false}).limit(90):{data:[],error:null};
  if(parentFiles.error)throw new Error('course_unavailable');
  const files={data:[...(own.data??[]),...(parentFiles.data??[])]};
  if(files.data.length){
-  const chunks=await db.rpc('search_chunks',{p_query:question,p_file_ids:files.data.map(f=>f.id),p_limit:5});
+  // Short study follow-ups still search the linked section's subject, not just "next card".
+  const query=linked?`${question}\n${linked.title}\n${linked.details}`:question;
+  const chunks=await db.rpc('search_chunks',{p_query:query,p_file_ids:files.data.map(f=>f.id),p_limit:5});
   if(chunks.error)throw new Error('course_unavailable');
-  for(const c of chunks.data??[]){const f=files.data.find(x=>x.id===c.file_id);const where=folderName?(f?.project_id===id?' (assignment folder)':' (course files)'):'';const passage=`\nSource: ${f?.name??'Course file'}${where}${c.page?`, page ${c.page}`:''}\n${c.content}`;if(estimateTokens(block+passage)>1600)continue;block+=passage;}
+  let selected=chunks.data??[];
+  if(!selected.length){
+   // No lexical hits: include bounded opening text from the newest owned resources.
+   // This also makes a newly processed supplement useful on a generic study request.
+   const newest=[own.data?.[0],parentFiles.data?.[0]].filter((f):f is NonNullable<typeof f>=>Boolean(f));
+   for(const f of newest){
+    const opening=await db.from('file_chunks').select('file_id,page,chunk_index,content').eq('file_id',f.id).eq('user_id',userId).order('chunk_index').limit(2);
+    if(opening.error)throw new Error('course_unavailable');
+    selected=[...selected,...(opening.data??[])];
+   }
+   if(selected.length)block+='\nNo indexed matches; only opening excerpts of the newest available resources follow.';
+  }
+  for(const c of selected){const f=files.data.find(x=>x.id===c.file_id);if(!f)continue;const where=folderName?(f.project_id===id?' (assignment folder)':' (course files)'):'';const passage=`\nSource: ${f.name}${where}${c.page?`, page ${c.page}`:''}\n${c.content}`;if(estimateTokens(block+passage)>1600)continue;block+=passage;}
  }
  return {name:folderName??course.name,block:block+'\nOnly selected text excerpts are available. Images and other passages may be missing; say when evidence is insufficient.'};
 }

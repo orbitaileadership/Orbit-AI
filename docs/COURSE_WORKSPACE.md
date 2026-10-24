@@ -1,5 +1,19 @@
 # Course workspace V1 — October 17, 2026
 
+## Courses Workspace revamp — October 23, 2026, awaiting validation
+
+The approved revamp replaces the earlier Overview/Assignments/Study arrangement with **Dashboard / Sections / Quiz**, retaining Resources, Chats and Course details. Implemented locally on `plan/courses-workspace-revamp`; not deployed. This section supersedes historical interface and unsent-study-prompt descriptions below. See [approved plan](COURSES_WORKSPACE_REVAMP_PLAN.md) and [implementation handoff](handoffs/2026-10-23-courses-workspace-revamp.md).
+
+- Setup offers syllabus upload/review and manual entry. Optional graded-event subtypes preserve the original item kind, IDs, status, evidence and folder links.
+- Dashboards show overdue/current/future tasks and a day/week/month/agenda calendar. Phone defaults to agenda. Custom events support date navigation, owner-scoped persistence, version conflicts, stable creation IDs, DST-safe edits, meeting URLs and `.ics` copies. Course deadlines open their existing sections; removing a custom event never removes a graded section.
+- Sections reuse the existing resource browser/upload/removal safeguards and linked folders. Parent course chats include section chats. Ready resources are selected on the next question: newest-first bounded inventories, linked-section lexical search and disclosed opening-excerpt fallback when no text matches. Deleted or processing resources are excluded; selective excerpts do not guarantee full recall or visual access.
+- Quiz me explicitly creates one named saved section chat and starts MCQ, short-answer or flashcards through normal or Orbit accounting. Atomic initial claims prevent duplicate first generation and sidebar bypass. Partial/unknown outcomes do not automatically retry or advance scoring/export. Saved completed card markers produce validated TSV exports for Anki and copy/import text for Quizlet; these are import bridges, not account sync. AI feedback is not an official grade.
+- Google and Outlook/Teams adapters reuse delegated browser OAuth, select calendars, paginate ranges, separate read/write permissions, enforce ETags and require review before external changes or invitations. Teams/Meet creation depends on the account calendar’s supported capabilities. Lost write responses require read-back; they are never blindly retried. Refresh is explicit, not background sync. Apple support is `.ics` export, not two-way iCloud access.
+
+Apply **0022_course_workspace_calendar.sql only after approval**: one owner-RLS calendar table plus nullable quiz configuration and card metadata on existing conversations/messages. Existing conversations remain compatible. Deploy after the migration, not before. No new service, server OAuth token storage, dependency or billable operation was introduced. Provider generation retains reserve → call → reconcile.
+
+Local validation: 744 tests / 87 files passed, including real local Postgres RLS/claim concurrency, provider mocks and request accounting; lint and TypeScript passed. Synthetic desktop and 375px browser journeys passed. The production webpack build passed. The temporary UI harness was removed and the real home page restored. Signed-in storage/database journeys, actual delegated calendar writes/invitations and real model quiz quality remain unverified; no shared migration, paid provider test or production release occurred.
+
 ## Local Courses Hub update — October 23, 2026
 
 Implemented on `codex/courses-hub`, not released. The workspace now opens to a searchable course library with grid/list views, term filtering, sorting, and cross-course My week. Each course has Overview, Assignments, Materials, Chats, Study and Syllabus. Materials includes file search/filtering, batch uploads, removal, and the existing folder browser. Assignment files and chats remain grouped in their existing folders; returning from chat refreshes their contents.
