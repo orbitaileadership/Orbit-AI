@@ -85,6 +85,22 @@ describe("adapters", () => {
     expect(body.messages[0]).toEqual({ role: "user", content: "hi" });
   });
 
+  it("Anthropic: explicitly disables Haiku 5.5 thinking for capped ballots", async () => {
+    const fetchMock = vi.fn(async () => sseResponse([
+      `event: message_start\ndata: ${JSON.stringify({ type: "message_start", message: { usage: { input_tokens: 7 } } })}`,
+      `event: content_block_delta\ndata: ${JSON.stringify({ type: "content_block_delta", delta: { type: "text_delta", text: '{"nominee":"openai"}' } })}`,
+      `event: message_delta\ndata: ${JSON.stringify({ type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { output_tokens: 8 } })}`,
+      `event: message_stop\ndata: ${JSON.stringify({ type: "message_stop" })}`,
+    ]));
+    vi.stubGlobal("fetch", fetchMock);
+    const ballotModel = { ...model, apiModel: "claude-haiku-5-5" } as ModelOption;
+    await collect(anthropic.stream({ ...args(), model: ballotModel, maxOutput: 256, disableThinking: true }));
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.thinking).toEqual({ type: "disabled" });
+    expect(body).not.toHaveProperty("output_config");
+    expect(body.max_tokens).toBe(256);
+  });
+
   it("google: maps assistant→model, skips thoughts, bills thinking as output", async () => {
     const fetchMock = vi.fn(async () => sseResponse([
       `data: ${JSON.stringify({ candidates: [{ content: { parts: [{ text: "hmm", thought: true }, { text: "A" }] } }] })}`,
@@ -293,4 +309,24 @@ describe("Gemini full-input preflight", () => {
     vi.stubGlobal("fetch",vi.fn(async()=>Response.json(response)));
     await expect(google.countTokens!(args())).rejects.toThrow();
   });
+});
+
+
+describe('explicit Orbit lead thinking',()=>{
+ const bodyOf = (m: ReturnType<typeof vi.fn>, i: number) => JSON.parse((m.mock.calls[i] as unknown as [string, RequestInit])[1].body as string);
+ it.each(['low','medium','high'] as const)('sends %s to all four provider APIs',async thinkingLevel=>{
+  const mock=vi.fn(async()=>sseResponse(['data: '+JSON.stringify({type:'response.completed',response:{}}),'data: '+JSON.stringify({type:'message_delta',delta:{stop_reason:'end_turn'}}),'data: '+JSON.stringify({type:'message_stop'}),'data: '+JSON.stringify({candidates:[{finishReason:'STOP'}]}),'data: '+JSON.stringify({choices:[{finish_reason:'stop'}]})]));vi.stubGlobal('fetch',mock);
+  for(const adapter of [openai,anthropic,google,xai]) await collect(adapter.stream({...args(),thinkingLevel}));
+  expect(bodyOf(mock,0).reasoning).toEqual({effort:thinkingLevel});
+  expect(bodyOf(mock,1).output_config).toEqual({effort:thinkingLevel});
+  expect(bodyOf(mock,2).generationConfig.thinkingConfig).toEqual({thinkingLevel});
+  expect(bodyOf(mock,3).reasoning_effort).toBe(thinkingLevel);
+  expect(bodyOf(mock,0).max_output_tokens).toBe(100);
+  expect(bodyOf(mock,1).max_tokens).toBe(100);
+ });
+ it.each([openai,google])('never silently drops explicit thinking on a 400 ($id)',async adapter=>{
+  const mock=vi.fn(async()=>new Response('{}',{status:400}));vi.stubGlobal('fetch',mock);
+  await expect(collect(adapter.stream({...args(),thinkingLevel:'high',fast:true,cacheKey:'synthetic'}))).rejects.toThrow();
+  expect(mock).toHaveBeenCalledTimes(1);
+ });
 });
