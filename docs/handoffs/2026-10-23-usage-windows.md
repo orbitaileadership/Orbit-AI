@@ -22,3 +22,12 @@
 Noah requested deployment and signed into the service dashboards. The usage migration was applied transactionally to production Supabase `rcfnptnaoncfsavxgybc` and verified: v3 exists, base reservation guard present, RLS enabled, student v3/anonymous windows access denied, service v3 allowed, private helper denied. Read-only empty synthetic scope returned caps 483091 / 3381642 / 14492753 USD micros at configured FX 1.38. No user balances or ledger history were rewritten. Migration was renumbered from 0022 to 0023 after the concurrent Courses calendar migration took 0022; SQL contents are unchanged and must not be applied again solely for renumbering.
 
 Release PR: https://github.com/orbitaileadership/Orbit-AI/pull/27. Current main's Orbit timeout and Courses calendar/quiz changes are preserved. App production rollout is pending final merged build and PR merge. Earlier local-only/authorization-pending statements describe the pre-release checkpoint; this update supersedes them for database and release authorization. Payments and paid provider validation remain disabled/unperformed.
+
+## Production confirmation — October 23, 2026, 11:59 PM Toronto
+
+- PR #27 merged as `78fad083ceaa7710c705179ecaaa3a91eb3e3303` after final preview `JANyBsKgSeS2N14hKs5SX3hnTVHs` succeeded. Final combined local webpack build including TypeScript passed with current Courses/Orbit releases preserved. Earlier 668-test evidence predates those integrations; full combined suite was not rerun in the release turn.
+- Vercel deployment `FTSyYHFncLMhe8L6XSro99sZXNZM` verified **Ready**, **Production**, `main`, exact merge commit, and assigned `orbit-ai-sand.vercel.app`.
+- Public HTTP smoke checks: `/` 200 HTML; unauthenticated `/api/usage` 401 JSON. No signed-in or paid-provider request was made. Those live flows remain unverified.
+- Proof: `C:/Users/noaht/.codex/visualizations/2026/10/21/01a15bc4-2038-7cc0-b86f-d464954db2de/usage-production-ready.png` and `usage-migration-verified.png` in the same directory.
+- Database migration 0023 already applied/verified as described above. Payments remain disabled. Production application rollback can use Vercel's prior deployment while retaining additive schema and reservation guards.
+- Next: owner verifies Settings → Usage in their signed-in account. Release documentation saved locally after production confirmation; no additional runtime changes.
