@@ -95,3 +95,5 @@ The owner reported another Orbit failure after PR 22. Production logs show a Goo
 ## Courses simplification — October 24, 2026, local
 
 `codex/courses-simplify` contains Noah's course-only list, Graded Sections/section Chats navigation, removed slogans/term filter/duplicate calendar links, equal priority-card heights and centered event dialog. Lint and TypeScript passed; browser validation and release remain pending. No database migration. See [handoff](handoffs/2026-10-24-courses-simplify.md).
+
+Courses simplification release update: PR [#31](https://github.com/orbitaileadership/Orbit-AI/pull/31) merged as `731eeef0793c9adb21484fed6b4a4509c0b57d8f` following Noah's explicit push/deploy request. Local production build and Vercel preview passed; Vercel main deployment `8KK5VigGhTm48vwqfxemvdsSKNzK` reported success. Public site 200, unauthenticated courses API 401. No migration. Signed-in visual checks remain pending; supersedes the local-only status above.
