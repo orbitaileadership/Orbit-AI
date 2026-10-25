@@ -1,8 +1,8 @@
 # Orbit AI — current state
 
-## Local Course Workspace V3 — October 25, 2026
+## Course Workspace V3 production release — October 25, 2026
 
-`codex/course-workspace-v3` adds nested course/graded-section chat navigation, streamlines section UI, and opens saved quizzes in the selected provider or Orbit chat. It builds on V2. On October 25, a read-only production Supabase check verified both required conversation columns, all three migration 0024 triggers, and zero ungrouped section chats; this supersedes the earlier unverified migration note below. V3 has not yet been deployed; signed-in browser validation is pending. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and `handoffs/2026-10-25-course-workspace-v3.md`.
+`codex/course-workspace-v3` added nested course/graded-section chat navigation, streamlined section UI, and saved quizzes that open in the selected provider or Orbit chat. It builds on V2. Production Supabase read-only checks verified both required conversation columns, all three migration 0024 triggers, and zero ungrouped section chats; this supersedes the earlier unverified migration note below. GitHub `main` advanced to `618235e`; [Vercel production deployment](https://vercel.com/orbit-ai7/orbit-ai/9MXgsE9xpYx96xaTkAv5mMaQq5XM) reported Ready for that exact SHA and listed `orbit-ai-sand.vercel.app` as a current domain. The public home page loaded. Signed-in course and quiz journeys on phone/desktop remain unverified. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and [handoff](handoffs/2026-10-25-course-workspace-v3.md).
 
 ## Local Course Workspace V2 — October 24, 2026
 
