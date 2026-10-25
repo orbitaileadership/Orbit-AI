@@ -4,7 +4,7 @@
 
 The provider and Orbit sidebars now show a nested Courses → graded-section folder → chat tree using the saved `section_folder_id`. Loose folders and chats remain reachable in their own sections. Graded sections show their own resources and chats without repeating the course syllabus. AI choices use provider marks; the status control is more prominent, and redundant headings/copy were removed.
 
-Quiz is a section-based setup and saved-session list. Creating a quiz saves its named conversation in the chosen section and opens the selected AI chat with an editable starting prompt. Opening a saved session returns to that chat. The first send uses the existing atomic quiz claim and normal usage accounting; navigation alone makes no paid call. Flashcard export remains available. This V3 UI depends on the still-local migration `0024_course_chat_grouping.sql`. Signed-in desktop/phone and production validation are pending. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and the October 25 handoff.
+Quiz is a section-based setup and saved-session list. Creating a quiz saves its named conversation in the chosen section and opens the selected AI chat with an editable starting prompt. Opening a saved session returns to that chat. The first send uses the existing atomic quiz claim and normal usage accounting; navigation alone makes no paid call. Flashcard export remains available. This V3 UI depends on migration `0024_course_chat_grouping.sql`; its columns, triggers and grouping backfill were verified in production by read-only checks on October 25. Signed-in desktop/phone and V3 deployment validation are pending. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and the October 25 handoff.
 
 ## October 24, 2026 — Course resources V2 (local, awaiting validation)
 

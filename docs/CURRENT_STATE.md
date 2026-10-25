@@ -2,7 +2,7 @@
 
 ## Local Course Workspace V3 — October 25, 2026
 
-`codex/course-workspace-v3` adds nested course/graded-section chat navigation, streamlines section UI, and opens saved quizzes in the selected provider or Orbit chat. It builds on local V2 and migration 0024, which has not been applied to the shared database. This work has not been deployed; signed-in browser validation is pending. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and `handoffs/2026-10-25-course-workspace-v3.md` for checks and limitations.
+`codex/course-workspace-v3` adds nested course/graded-section chat navigation, streamlines section UI, and opens saved quizzes in the selected provider or Orbit chat. It builds on V2. On October 25, a read-only production Supabase check verified both required conversation columns, all three migration 0024 triggers, and zero ungrouped section chats; this supersedes the earlier unverified migration note below. V3 has not yet been deployed; signed-in browser validation is pending. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and `handoffs/2026-10-25-course-workspace-v3.md`.
 
 ## Local Course Workspace V2 — October 24, 2026
 
