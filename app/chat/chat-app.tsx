@@ -10,7 +10,7 @@ import { signOut } from "../login/actions";
 import { ProviderLogo } from "@/components/provider-logo";
 import { OrbitChat } from "@/components/orbit-chat";
 import { ModelMenu } from "@/components/model-menu";
-import { UsageMeter } from "@/components/usage-meter";
+import { UsageShortcut } from "@/components/usage-meter";
 import { ChatRowMenu } from "@/components/chat-row-menu";
 import { ToolsMenu, type ConnectedApp, type StudyMode } from "@/components/tools-menu";
 import { FolderBrowser } from "@/components/folder-browser";
@@ -1312,7 +1312,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const sidebarIcon = (
     <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7.75 4v12" stroke="currentColor" strokeWidth="1.5" /></svg>
   );
-  const remaining = usage?.live ? (usage.available ?? usage.allowance - usage.spent - usage.reserved) : 0;
 
   const settingsDialog = (
     <SettingsDialog
@@ -1343,7 +1342,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   return (
     <>
     {(orbitMode || orbitLoaded) && <div hidden={!orbitMode}>
-      <OrbitChat visible={orbitMode} dots={railDots} onActivity={setOrbitDot} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
+      <OrbitChat onUsage={() => setSettingsOpen("usage")} visible={orbitMode} dots={railDots} onActivity={setOrbitDot} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
         account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("general")} signOut={signOut} />}
         onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />
     </div>}
@@ -1432,27 +1431,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           </SidebarSection>
         </div>
 
-        {/* Usage */}
-        <div className="m-3 text-sm">
-          <UsageMeter usage={usage}>
-          {usage?.live && currentModel && (
-            <p className="mt-2 text-xs text-ink-muted">
-              {answersText(answersLeft(remaining, currentModel, usage.typical)).replace(/^about/, "About")} with {currentModel.short}
-              {usage.reserved > 0 && " · a reply is in progress"}
-            </p>
-          )}
-          {usage?.live && (
-            <details className="mt-2 text-xs text-ink-muted">
-              <summary className="cursor-pointer select-none text-ink-subtle hover:text-ink-muted">How your budget works</summary>
-              <ul className="mt-1.5 list-disc space-y-1 pl-4">
-                <li>Each answer costs a little, based on how long the chat, files and answer are. Bigger models cost more per answer.</li>
-                <li>A cost estimate is set aside before each reply. Provider usage determines the final charge and unused credit is released.</li>
-                <li>Long chats and big files cost more per answer. Starting a new chat, or a cheaper model, makes your budget last longer.</li>
-                <li>If a request is rejected, its credit is released. If the provider outcome is unknown, the full estimate may be charged until reviewed.</li>
-              </ul>
-            </details>
-          )}
-          </UsageMeter>
+        <div className="shrink-0 px-3 py-2">
+          <UsageShortcut onClick={() => { setSidebarOpen(false); setSettingsOpen("usage"); }} />
         </div>
         {/* Phone: account at the bottom of the menu (computers have it at the bottom of the app rail) */}
         <div className="border-t border-line px-3 py-2 md:hidden">

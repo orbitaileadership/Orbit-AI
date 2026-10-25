@@ -1,7 +1,7 @@
 "use client";
 import type { UsageWindow } from '@/lib/billing/usage-windows';
 
-// Shared rolling-window meter for Settings, chat and Orbit. Students see percentages only.
+// Shared rolling-window meter for Settings. Students see percentages only.
 // The server controls monetary detail visibility; all enforcement stays in the reservation RPC.
 export type UsageData = {
   live: boolean;
@@ -91,4 +91,14 @@ export function UsageMeter({ usage, size = "compact", children }: { usage: Usage
     <p className="mt-2 text-[11px] leading-relaxed text-ink-muted">{trial ? 'Trial' : 'Account'} allowance: {Math.floor(accountLeft)}% left. {usage.expiresAt ? endsLabel(usage.expiresAt) + '.' : 'Your account allowance also applies.'}</p>
     {children}
   </div>;
+}
+
+/** A single-row shortcut keeps usage details out of the chat sidebar. */
+export function UsageShortcut({ onClick }: { onClick: () => void }) {
+  return <button type="button" onClick={onClick} aria-label="Usage & limits" aria-haspopup="dialog"
+    className="flex min-h-11 w-full items-center gap-3 rounded-xl px-3 text-left text-sm text-ink-muted transition hover:bg-surface-200 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+    <svg viewBox="0 0 20 20" width="18" height="18" className="shrink-0" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><circle cx="10" cy="10" r="7.5" /><path d="M10 10l3.5-3.5M6 13.5h8" /></svg>
+    <span className="flex-1">Usage &amp; limits</span>
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"><path d="m6 4 4 4-4 4" /></svg>
+  </button>;
 }

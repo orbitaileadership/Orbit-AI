@@ -16,7 +16,7 @@ import { FileChip } from "@/components/file-chip";
 import { fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { Markdown } from "@/components/markdown";
 import { SpeakButton } from "@/components/speak-button";
-import { UsageMeter, type UsageData } from "@/components/usage-meter";
+import { UsageShortcut } from "@/components/usage-meter";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Decision } from "@/lib/orbit/voting";
 
@@ -87,7 +87,7 @@ const STARTERS = [
 ];
 const greetingFor = (name: string) => { const h = new Date().getHours(); return `${h < 5 || h >= 18 ? "Good evening" : h < 12 ? "Good morning" : "Good afternoon"}${name ? `, ${name}` : ""}`; };
 
-export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, account, visible=true, dots, onActivity }: { userId: string; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
+export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, account, onUsage, visible=true, dots, onActivity }: { userId: string; onUsage?: () => void; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
   const [thinkingLevel,setThinkingLevel]=useState<ThinkingLevel>(DEFAULT_THINKING_LEVEL);
   const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
   const [courseGroups,setCourseGroups]=useState<{id:string;name:string}[]>([]);
@@ -99,15 +99,14 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   const [messages,setMessages]=useState<Message[]>([]), [input,setInput]=useState("");
   const [busy,setBusy]=useState(false), [loading,setLoading]=useState(false), [phase,setPhase]=useState(""), [error,setError]=useState("");
   const [decision,setDecision]=useState<Decision|null>(null), [dropped,setDropped]=useState(false), [sidebar,setSidebar]=useState(false);
-  const [usage,setUsage]=useState<UsageData|null>(null), [firstName,setFirstName]=useState("");
+  const [firstName,setFirstName]=useState("");
   const [files,setFiles]=useState<UploadedFile[]>([]), [uploading,setUploading]=useState(false), picker=useRef<HTMLInputElement>(null);
   const controller=useRef<AbortController|null>(null), bottom=useRef<HTMLDivElement>(null), view=useRef(0);
   const refresh=useCallback(async()=>{
-    const [list,usage,groups,folders]=await Promise.all([fetch("/api/conversations?provider=orbit"),fetch("/api/usage"),fetch("/api/courses"),fetch("/api/projects")]);
+    const [list,groups,folders]=await Promise.all([fetch("/api/conversations?provider=orbit"),fetch("/api/courses"),fetch("/api/projects")]);
     if(groups.ok)setCourseGroups((await groups.json()).courses??[]);
     if(folders.ok)setCourseFolders((await folders.json()).projects??[]);
     if(list.ok) setChats((await list.json()).conversations??[]);
-    if(usage.ok)setUsage(await usage.json());
   },[]);
   useEffect(() => {
     const changed = (event: Event) => {
@@ -285,9 +284,9 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         </nav>
         </SidebarSection>
       </div>
-      <div className="m-3">
-        <UsageMeter usage={usage}><p className="mt-2 text-xs leading-5 text-ink-muted">Each message tries four voters plus one answer. A Google availability failure may add one retry; the other three can vote without Google. Completed calls use allowance.</p></UsageMeter>
-      </div>
+      {onUsage && <div className="shrink-0 px-3 py-2">
+        <UsageShortcut onClick={() => { setSidebar(false); onUsage(); }} />
+      </div>}
       {account&&<div className="border-t border-line px-3 py-2 md:hidden">{account(false)}</div>}
     </aside>
     <main className="relative flex min-w-0 flex-1 flex-col">

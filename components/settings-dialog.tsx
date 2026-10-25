@@ -363,7 +363,18 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
                 {heading("Usage", "Every answer uses part of your allowance. Cheaper models stretch it further.")}
                 {usage === null && <p className="py-5 text-sm text-ink-subtle">Loading…</p>}
                 {usage === "error" && <p role="alert" className="py-5 text-sm text-ink-muted">Couldn&apos;t load your usage. <button className="underline" onClick={() => { setUsage(null); setUsageRefresh(v => v + 1); }}>Try again</button></p>}
-                {usage && usage !== "error" && <div className="mt-4"><UsageMeter usage={usage} size="large" /></div>}
+                {usage && usage !== "error" && <div className="mt-4"><UsageMeter usage={usage} size="large">
+                  <details className="mt-4 text-xs text-ink-muted">
+                    <summary className="cursor-pointer select-none hover:text-ink">How your budget works</summary>
+                    <ul className="mt-2 list-disc space-y-2 pl-4 leading-relaxed">
+                      <li>Each answer uses allowance based on the chat, files, model and answer length. Larger models and longer chats can cost more.</li>
+                      <li>An estimate is held before each reply. The final cost is settled from provider usage and unused credit is released.</li>
+                      <li>Starting a new chat or choosing a cheaper model can make your allowance last longer.</li>
+                      <li>Rejected requests release their credit. Unknown provider outcomes may retain the estimate until reviewed.</li>
+                      <li>Orbit may make several model calls for one message. Completed calls use your allowance.</li>
+                    </ul>
+                  </details>
+                </UsageMeter></div>}
                 {usage && usage !== "error" && usage.live && usage.canViewCosts && (
                   <>
                     {usage.expiresAt && <Row title="Trial ends"><span className="text-sm text-ink-muted">{new Date(usage.expiresAt).toLocaleString(undefined, { weekday: "short", month: "long", day: "numeric", hour: "numeric", minute: "2-digit" })}</span></Row>}
