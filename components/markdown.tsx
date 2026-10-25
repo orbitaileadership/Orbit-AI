@@ -1,7 +1,7 @@
 "use client";
 
 import "katex/dist/katex.min.css";
-import { memo, useState, type ReactNode } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import rehypeHighlight from "rehype-highlight";
 import rehypeKatex from "rehype-katex";
@@ -11,6 +11,7 @@ import { hideQuizMarkers } from "@/lib/chat/quiz";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Source } from "./answer-text";
 import { parseWidget } from "@/lib/widgets/schema";
+import { MultipleChoiceContext, type MultipleChoiceInteraction } from "./multiple-choice";
 import { ChatWidget, WidgetPending } from "./chat-widgets";
 
 // Answers rendered the way ChatGPT / Claude / Gemini / Grok show them: headings, lists, tables, code blocks with a
@@ -64,6 +65,7 @@ function makeComponents(sources: Source[] | undefined, final: boolean): Componen
       // Interactive widget (calculator, chart, diagram) described as JSON by the AI; shown as code only if invalid.
       if (lang === "orbit-widget") {
         const widget = parseWidget(textOf(children));
+        if (widget?.type === "multiple_choice" && !final) return <WidgetPending />;
         if (widget) return <ChatWidget widget={widget} />;
         if (!final) return <WidgetPending />;
       }
@@ -102,18 +104,21 @@ function makeComponents(sources: Source[] | undefined, final: boolean): Componen
 
 const urlTransform = (url: string) => (url.startsWith("cite:") ? url : defaultUrlTransform(url));
 
-export const Markdown = memo(function Markdown({ text, sources, final = true, className = "" }: { text: string; sources?: Source[]; final?: boolean; className?: string }) {
+export const Markdown = memo(function Markdown({ text, sources, final = true, className = "", interaction }: { text: string; sources?: Source[]; final?: boolean; className?: string; interaction?: MultipleChoiceInteraction }) {
+  const components = useMemo(() => makeComponents(sources, final), [sources, final]);
   return (
-    <div className={`md ${className}`}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
-        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: "ignore" }], [rehypeHighlight, { detect: false, ignoreMissing: true }]]}
-        components={makeComponents(sources, final)}
-        urlTransform={urlTransform}
-      >
-        {prepareMarkdown(text, sources, final)}
-      </ReactMarkdown>
-    </div>
+    <MultipleChoiceContext.Provider value={interaction}>
+      <div className={`md ${className}`}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
+          rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: "ignore" }], [rehypeHighlight, { detect: false, ignoreMissing: true }]]}
+          components={components}
+          urlTransform={urlTransform}
+        >
+          {prepareMarkdown(text, sources, final)}
+        </ReactMarkdown>
+      </div>
+    </MultipleChoiceContext.Provider>
   );
 });
 

@@ -22,7 +22,22 @@ export type DiagramWidget = {
   type: "diagram"; title?: string; direction: "right" | "down";
   steps: { label: string; detail?: string }[]; links?: string[]; note?: string;
 };
-export type Widget = CalculatorWidget | ChartWidget | DiagramWidget;
+export type MultipleChoiceWidget = { type: "multiple_choice"; question: string; options: string[] };
+export type Widget = CalculatorWidget | ChartWidget | DiagramWidget | MultipleChoiceWidget;
+
+function multipleChoice(o: Record<string, unknown>): MultipleChoiceWidget {
+  const question = str(o.question, 1000);
+  if (!question || !Array.isArray(o.options) || o.options.length < 2 || o.options.length > 6) throw new Error("widget_invalid");
+  const options = o.options.map((v) => str(v, 500));
+  if (options.some((v) => !v) || new Set(options).size !== options.length) throw new Error("widget_invalid");
+  return { type: "multiple_choice", question, options: options as string[] };
+}
+
+/** A readable ordinary user turn, retained in history across reloads and model switches. */
+export function multipleChoiceAnswer(w: MultipleChoiceWidget, index: number): string {
+  if (!Number.isInteger(index) || index < 0 || index >= w.options.length) throw new Error("invalid_choice");
+  return `Answer to: ${w.question}\nMy choice: ${String.fromCharCode(65 + index)}. ${w.options[index]}`;
+}
 
 export const WIDGET_LIMITS = { inputs: 8, results: 4, breakdown: 10, series: 4, points: 60, pieSlices: 8, steps: 10, text: 160 };
 
@@ -120,6 +135,7 @@ export function parseWidget(text: string): Widget | null {
   try {
     const o = JSON.parse(text) as Record<string, unknown>;
     if (!o || typeof o !== "object") return null;
+    if (o.type === "multiple_choice") return multipleChoice(o);
     if (o.type === "calculator") return calculator(o);
     if (o.type === "chart") return chart(o);
     if (o.type === "diagram") return diagram(o);
