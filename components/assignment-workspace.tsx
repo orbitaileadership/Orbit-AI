@@ -1,13 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Course, CourseFile, CourseItem, CourseLaunch } from '@/lib/courses/types';
+import type { Course, CourseItem, CourseLaunch } from '@/lib/courses/types';
 import { uploadFile } from '@/lib/files/upload-client';
 import { THEMES } from '@/config/themes';
 import { isProvider, PROVIDERS } from '@/config/models';
 import { ProviderLogo } from './provider-logo';
 import { OrbitGlyph } from './app-rail';
-import { FileTile } from './file-tile';
 import { CourseFileBrowser } from './course-file-browser';
 
 type Folder = { id: string; name: string };
@@ -26,9 +25,9 @@ async function call(path: string, method = 'GET') {
  * see the course files the AI also reads, and start or reopen this assignment's chats in Orbit or any of the four AIs.
  * The folder is created on first upload or chat, never by just looking.
  */
-export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFiles, openFile, onLaunch, onCourse, active = true }: {
+export function AssignmentWorkspace({ course, item, userId, ai, onAi, openFile, onLaunch, onCourse, active = true }: {
   active?: boolean;
-  course: Course; item: CourseItem; userId: string; ai: string; onAi: (ai: string) => void; courseFiles: CourseFile[];
+  course: Course; item: CourseItem; userId: string; ai: string; onAi: (ai: string) => void;
   openFile: (id: string) => void; onLaunch: (launch: CourseLaunch) => void; onCourse: (course: Course) => void;
 }) {
   const [sectionTab, setSectionTab] = useState<'resources' | 'chats'>('resources');
@@ -109,8 +108,6 @@ export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFile
     finally { working.current = false; setBusy(false); }
   }
 
-  const aiName = ai === 'orbit' ? 'Orbit' : isProvider(ai) ? THEMES[ai].appName : 'AI';
-  const others = courseFiles.filter(f => f.id === course.syllabus_id);
   const card = 'min-w-0 w-full max-w-full group relative flex items-center gap-3 rounded-2xl border border-line bg-surface-100 p-3 text-left transition hover:-translate-y-0.5 hover:border-line-strong hover:shadow-composer';
 
   return (
@@ -119,7 +116,7 @@ export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFile
 
       <nav className="hub-tabs" aria-label="Section workspace"><button aria-current={sectionTab === 'resources' ? 'page' : undefined} onClick={() => setSectionTab('resources')}>Resources</button><button aria-current={sectionTab === 'chats' ? 'page' : undefined} onClick={() => setSectionTab('chats')}>Chats</button></nav>
       <div hidden={sectionTab !== 'resources'}><CourseFileBrowser
-        title="Section resources" description="Keep the instructions, rubric, and supporting work together."
+        title="Section resources" description=""
         searchLabel="Search section resources" assignment files={files} uploading={uploading}
         busy={busy} loading={loading} onUpload={list => void upload(list)}
         onOpen={openFile} onRemove={file => void remove(file)}
@@ -128,11 +125,12 @@ export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFile
       {/* Chats stay scoped to this graded section. */}
       <section hidden={sectionTab !== 'chats'}>
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div><h3 className="text-lg font-medium">Section chats</h3><p className="text-xs text-ink-muted">Saved together under {course.name}</p></div>
-          <label className="hub-ai"><span>Ask with</span><select aria-label="Section AI" value={ai} onChange={e => onAi(e.target.value)}><option value="orbit">Orbit</option>{PROVIDERS.map(provider => <option key={provider} value={provider}>{THEMES[provider].appName}</option>)}</select></label>
+          <h3 className="text-lg font-medium">Section chats</h3>
+          <div className="section-ai-choices" role="group" aria-label="Choose an AI for this section">
+            {(['orbit', ...PROVIDERS] as const).map(choice => <button key={choice} type="button" aria-label={choice === 'orbit' ? 'Orbit' : THEMES[choice].appName} title={choice === 'orbit' ? 'Orbit' : THEMES[choice].appName} aria-pressed={ai === choice} onClick={() => onAi(choice)} className="section-ai-choice">{choice === 'orbit' ? <OrbitGlyph size={20} /> : <ProviderLogo provider={choice} size={21} />}</button>)}
+          </div>
           <button disabled={busy || loading} onClick={startChat} className="orbit-send flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50">
-            {ai === 'orbit' ? <OrbitGlyph size={16} /> : isProvider(ai) ? <span className="grid h-5 w-5 place-items-center rounded-full bg-white"><ProviderLogo provider={ai} size={13} /></span> : null}
-            New chat with {aiName}
+            Start chat
           </button>
         </div>
         <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -149,27 +147,8 @@ export function AssignmentWorkspace({ course, item, userId, ai, onAi, courseFile
             </button>
           ))}
         </div>
-        {!loading && !chats.length && <p className="mt-3 text-sm text-ink-muted">Start a conversation using relevant excerpts from the section resources and the course syllabus. Materials stay here when you switch assistants.</p>}
+        {!loading && !chats.length && <p className="mt-3 text-sm text-ink-muted">No chats yet.</p>}
       </section>
-
-      {/* Course files the AI also reads */}
-      {sectionTab === 'resources' && others.length > 0 && (
-        <section>
-          <h3 className="text-lg font-medium">Shared syllabus</h3>
-          <p className="mt-1 text-sm text-ink-muted">Available to this section and every other section in the course.</p>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {others.map(f => (
-              <button key={f.id} onClick={() => openFile(f.id)} className={card} title={`Open ${f.name}`}>
-                <FileTile name={f.name} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{f.name}</span>
-                  <span className="block text-xs text-ink-subtle">{f.id === course.syllabus_id ? 'Syllabus' : 'Course notes'}</span>
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

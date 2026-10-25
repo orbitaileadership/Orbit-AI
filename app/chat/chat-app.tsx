@@ -25,6 +25,7 @@ import { SettingsDialog, type SettingsTab } from "@/components/settings-dialog";
 import { ImagePending, PendingIndicator } from "@/components/pending-indicator";
 import { AppRail, AppSwitcher, RunDot } from "@/components/app-rail";
 import { SidebarSection } from "@/components/sidebar-section";
+import { CourseChatTree } from "@/components/course-chat-tree";
 import { AccountMenu } from "@/components/account-menu";
 import { VoiceButton } from "@/components/voice-button";
 import { SpeakButton } from "@/components/speak-button";
@@ -74,7 +75,7 @@ type Message = {
 };
 type Pending = { key: string; file?: UploadedFile; name: string; uploading: boolean; error?: string };
 type ChatSettings = { mode: StudyMode; courseOnly: boolean; web?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null };
-type ConvSummary = { id: string; title: string; modelId: string; projectId: string | null; updatedAt: string };
+type ConvSummary = { id: string; title: string; modelId: string; projectId: string | null; sectionFolderId?: string | null; updatedAt: string };
 type Project = { id: string; name: string; instructions: string; parent_course_id?: string | null };
 type Usage = import("@/components/usage-meter").UsageData & { live: boolean; liveProviders?: ProviderId[]; allowance: number; spent: number; reserved: number; typical?: Record<string, number>; allowanceCad?: number | null; usdCadRate?: number | null; expiresAt?: string | null };
 
@@ -129,6 +130,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const [convs, setConvs] = useState<Record<ProviderId, ConvSummary[] | null>>(() => perProvider<ConvSummary[] | null>(() => null));
   const [projects, setProjects] = useState<Record<ProviderId, Project[]>>(() => perProvider<Project[]>(() => []));
   const [courseProjects, setCourseProjects] = useState<Project[]>([]);
+  const [quizReadyIds, setQuizReadyIds] = useState<Set<string>>(() => new Set());
   const [activeIds, setActiveIds] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [projectFilter, setProjectFilter] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [draftModels, setDraftModels] = useState<Record<ProviderId, string>>(() =>
@@ -216,9 +218,14 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const appConvs = convs[provider];
   const filter = projectFilter[provider];
   const groupProjectId = (id: string | null) => projects[provider].find(p => p.id === id)?.parent_course_id ?? id;
-  const visibleConvs = (appConvs ?? []).filter((c) => !filter || groupProjectId(c.projectId) === groupProjectId(filter));
+  const courseIds = new Set(courseProjects.map(c => c.id));
+  const folderFilter = projects[provider].find(p => p.id === filter);
+  const courseFilter = Boolean(filter && (courseIds.has(filter) || folderFilter?.parent_course_id));
+  const visibleConvs = (appConvs ?? []).filter(c => !courseIds.has(c.projectId ?? '') && (!filter || courseFilter || c.projectId === filter));
   const activeId = activeIds[provider];
   const active = appConvs?.find((c) => c.id === activeId) ?? null;
+  const openedChatRef = useRef<string | null>(null);
+  useEffect(() => { openedChatRef.current = active?.id ?? null; }, [active?.id]);
   const msgKey = active ? active.id : `${DRAFT}:${provider}`;
   const busy = run !== null && run.key === msgKey; // this chat's answer is still running
   const otherRunning = run !== null && !busy;      // an answer is running in another chat
@@ -368,7 +375,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       setConvs(prev=>({...prev,[p]:c.conversations??[]}));setProjects(prev=>({...prev,[p]:projects.projects??[]}));
       setProvider(p);setOrbitMode(false);setPage("chat");setImageMode(false);setPending([]);
       setProjectFilter(prev=>({...prev,[p]:(courseLaunch.folder?.id ?? courseLaunch.course.id)}));setActiveIds(prev=>({...prev,[p]:courseLaunch.conversationId??null}));
-      setInput(courseLaunch.prompt+(courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
+      if (courseLaunch.conversationId) setQuizReadyIds(previous => { const next = new Set(previous); if (courseLaunch.startQuiz) next.add(courseLaunch.conversationId!); else next.delete(courseLaunch.conversationId!); return next; });
+      setInput(courseLaunch.prompt+(courseLaunch.startQuiz?"":courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
     }).catch(()=>alertLine("Could not open the course chat. Please try again."));
     return()=>{cancelled=true;};
   },[courseLaunch,ready]);
@@ -412,7 +420,12 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     (async () => {
       const res = await fetch(`/api/conversations/${id}`).catch(() => null);
       if (!res || handleAuth(res) || !res.ok) return;
-      const out = (await res.json()) as { messages: Message[]; mode?: StudyMode; courseOnly?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null };
+      const out = (await res.json()) as { messages: Message[]; mode?: StudyMode; courseOnly?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null; quizStartReady?: boolean };
+      setQuizReadyIds(previous => { const next = new Set(previous); if (out.quizStartReady) next.add(id); else next.delete(id); return next; });
+      if (out.quizStartReady) {
+        if (active.projectId) void fetch(`/api/courses/${active.projectId}/quiz?conversationId=${id}`)
+          .then(r => r.ok ? r.json() : null).then(data => { if (data?.prompt && openedChatRef.current === id) setInput(current => current || data.prompt); }).catch(() => {});
+      }
       const withActivity = out.messages.map((m) =>
         m.toolLog?.length ? { ...m, toolContextCompacted: m.toolLog.some(t => t.contextLimited), activity: m.toolLog.map((t, i) => ({ id: `${m.id}-${i}`, name: t.name, label: t.label, status: t.status, code: t.code, stdout: t.output, links: t.links })) } : m,
       );
@@ -477,7 +490,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       const existing = list.find((c) => c.id === newId);
       const summary: ConvSummary = existing
         ? { ...existing, modelId, updatedAt: new Date().toISOString() }
-        : { id: newId, title, modelId, projectId: groupProjectId(filter), updatedAt: new Date().toISOString() };
+        : { id: newId, title, modelId, projectId: groupProjectId(filter), sectionFolderId: folderFilter?.parent_course_id ? folderFilter.id : null, updatedAt: new Date().toISOString() };
       return { ...prev, [provider]: [summary, ...list.filter((c) => c.id !== newId)] };
     });
     moveRun(fromKey, newId);
@@ -530,7 +543,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   async function moveToProject(id: string, projectId: string | null) {
     const res = await fetch(`/api/conversations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) });
     if (!res.ok) alertLine("Couldn't move the chat. Make sure migration 0002 has been run.");
-    else setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).map((c) => (c.id === id ? { ...c, projectId } : c)) }));
+    else setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).map((c) => (c.id === id ? { ...c, projectId: groupProjectId(projectId), sectionFolderId: projects[provider].find(p => p.id === projectId)?.parent_course_id ? projectId : null } : c)) }));
   }
 
   function selectCourse(id: string | null) {
@@ -685,14 +698,18 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
 
   // ---------------------------------------------------------------- sending
   async function send(text: string, retry = false, opts: { voice?: boolean; edit?: boolean } = {}) {
-    const content = text.trim();
+    // A ready quiz has no saved first user turn. Retry the optimistic question as
+    // a fresh first turn; the normal regeneration path requires a saved turn.
+    const readyQuizRetry = Boolean(retry && active?.id && quizReadyIds.has(active.id));
+    const priorQuestion = readyQuizRetry ? [...(messages[msgKey] ?? [])].reverse().find(m => m.role === "user") : null;
+    const content = text.trim() || (readyQuizRetry ? priorQuestion?.content?.trim() ?? "" : "");
     const ready = pending.filter((p) => p.file);
-    if ((!content && !retry && !ready.length) || runRef.current || pending.some((p) => p.uploading)) return;
+    if ((!content && (!retry || readyQuizRetry) && !ready.length) || runRef.current || pending.some((p) => p.uploading)) return;
     const key = msgKey;
     const label = currentModel?.label ?? theme.appName;
     stick.current = true; // a new question always brings the view to the bottom
 
-    const attachmentIds = retry || imageMode ? [] : ready.map((p) => p.file!.id);
+    const attachmentIds = readyQuizRetry ? (priorQuestion?.attachments ?? []).map(a => a.id) : retry || imageMode ? [] : ready.map((p) => p.file!.id);
     if (!retry) {
       const attachments = imageMode ? [] : ready.map((p) => ({ id: p.file!.id, name: p.file!.name, kind: p.file!.kind, status: p.file!.status, error: p.file!.error }));
       patchMessages(key, (m) => [...m, { id: tmpId(), role: "user", kind: "text", content, status: "complete", attachments }]);
@@ -722,7 +739,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     abortRef.current = controller;
 
     // Folder tools only with the browser's permission. If it lapsed, this click lets the browser ask again.
-    let link = FOLDER_ACCESS[generationProvider] ? folder : null;
+    const quizRequest = Boolean(active?.id && quizReadyIds.has(active.id)) || chatSettings.mode === "quiz";
+    let link = !quizRequest && FOLDER_ACCESS[generationProvider] ? folder : null;
     if (link) {
       const ok = (await permission(link.handle, true).catch(() => "denied")) === "granted";
       setFolderOnline(ok);
@@ -742,10 +760,12 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     // An @-mentioned plugin is used for this message even if it's switched off for chats.
     const plugins = extensions.ext.plugins.filter((p) => (p.enabled || mentions.includes(p.id)) && PLUGIN_BY_ID.get(p.id)?.tools.length && pluginConfigured(PLUGIN_BY_ID.get(p.id)!)).map((p) => p.id);
     const skills = activeSkills(extensions.ext);
-    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: chatSettings.mode, courseOnly: chatSettings.courseOnly, web: Boolean(chatSettings.web), code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
-      plugins: plugins.length ? plugins : undefined, skills: skills.length ? skills : undefined,
-      mentions: mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
-    let body: object = { ...common, content, retry, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
+    const firstQuizTurn = Boolean(convId && quizReadyIds.has(convId) && (!retry || readyQuizRetry));
+    const quizTurn = firstQuizTurn || chatSettings.mode === "quiz";
+    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: quizTurn || chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
+      plugins: !quizTurn && plugins.length ? plugins : undefined, skills: !quizTurn && skills.length ? skills : undefined,
+      mentions: !quizTurn && mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
+    let body: object = { ...common, content, retry: retry && !readyQuizRetry, startQuiz: firstQuizTurn, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
     const steps: Step[] = [];
     const dataCache = new Map<string, RunFile>(); // data files downloaded once per reply
     try {
@@ -826,6 +846,13 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       const stopped = (e as Error).name === "AbortError";
       patchReply((m) => ({ ...m, status: stopped ? "partial" : "error", error: stopped ? undefined : errorText("unknown", label, theme.appName) }));
     } finally {
+      if (firstQuizTurn && convId) {
+        const checked = await fetch(`/api/conversations/${convId}`).catch(() => null);
+        if (checked?.ok) {
+          const status = await checked.json().catch(() => null);
+          setQuizReadyIds(previous => { const next = new Set(previous); if (status?.quizStartReady) next.add(convId!); else next.delete(convId!); return next; });
+        }
+      }
       for (const decide of approvals.current.values()) decide(false);
       approvals.current.clear();
       endRun();
@@ -1367,14 +1394,17 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
-          <SidebarSection storageKey="course-chats" title="Course chats"><nav aria-label="Course chat folders">{courseProjects.map(c => <button key={c.id} onClick={() => selectCourse(c.id)} className="block w-full truncate rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-200">{c.name}</button>)}</nav></SidebarSection>
-          <FolderBrowser userId={userId} onOpen={folder => {
+          <CourseChatTree storageKey="provider-course-tree" courses={courseProjects} folders={projects[provider]} chats={appConvs ?? []} activeId={activeId}
+            onCourse={c => selectCourse(c.id)} onSection={f => selectCourse(f.id)} onChat={c => { setProjectFilter(prev => ({ ...prev, [provider]: c.sectionFolderId ?? c.projectId })); setInput(""); setActive(c.id); setPage("chat"); setSidebarOpen(false); }}
+            renamingId={renaming} onRenameCommit={renameChat} renderChatAction={c => <ChatRowMenu title={c.title || "chat"} folders={projects[provider]} folderId={c.sectionFolderId ?? c.projectId}
+              onRename={() => setRenaming(c.id)} onMove={id => moveToProject(c.id, id)} onDelete={() => deleteChat(c.id)} />} />
+          <FolderBrowser userId={userId} standaloneOnly onOpen={folder => {
             setProjects(prev => Object.fromEntries(PROVIDERS.map(p => [p, [folder, ...prev[p].filter(f => f.id !== folder.id)]])) as Record<ProviderId, Project[]>);
             selectCourse(folder.id);
           }}/>
 
           {/* Chats */}
-          <SidebarSection storageKey="recents" title={filter ? `In ${(projects[provider].find(f => f.id === filter) ?? courseProjects.find(f => f.id === groupProjectId(filter)))?.name ?? "this folder"}` : theme.recentsLabel}
+          <SidebarSection storageKey="recents" title="Chats"
             actionVisible action={filter ? <button type="button" className="rounded-lg px-2 py-1 text-xs text-ink-muted transition hover:bg-surface-300 hover:text-ink" onClick={() => selectCourse(null)}>Show all</button> : undefined}>
             <nav className="space-y-0.5" aria-label={`${theme.appName} chats`}>
               {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}

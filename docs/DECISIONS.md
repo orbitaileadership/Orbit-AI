@@ -66,3 +66,7 @@ Noah requested course-only navigation, equal-height Overdue/Today/Coming up pane
 ## October 24, 2026 — Section resources and parent-course chat grouping
 
 Noah requested independent Resources per graded section, with only the syllabus shared across sections, restrained color cues, and every section chat/quiz grouped in its parent course. The section relationship remains explicit for context and section chat lists. Existing non-syllabus course files stay readable but are not silently inserted into section context. Deleted-section chats remain readable under their course but cannot continue with a different scope. Migration 0024 is required before the matching app code; applying it to the shared database and deploying remain separate release steps.
+
+## October 25, 2026 — Course chat tree and quiz destination
+
+Noah requested that every graded-section chat appear under its parent course and section folder in each AI's sidebar. Quiz creation now opens the selected AI's normal chat and saves the quiz conversation in that section; an existing saved quiz reopens there. Opening or creating the session does not start a billable model call. The first submitted prompt still uses the existing atomic quiz claim. Course Details remains the single place for the shared syllabus. This decision depends on V2's explicit section link and migration 0024; release authorization remains separate.

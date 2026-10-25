@@ -3,4 +3,4 @@ export type CourseDraft = { name: string; term: string; instructor: string; sche
 export type Course = { id: string; name: string; instructions: string; course_data: CourseDraft | null; syllabus_id: string | null; updated_at: string };
 export type CourseFile = { id: string; name: string; status: string; project_id: string | null; kind?: string; page_count?: number | null; retained_for_course?: boolean };
 export type CourseChat = { id: string; title: string; project_id: string; provider: string; orbit_mode: boolean };
-export type CourseLaunch = { course: Course; item?: CourseItem; prompt: string; provider: string; folder?: { id: string; name: string }; conversationId?: string };
+export type CourseLaunch = { course: Course; item?: CourseItem; prompt: string; provider: string; folder?: { id: string; name: string }; conversationId?: string; startQuiz?: boolean };

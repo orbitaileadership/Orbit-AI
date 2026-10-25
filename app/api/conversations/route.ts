@@ -10,7 +10,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await auth.supabase
     .from("conversations")
-    .select("id, title, model_id, project_id, updated_at")
+    .select("id, title, model_id, project_id, section_folder_id, updated_at")
     .eq("provider", provider === "orbit" ? "openai" : provider)
     .eq("orbit_mode", provider === "orbit")
     .order("updated_at", { ascending: false })
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   if (error) return dbError(error, "load_failed");
   return json({
     conversations: (data ?? []).map((c) => ({
-      id: c.id, title: c.title, modelId: c.model_id, projectId: c.project_id, updatedAt: c.updated_at,
+      id: c.id, title: c.title, modelId: c.model_id, projectId: c.project_id, sectionFolderId: c.section_folder_id, updatedAt: c.updated_at,
     })),
   });
 }

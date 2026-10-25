@@ -1,5 +1,11 @@
 # Course workspace V1 — October 17, 2026
 
+## October 25, 2026 — Section chat navigation and quiz handoff (local)
+
+The provider and Orbit sidebars now show a nested Courses → graded-section folder → chat tree using the saved `section_folder_id`. Loose folders and chats remain reachable in their own sections. Graded sections show their own resources and chats without repeating the course syllabus. AI choices use provider marks; the status control is more prominent, and redundant headings/copy were removed.
+
+Quiz is a section-based setup and saved-session list. Creating a quiz saves its named conversation in the chosen section and opens the selected AI chat with an editable starting prompt. Opening a saved session returns to that chat. The first send uses the existing atomic quiz claim and normal usage accounting; navigation alone makes no paid call. Flashcard export remains available. This V3 UI depends on the still-local migration `0024_course_chat_grouping.sql`. Signed-in desktop/phone and production validation are pending. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and the October 25 handoff.
+
 ## October 24, 2026 — Course resources V2 (local, awaiting validation)
 
 The course Resources tab is removed. Every graded section retains its own Resources and Chats views; the course syllabus remains in Course Details and is the only parent file inherited into section AI context. Previously saved non-syllabus course files remain readable in Course Details but no longer enter section prompts automatically. Small course-color, priority, and section-type accents use existing design tokens.

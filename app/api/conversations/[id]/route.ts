@@ -11,7 +11,7 @@ export async function GET(_: Request, ctx: RouteContext<"/api/conversations/[id]
   const { id } = await ctx.params;
   if (!isUuid(id)) return json({ error: "not_found" }, 404);
 
-  const { data: conv } = await auth.supabase.from("conversations").select("id, mode, course_only, summary, summary_upto").eq("id", id).maybeSingle();
+  const { data: conv } = await auth.supabase.from("conversations").select("id, mode, course_only, summary, summary_upto, study_config").eq("id", id).maybeSingle();
   if (!conv) return json({ error: "not_found" }, 404);
   const { data: q } = await auth.supabase.from("conversations").select("quiz_state").eq("id", id).maybeSingle(); // migration 0006
   const cols = "id, role, kind, content, image_path, model_id, status, attachment_ids, sources";
@@ -38,6 +38,7 @@ export async function GET(_: Request, ctx: RouteContext<"/api/conversations/[id]
 
   return json({
     mode: conv.mode,
+    quizStartReady: conv.mode === "quiz" && (conv.study_config as { start_state?: string } | null)?.start_state === "ready",
     courseOnly: conv.course_only,
     summarized: Boolean(conv.summary),
     // Never imply that an old partial summary covers everything after reopening.

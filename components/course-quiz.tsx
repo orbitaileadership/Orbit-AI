@@ -1,43 +1,118 @@
 'use client';
-import { useEffect,useRef,useState } from 'react';
-import type { Course,CourseFile } from '@/lib/courses/types';
-import { QUIZ_FORMATS,type QuizFormat } from '@/config/course-workspace';
-import { cardsTsv,hideStudyCards,validStudyCards,quizLabel,type StudyCard,type StudyConfig } from '@/lib/courses/quiz';
-import { hideQuizMarkers } from '@/lib/chat/quiz';
-import { Markdown } from './markdown';
-import { downloadCourseFile } from './course-calendar';
+
+import { useEffect, useRef, useState } from 'react';
+import type { Course, CourseLaunch } from '@/lib/courses/types';
+import { QUIZ_FORMATS, type QuizFormat } from '@/config/course-workspace';
+import { cardsTsv, quizLabel, validStudyCards, type StudyCard, type StudyConfig } from '@/lib/courses/quiz';
 import { THEMES } from '@/config/themes';
-import { isProvider } from '@/config/models';
+import { isProvider, PROVIDERS } from '@/config/models';
+import { downloadCourseFile } from './course-calendar';
+import { ProviderLogo } from './provider-logo';
+import { OrbitGlyph } from './app-rail';
 import { HubIcon } from './course-hub-icons';
-type Message={id:string;role:'user'|'assistant';content:string;status:string;study_cards?:StudyCard[]};
-type Session={id:string;title:string;provider:string;model_id:string;orbit_mode:boolean;study_config:StudyConfig};
-async function api(path:string,body?:object){const r=await fetch(path,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:undefined);const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error==='quiz_already_started'?'This session already started. Reopen it to see its progress.':data.error==='db_setup'?'Quiz sessions need the approved workspace database update.':`Could not complete the quiz action (${data.error??r.status}). Your saved sessions remain available.`);return data;}
-export function CourseQuiz({course,files,ai,onAi,onCourse,onSessionSaved,active=true}:{course:Course;files:CourseFile[];ai:string;onAi:(v:string)=>void;onCourse:(course:Course)=>void;onSessionSaved:()=>void;active?:boolean}){
- const sections=(course.course_data?.items??[]).filter(i=>i.kind!=='topic'&&i.id),[section,setSection]=useState(sections[0]?.id??''),[format,setFormat]=useState<QuizFormat>('mcq'),[count,setCount]=useState(10),[sessions,setSessions]=useState<Session[]>([]),[session,setSession]=useState<Session|null>(null),[messages,setMessages]=useState<Message[]>([]),[prompt,setPrompt]=useState(''),[input,setInput]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[copied,setCopied]=useState(false),[version,setVersion]=useState(0);
- const lock=useRef(false),launchId=useRef(crypto.randomUUID()),scrollRef=useRef<HTMLDivElement>(null);
- const base=`/api/courses/${course.id}/quiz`;
- useEffect(()=>{if(!active)return;let alive=true;api(base).then(d=>{if(alive)setSessions(d.sessions??[]);}).catch(e=>{if(alive)setError(e.message);});return()=>{alive=false;};},[base,active,version]);
- const load=async(id:string,clearError=true)=>{const d=await api(`${base}?conversationId=${id}`);setSession(d.conversation);setMessages(d.messages??[]);setPrompt(d.prompt);setFormat(d.conversation.study_config.format);if(clearError)setError('');return d;};
- const send=async(text:string,current=session,startQuiz=false)=>{
-  if(!current||!text.trim())return;
-  if(!startQuiz&&messages.length===0){setError('This session start is pending or its outcome is unknown. Reopen it to check before sending again.');return;}setError('');setInput('');const replyId=crypto.randomUUID();
-  setMessages(old=>[...old,{id:crypto.randomUUID(),role:'user',content:text,status:'complete'},{id:replyId,role:'assistant',content:'',status:'partial'}]);
-  let complete=false,ended=false;
-  try{
-   const r=await fetch(current.orbit_mode?'/api/orbit':'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({conversationId:current.id,content:text,startQuiz,...(!current.orbit_mode?{provider:current.provider,homeProvider:current.provider,modelId:current.model_id,mode:'quiz',courseOnly:true,web:false,code:false}:{})})});
-   if(!r.ok||!r.body){const e=await r.json().catch(()=>({}));throw new Error(e.error==='budget'?'Your allowance cannot cover this quiz turn.':e.error==='quiz_already_started'?'This session already started. Reopen it before continuing.':`The quiz could not start (${e.error??r.status}). Attempted calls may use allowance.`);}
-   const reader=r.body.getReader(),decoder=new TextDecoder();let buffer='';
-   const event=(line:string)=>{if(!line.trim())return;const e=JSON.parse(line);if(e.t==='delta')setMessages(old=>old.map(m=>m.id===replyId?{...m,content:m.content+e.v}:m));if(e.t==='error')throw new Error(`The answer could not finish (${e.code}). Attempted calls may use allowance.`);if(e.t==='done'){ended=true;complete=e.status!=='partial';setMessages(old=>old.map(m=>m.id===replyId?{...m,content:typeof e.content==='string'?e.content:m.content,status:complete?'complete':'partial'}:m));}};
-   for(;;){const {done,value}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});let n;while((n=buffer.indexOf('\n'))>=0){event(buffer.slice(0,n));buffer=buffer.slice(n+1);}}buffer+=decoder.decode();if(buffer.trim())event(buffer);
-   if(!ended)throw new Error('The stream ended before completion. Reopen the session to check the saved answer.');
-   if(!complete)setError('This answer is incomplete. It has not advanced your quiz or export cards.');
-  }catch(e){setError(e instanceof Error?e.message:'The quiz could not finish. Reopen it to check the saved state.');}
-  finally{await load(current.id,false).catch(()=>setError('Could not reload the saved session. Reopen it before sending again.'));setVersion(v=>v+1);onSessionSaved();}
- };
- const start=async()=>{if(lock.current)return;lock.current=true;setBusy(true);setError('');try{const folder=await api(`/api/courses/${course.id}/assignments/${section}`,{});if(folder.course)onCourse(folder.course);const d=await api(base,{launchId:launchId.current,sectionId:section,format,count,provider:ai});setSession(d.conversation);setMessages([]);setPrompt(d.prompt);onSessionSaved();if(d.conversation.study_config.start_state==='ready')await send(d.prompt,d.conversation,true);else await load(d.conversation.id);launchId.current=crypto.randomUUID();setVersion(v=>v+1);}catch(e){setError(e instanceof Error?e.message:'Session could not be created.');}finally{lock.current=false;setBusy(false);}};
- const answer=async(text:string,startQuiz=false)=>{if(lock.current||!session)return;lock.current=true;setBusy(true);try{await send(text,session,startQuiz);}finally{lock.current=false;setBusy(false);}};
- const cards=[...new Map(messages.filter(m=>m.role==='assistant'&&m.status==='complete').flatMap(m=>validStudyCards(m.study_cards)).map(c=>[JSON.stringify(c),c])).values()].slice(0,100);
- return <section className="workspace-quiz"><div className="hub-section-heading"><div><p className="hub-eyebrow">MAKE IT STICK</p><h2>Practice with purpose.</h2><p>Your section. Your materials. Your way to learn.</p></div></div>{error&&<p className="workspace-alert" role="alert">{error}</p>}
- {!session?<><div className="hub-panel workspace-quiz-setup"><label>What are you studying?<select value={section} onChange={e=>{setSection(e.target.value);launchId.current=crypto.randomUUID();}}><option value="" disabled>Select a graded section</option>{sections.map(i=><option key={i.id} value={i.id}>{i.title}</option>)}</select></label><div className="workspace-quiz-formats">{QUIZ_FORMATS.map(f=><button key={f} aria-pressed={format===f} onClick={()=>{setFormat(f);launchId.current=crypto.randomUUID();}}><HubIcon name={f==='flashcards'?'file':f==='mcq'?'list':'chat'} size={24}/><strong>{quizLabel(f)}</strong><small>{f==='mcq'?'Choose, check, understand.':f==='short-answer'?'Explain it in your own words.':'Recall first. Reveal when ready.'}</small></button>)}</div><div className="workspace-form-grid"><label>Questions / cards<select value={count} onChange={e=>{setCount(Number(e.target.value));launchId.current=crypto.randomUUID();}}>{[5,10,15,20,30].map(n=><option key={n}>{n}</option>)}</select></label><label>Study with<select value={ai} onChange={e=>{onAi(e.target.value);launchId.current=crypto.randomUUID();}}><option value="orbit">Orbit</option><option value="openai">ChatGPT</option><option value="anthropic">Claude</option><option value="google">Gemini</option><option value="xai">Grok</option></select></label></div><div className="workspace-source-note"><HubIcon name="folder"/><p>Uses this section’s ready resources and {files.some(f=>f.id===course.syllabus_id)?'the shared syllabus':'the syllabus when one is added'}. Only relevant excerpts fit each answer; missing evidence is identified.</p></div><footer><p>Creates a named, saved course chat and starts the first question. AI calls use your allowance. Orbit may send excerpts to multiple providers.</p><button className="hub-primary" disabled={busy||!section} onClick={start}>{busy?'Starting…':'Quiz me'}<HubIcon name="arrow" size={18}/></button></footer></div><section className="hub-panel"><h3>Pick up where you left off</h3>{sessions.length?sessions.map(s=><button className="hub-chat-row" key={s.id} disabled={busy} onClick={()=>{if(lock.current)return;lock.current=true;setBusy(true);load(s.id).catch(e=>setError(e.message)).finally(()=>{lock.current=false;setBusy(false);});}}><HubIcon name="chat"/><span className="hub-grow"><strong>{s.title}</strong><small>{s.orbit_mode?'Orbit':isProvider(s.provider)?THEMES[s.provider].appName:'Assistant'}</small></span><HubIcon name="arrow" size={17}/></button>):<p className="hub-muted">Your saved quiz chats will appear here.</p>}</section></>:<div className="hub-panel workspace-quiz-session"><header><div><span className="hub-label">SAVED STUDY CHAT</span><h3>{session.title}</h3></div><button className="hub-button" disabled={busy} onClick={()=>{setSession(null);setMessages([]);setError('');}}>Back to quiz setup</button></header><div className="workspace-quiz-messages" ref={scrollRef} aria-live="polite">{messages.map(m=><article className={`workspace-quiz-message ${m.role}`} key={m.id}><strong>{m.role==='user'?'You':session.orbit_mode?'Orbit':isProvider(session.provider)?THEMES[session.provider].appName:'Assistant'}</strong><Markdown text={hideStudyCards(hideQuizMarkers(m.content))} final={m.status==='complete'}/>{m.status!=='complete'&&<small>Incomplete / still processing</small>}</article>)}</div>{busy&&<p role="status">Preparing your next step…</p>}{!messages.length&&!busy&&session.study_config.start_state==='ready'&&<button className="hub-primary" onClick={()=>answer(prompt,true)}>Start saved session</button>}{!messages.length&&!busy&&session.study_config.start_state==='started'&&<p role="status">The initial request is pending or its outcome is unknown. Reopen this saved session to check its status; another initial call will not be started automatically.</p>}{session.study_config.format==='flashcards'&&messages.length>0&&<div className="calendar-connections"><button className="hub-button" disabled={busy} onClick={()=>answer('Reveal the current flashcard answer and its export marker.')}>Reveal answer</button><button className="hub-button" disabled={busy} onClick={()=>answer('Next flashcard, front only. Wait for me to request the answer.')}>Next card</button><small>Each request uses an AI reply from your allowance.</small></div>}<form onSubmit={e=>{e.preventDefault();if(input.trim())void answer(input);}}><label className="sr-only" htmlFor="quiz-answer">Your answer or request</label><textarea id="quiz-answer" maxLength={24000} value={input} disabled={busy||!messages.length} onChange={e=>setInput(e.target.value)} placeholder={format==='flashcards'?'Ask to reveal the answer, or move to the next card…':'Your answer…'}/><button className="hub-primary" disabled={busy||!messages.length||!input.trim()}>Send answer</button></form>{cards.length>0&&<div className="workspace-card-export"><strong>{cards.length} revealed flashcard{cards.length===1?'':'s'} ready</strong><button className="hub-button" onClick={()=>downloadCourseFile(cardsTsv(cards),`${course.name}-flashcards.txt`,'text/plain;charset=utf-8')}>Download for Anki</button><button className="hub-button" onClick={async()=>{try{await navigator.clipboard.writeText(cardsTsv(cards));setCopied(true);}catch{setError('Copy was blocked. Download the text file instead.');}}}>{copied?'Copied':'Copy for Quizlet'}</button><a className="hub-link" target="_blank" rel="noreferrer" href="https://quizlet.com/create-set">Open Quizlet ↗</a><small>Exports are copies. Import the text into Anki or Quizlet; no account sync is performed.</small></div>}</div>}
- </section>;
+
+type Session = { id: string; title: string; provider: string; orbit_mode: boolean; study_config: StudyConfig };
+type SavedMessage = { role: string; status: string; study_cards?: StudyCard[] };
+
+async function api(path: string, body?: object) {
+  const response = await fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : undefined);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error === 'quiz_launch_pending' ? 'This quiz is being saved. Open it from Saved quizzes.' : data.error === 'db_setup' ? 'Quiz sessions need the workspace database update.' : 'Could not open the quiz. Try again.');
+  return data;
+}
+
+export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSaved, active = true }: {
+  course: Course; ai: string; onAi: (value: string) => void; onCourse: (course: Course) => void;
+  onLaunch: (launch: CourseLaunch) => void; onSessionSaved: () => void; active?: boolean;
+}) {
+  const sections = (course.course_data?.items ?? []).filter(item => item.kind !== 'topic' && item.id);
+  const [sectionId, setSectionId] = useState(sections[0]?.id ?? '');
+  const [format, setFormat] = useState<QuizFormat>('mcq');
+  const [count, setCount] = useState(10);
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [cards, setCards] = useState<StudyCard[] | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [revision, setRevision] = useState(0);
+  const launchId = useRef(crypto.randomUUID());
+  const locked = useRef(false);
+  const base = `/api/courses/${course.id}/quiz`;
+
+  useEffect(() => {
+    if (!active) return;
+    let alive = true;
+    api(base).then(data => { if (alive) setSessions(data.sessions ?? []); }).catch(e => { if (alive) setError(e.message); });
+    return () => { alive = false; };
+  }, [active, base, revision]);
+
+  function handoff(conversation: Session, prompt: string, folder: { id: string; name: string }) {
+    const item = sections.find(section => section.id === conversation.study_config.section_id);
+    if (!item) throw new Error('This graded section is no longer available.');
+    onLaunch({ course, item, folder, provider: conversation.orbit_mode ? 'orbit' : conversation.provider,
+      conversationId: conversation.id, prompt: conversation.study_config.start_state === 'ready' ? prompt : '',
+      startQuiz: conversation.study_config.start_state === 'ready' });
+  }
+
+  async function start() {
+    if (locked.current || !sectionId) return;
+    locked.current = true; setBusy(true); setError('');
+    try {
+      const workspace = await api(`/api/courses/${course.id}/assignments/${sectionId}`, {});
+      if (workspace.course) onCourse(workspace.course);
+      const saved = await api(base, { launchId: launchId.current, sectionId, format, count, provider: ai });
+      launchId.current = crypto.randomUUID();
+      onSessionSaved();
+      handoff(saved.conversation, saved.prompt, saved.folder);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not create the quiz.'); }
+    finally { locked.current = false; setBusy(false); setRevision(v => v + 1); }
+  }
+
+  async function open(session: Session) {
+    if (locked.current) return;
+    locked.current = true; setBusy(true); setError('');
+    try {
+      const saved = await api(`${base}?conversationId=${session.id}`);
+      const item = sections.find(section => section.id === session.study_config.section_id);
+      if (!item?.folderId) throw new Error('This graded section is no longer available.');
+      handoff(saved.conversation, saved.prompt, { id: item.folderId, name: item.title });
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not open the quiz.'); }
+    finally { locked.current = false; setBusy(false); }
+  }
+
+  async function showExports(session: Session) {
+    if (locked.current) return;
+    locked.current = true; setBusy(true); setError('');
+    try {
+      const saved = await api(`${base}?conversationId=${session.id}`);
+      const values = [...new Map((saved.messages as SavedMessage[]).filter(m => m.role === 'assistant' && m.status === 'complete')
+        .flatMap(m => validStudyCards(m.study_cards)).map(card => [JSON.stringify(card), card])).values()].slice(0, 100);
+      if (!values.length) throw new Error('No completed flashcards to export yet.');
+      setCards(values);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Could not load flashcards.'); }
+    finally { locked.current = false; setBusy(false); }
+  }
+
+  return <section className="workspace-quiz workspace-quiz-v3">
+    <div className="hub-section-heading"><h2>Quiz</h2></div>
+    {error && <p className="workspace-alert" role="alert">{error}</p>}
+    <div className="hub-panel workspace-quiz-setup">
+      <label>Graded section<select value={sectionId} onChange={e => { setSectionId(e.target.value); launchId.current = crypto.randomUUID(); }}>
+        {sections.length ? sections.map(item => <option key={item.id} value={item.id}>{item.title}</option>) : <option value="">No graded sections yet</option>}
+      </select></label>
+      <div className="workspace-quiz-formats" role="group" aria-label="Quiz format">{QUIZ_FORMATS.map(choice => <button key={choice} type="button" aria-pressed={format === choice} onClick={() => { setFormat(choice); launchId.current = crypto.randomUUID(); }}><HubIcon name={choice === 'flashcards' ? 'file' : choice === 'mcq' ? 'list' : 'chat'} size={24} /><strong>{quizLabel(choice)}</strong></button>)}</div>
+      <div className="workspace-quiz-options"><label>Questions<select value={count} onChange={e => { setCount(Number(e.target.value)); launchId.current = crypto.randomUUID(); }}>{[5, 10, 15, 20, 30].map(n => <option key={n}>{n}</option>)}</select></label>
+        <div><span className="workspace-quiz-choice-label">Study with</span><div className="section-ai-choices" role="group" aria-label="Choose quiz AI">{(['orbit', ...PROVIDERS] as const).map(choice => <button key={choice} type="button" className="section-ai-choice" title={choice === 'orbit' ? 'Orbit' : THEMES[choice].appName} aria-label={choice === 'orbit' ? 'Orbit' : THEMES[choice].appName} aria-pressed={ai === choice} onClick={() => { onAi(choice); launchId.current = crypto.randomUUID(); }}>{choice === 'orbit' ? <OrbitGlyph size={20} /> : <ProviderLogo provider={choice} size={21} />}</button>)}</div></div>
+      </div>
+      <footer><span className="text-xs text-ink-muted">AI replies use your allowance.</span><button type="button" className="hub-primary" disabled={busy || !sectionId} onClick={() => void start()}>{busy ? 'Saving…' : 'Start in selected AI'}<HubIcon name="arrow" size={17} /></button></footer>
+    </div>
+    <div className="hub-panel"><h3>Saved quizzes</h3>{sessions.length ? <div className="workspace-saved-quizzes">{sessions.map(session => {
+      const item = sections.find(section => section.id === session.study_config.section_id);
+      return <div className="workspace-saved-quiz" key={session.id}><span className="workspace-saved-quiz-logo">{session.orbit_mode ? <OrbitGlyph size={22} /> : isProvider(session.provider) ? <ProviderLogo provider={session.provider} size={22} /> : null}</span>
+        <div className="min-w-0 flex-1"><strong>{item?.title ?? session.title}</strong><small>{quizLabel(session.study_config.format)} · {session.orbit_mode ? 'Orbit' : isProvider(session.provider) ? THEMES[session.provider].appName : 'AI'}</small></div>
+        {session.study_config.format === 'flashcards' && <button className="hub-button" disabled={busy} onClick={() => void showExports(session)}>Export</button>}
+        <button className="hub-primary" disabled={busy} onClick={() => void open(session)}>Open<HubIcon name="arrow" size={15} /></button></div>;
+    })}</div> : <p className="hub-muted">No quizzes yet.</p>}
+      {cards && <div className="workspace-card-export"><strong>{cards.length} completed flashcards</strong><button className="hub-button" onClick={() => downloadCourseFile(cardsTsv(cards), `${course.name}-flashcards.txt`, 'text/plain;charset=utf-8')}>Download for Anki</button><button className="hub-button" onClick={async () => { try { await navigator.clipboard.writeText(cardsTsv(cards)); } catch { setError('Copy was blocked. Download the text file instead.'); } }}>Copy for Quizlet</button><a className="hub-link" target="_blank" rel="noreferrer" href="https://quizlet.com/create-set">Open Quizlet ↗</a></div>}
+    </div>
+  </section>;
 }

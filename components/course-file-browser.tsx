@@ -42,7 +42,7 @@ export function CourseFileBrowser<T extends MaterialFile>({
       if (!disabled && selected.length) { clear(); onUpload(selected); }
     }} />
     <div className="hub-section-heading">
-      <div><h2>{title}</h2><p>{description}</p></div>
+      <div><h2>{title}</h2>{description && <p>{description}</p>}</div>
       <button className="hub-primary" disabled={disabled} onClick={() => input.current?.click()}><HubIcon name="upload" size={17} />{assignment ? 'Add files' : 'Upload files'}</button>
     </div>
     <div className="hub-toolbar">

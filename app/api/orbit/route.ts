@@ -27,14 +27,15 @@ export async function GET(request: Request) {
   if ("error" in auth) return auth.error;
   const id = new URL(request.url).searchParams.get("conversationId");
   if (!isUuid(id)) return json({error:"bad_request"},400);
-  const {data:conv,error} = await auth.supabase.from("conversations").select("id,project_id").eq("id",id).eq("orbit_mode",true).maybeSingle();
+  const {data:conv,error} = await auth.supabase.from("conversations").select("id,project_id,mode,study_config").eq("id",id).eq("orbit_mode",true).maybeSingle();
   if (error) return dbError(error,"load_failed");
   if (!conv) return json({error:"not_found"},404);
   const {data:rows,error:loadError} = await auth.supabase.from("messages").select("id,role,content,status,model_id,orbit_details,seq")
     .eq("conversation_id",id).order("seq",{ascending:false}).limit(ORBIT.contextRows);
   if (loadError) return dbError(loadError,"load_failed");
   const course=conv.project_id?(await auth.supabase.from("projects").select("id,name").eq("id",conv.project_id).maybeSingle()).data:null;
-  return json({course,messages:(rows??[]).reverse(),olderMessages:(rows?.length??0)>=ORBIT.contextRows});
+  return json({course,messages:(rows??[]).reverse(),olderMessages:(rows?.length??0)>=ORBIT.contextRows,
+    quizStartReady:conv.mode==="quiz"&&(conv.study_config as {start_state?:string}|null)?.start_state==="ready"});
 }
 
 export async function POST(request: Request) {

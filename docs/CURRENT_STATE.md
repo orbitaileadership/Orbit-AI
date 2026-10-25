@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## Local Course Workspace V3 — October 25, 2026
+
+`codex/course-workspace-v3` adds nested course/graded-section chat navigation, streamlines section UI, and opens saved quizzes in the selected provider or Orbit chat. It builds on local V2 and migration 0024, which has not been applied to the shared database. This work has not been deployed; signed-in browser validation is pending. See [plan](COURSE_WORKSPACE_V3_PLAN.md) and `handoffs/2026-10-25-course-workspace-v3.md` for checks and limitations.
+
 ## Local Course Workspace V2 — October 24, 2026
 
 On `codex/course-resources-v2`, section Resources remain independent while Course Details holds the shared syllabus. Section chats and quizzes are prepared for parent-course grouping with explicit section context via local migration 0024. Independent review found and prompted fixes for section moves/deletions. Focused synthetic and isolated database checks are recorded in `handoffs/2026-10-24-course-resources-v2.md`. Migration 0024 has not been applied to the shared database; this version has not been deployed or validated in a signed-in browser.

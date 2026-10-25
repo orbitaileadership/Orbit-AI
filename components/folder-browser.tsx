@@ -13,8 +13,8 @@ async function request(path: string, body?: object, method = 'POST') {
   if (!response.ok) throw new Error(data.error === 'db_setup' ? 'Folders are not available in this environment yet. Please contact the Orbit team.' : data.message ?? 'Could not load or save folders. Please try again.');
   return data;
 }
-export function FolderBrowser({ userId, courseId, active = true, disabled = false, onOpen }: {
-  userId: string; courseId?: string; active?: boolean; disabled?: boolean; onOpen: (folder: Folder) => void;
+export function FolderBrowser({ userId, courseId, standaloneOnly = false, active = true, disabled = false, onOpen }: {
+  userId: string; courseId?: string; standaloneOnly?: boolean; active?: boolean; disabled?: boolean; onOpen: (folder: Folder) => void;
 }) {
   const [folders, setFolders] = useState<Folder[]>([]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
@@ -52,7 +52,8 @@ export function FolderBrowser({ userId, courseId, active = true, disabled = fals
       if (dialogVersion.current === version) setFiles(data.files);
     });
   }
-  const sections = folderSections(folders);
+  const shownFolders = standaloneOnly ? folders.filter(f => !f.parent_course_id) : folders;
+  const sections = folderSections(shownFolders);
   const create = () => { setFiles([]); setEditing(null); };
   const open = (folder: Folder) => act(async () => { const data = await request(`/api/projects/${folder.id}`, { opened: true }, 'PATCH'); changed(); onOpen(data.project); });
   const row = (folder: Folder) => {
@@ -82,7 +83,7 @@ export function FolderBrowser({ userId, courseId, active = true, disabled = fals
       {sections.pinned.map(row)}
       {sections.pinned.length > 0 && sections.recent.length > 0 && <div className="mx-3 my-1.5 border-t border-line" />}
       {sections.recent.map(row)}
-      {!folders.length && !loading && <button disabled={busy || disabled} className="group/new flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] text-ink-muted transition hover:bg-surface-200 hover:text-ink" onClick={create}>
+      {!shownFolders.length && !loading && <button disabled={busy || disabled} className="group/new flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-[15px] text-ink-muted transition hover:bg-surface-200 hover:text-ink" onClick={create}>
         <span className="relative"><FolderIcon /><span className="absolute -bottom-1 -right-1 grid h-2.5 w-2.5 place-items-center rounded-full bg-surface-100 text-[10px] leading-none">+</span></span>
         New folder
       </button>}

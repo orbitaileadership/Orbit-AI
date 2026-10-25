@@ -6,7 +6,7 @@ vi.mock('@/lib/api', async original => ({
   ...await original<typeof import('@/lib/api')>(),
   requireAppUser: async () => ({ user: { id: 'student' }, supabase: state.db!.client }),
 }));
-import { DELETE } from './route';
+import { DELETE, GET } from './route';
 
 const chatId = '11111111-1111-4111-8111-111111111111';
 const fileId = '22222222-2222-4222-8222-222222222222';
@@ -58,4 +58,14 @@ it('refuses deletion if the attachment inventory is truncated', async () => {
   expect((await remove()).status).toBe(500);
   expect(state.db.db.conversations).toHaveLength(1);
   expect(state.db.db.files[0].conversation_id).toBe(chatId);
+});
+
+it('exposes a prepared quiz start only while its first turn is ready', async () => {
+  const conversation = state.db!.db.conversations[0];
+  conversation.mode = 'quiz';
+  conversation.study_config = { format: 'mcq', count: 5, section_id: 'section', start_state: 'ready' };
+  const request = () => GET(new Request(`http://localhost/api/conversations/${chatId}`), { params: Promise.resolve({ id: chatId }) } as never);
+  expect((await (await request()).json()).quizStartReady).toBe(true);
+  (conversation.study_config as { start_state: string }).start_state = 'started';
+  expect((await (await request()).json()).quizStartReady).toBe(false);
 });
