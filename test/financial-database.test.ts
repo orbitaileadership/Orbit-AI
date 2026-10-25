@@ -103,6 +103,29 @@ describe('financial SQL and RLS',()=>{
  });
 });
 
+describe('private feedback intake SQL',()=>{
+ it('serializes duplicate retries, rate limits per user, and keeps feedback server-only',async()=>{
+  await db.exec('set role service_role');
+  const submit=async(n:number,submissionId:string,user=U)=>db.query<{result:Record<string,unknown>}>(
+   `select public.submit_feedback_report($1,$2,'bug',$3,'A synthetic report with enough descriptive text.','Repro step',null) as result`,
+   [user,submissionId,`Synthetic feedback ${n}`]);
+  const ids=Array.from({length:6},(_,i)=>`90000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`);
+  try {
+   const first=(await submit(1,ids[0])).rows[0].result;
+   expect(first).toMatchObject({ok:true,duplicate:false});
+   expect((await submit(1,ids[0])).rows[0].result).toMatchObject({ok:true,duplicate:true,id:first.id});
+   for(let i=1;i<5;i++) expect((await submit(i+1,ids[i])).rows[0].result).toMatchObject({ok:true});
+   expect((await submit(6,ids[5])).rows[0].result).toMatchObject({ok:false,reason:'rate_limited'});
+   expect((await submit(1,ids[5],V)).rows[0].result).toMatchObject({ok:true});
+  } finally { await db.exec('reset role'); }
+  await db.exec(`set role authenticated; select set_config('app.user_id','${U}',false);`);
+  try {
+   await expect(db.exec(`select public.submit_feedback_report('${U}','${ids[5]}','bug','Title','Enough descriptive text','',null)`)).rejects.toThrow(/permission denied/);
+   expect((await db.query('select * from public.feedback_reports')).rows).toHaveLength(0);
+  } finally { await db.exec('reset role'); }
+ });
+});
+
 
 it("atomically blocks AI-memory inserts after opt-out while allowing manual notes", async () => {
   const W="55555555-5555-4555-8555-555555555555";
