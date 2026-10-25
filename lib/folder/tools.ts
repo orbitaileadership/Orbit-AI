@@ -74,7 +74,7 @@ export function isFolderTool(name: unknown): name is FolderToolName {
 }
 
 /** Any tool a model may call: folder tools, the Python sandbox, or a plugin (lib/plugins/catalog.ts). */
-export const isKnownTool = (name: unknown): boolean => isFolderTool(name) || name === "run_python" || isPluginTool(name);
+export const isKnownTool = (name: unknown): boolean => isFolderTool(name) || name === "run_python" || name === "web_search" || isPluginTool(name);
 
 export function isWriteTool(name: string): boolean {
   return BY_NAME.get(name as FolderToolName)?.write ?? false;
@@ -93,6 +93,7 @@ export function describeCall(name: string, args: Record<string, unknown>): strin
     case "move_path": return `Move ${s("from")} → ${s("to")}`;
     case "delete_path": return `Delete ${s("path")}`;
     case "run_python": return "Ran Python";
+    case "web_search": return "Requested web search";
     default: return isPluginTool(name) ? describePluginCall(name, args) : name;
   }
 }

@@ -17,6 +17,7 @@ import { isProviderDisabled, overRateLimit, reserve, settle } from "@/lib/billin
 import { buildEconomicContext, economicInputBudget, costMicros, estimateTokens, maxOutputFor, reservationMicros, STUDY_MODES, systemPrompt, type StudyMode } from "@/lib/chat/context";
 import { citedSources, gatherMaterial, grounding, IMAGE_TOKENS, loadImages, MAX_IMAGES, stripInventedCitations, type Source } from "@/lib/chat/material";
 import { SUMMARY_TOKENS, updateSummary } from "@/lib/chat/summary";
+import { SEARCH_TOOLS, SEARCH_PROMPT, requestedSearch } from "@/lib/search/tools";
 import { WEB_SEARCH } from "@/config/search";
 import { domainOf, searchKey, searchQuery, webSearch, type WebResult } from "@/lib/search/web";
 import { applyResults, mergeQuiz, parseQuiz, quizContext, type QuizState } from "@/lib/chat/quiz";
@@ -226,10 +227,16 @@ export async function POST(request: Request): Promise<Response> {
 
   // ---- web search ("Search the web" on, not with "only my course material"). One search per question, charged like
   // any call, saved on the question so later turns and other models use the same results. web_results: migration 0007.
-  type SavedSearch = { query: string; results: WebResult[]; at: string };
+  type SavedSearch = { query: string; results: WebResult[]; at: string; failed?: boolean; earlier?: {count:number;at:string} };
   let web: SavedSearch | null = null;
   const webNotes: string[] = [];
-  const wantsWeb = body.web === true && !conversation.course_only;
+  let searchCall: ReturnType<typeof requestedSearch> = null;
+  try { searchCall = run ? requestedSearch(run.steps) : null; }
+  catch { return json({error:"bad_request",conversationId:conversation.id},400); }
+  if (searchCall && (conversation.course_only || voice)) return json({error:"bad_request",conversationId:conversation.id},400);
+  const wantsWeb = (body.web === true || Boolean(searchCall)) && !conversation.course_only;
+  let currentSearch = false;
+  let previousWeb: SavedSearch | null = null;
   {
     const { data: saved, error: savedErr } = await supabase.from("messages").select("id, seq, role, web_results").eq("conversation_id", conversation.id).order("seq");
     if (!savedErr) {
@@ -237,7 +244,11 @@ export async function POST(request: Request): Promise<Response> {
       const mine = asked.find((m) => m.id === userMessageId);
       // This question's search (a retry or a tool round), else the latest from the last two questions (a follow-up).
       const recent = asked.slice(-3).reverse().find((m) => m.web_results);
-      web = ((mine?.web_results ?? (!wantsWeb ? recent?.web_results : null)) as SavedSearch | null) ?? null;
+      currentSearch = Boolean(mine?.web_results);
+      // Reuse only the latest search-sized set. Its numbering stays stable if this turn then asks for a fresh search.
+      const previous = recent?.web_results as SavedSearch | undefined;
+      previousWeb = previous ? {...previous,results:previous.results.slice(previous.earlier?.count ?? 0).slice(-WEB_SEARCH.maxResults),earlier:undefined} : null;
+      web = ((mine?.web_results ?? (!wantsWeb ? previousWeb : null)) as SavedSearch | null) ?? null;
     }
   }
   if (wantsWeb && !web) {
@@ -246,30 +257,50 @@ export async function POST(request: Request): Promise<Response> {
     else if (!key) webNotes.push("The student asked to search the web, but web search isn't set up yet (no search key). Say so in one sentence and answer from what you know, clearly marked as not from a search.");
     else {
       const previousQ = rows.filter((m) => m.role === "user").at(-2)?.content;
-      const query = searchQuery(question, previousQ);
-      const searchId = randomUUID();
+      const query = searchCall?.query ?? searchQuery(question, previousQ);
+      if (request.signal.aborted) return json({error:"cancelled",conversationId:conversation.id},499);
+      // One ledger claim per question, even when two continuation requests race or saving results fails.
+      const searchHex = createHash("sha256").update(`web-search:${user.id}:${userMessageId}`).digest("hex").slice(0,32);
+      const searchId = `${searchHex.slice(0,8)}-${searchHex.slice(8,12)}-${searchHex.slice(12,16)}-${searchHex.slice(16,20)}-${searchHex.slice(20)}`;
       const cost = Math.ceil(WEB_SEARCH.pricePerSearch * 1_000_000);
       const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
-      if (!r.ok) return json({ error: r.reason === "budget" ? "budget" : r.reason === "global_stop" ? "paused" : "reserve_failed", conversationId: conversation.id }, r.reason === "budget" ? 402 : 503);
+      if (!r.ok) return json({ error: r.reason === "budget" ? "budget" : r.reason === "global_stop" ? "paused" : r.reason === "duplicate" ? "search_in_progress" : "reserve_failed", conversationId: conversation.id }, r.reason === "budget" ? 402 : r.reason === "duplicate" ? 409 : 503);
       try {
-        const results = await webSearch(query, key);
+        const results = await webSearch(query, key, AbortSignal.any([request.signal,AbortSignal.timeout(20_000)]));
         await settle(searchId, "settled", cost);
-        web = { query, results, at: new Date().toISOString() };
-        await supabase.from("messages").update({ web_results: web }).eq("id", userMessageId);
+        const earlier = searchCall && previousWeb && !previousWeb.failed ? previousWeb : null;
+        web = { query, results:[...(earlier?.results ?? []),...results], at: new Date().toISOString(),
+          ...(earlier?.results.length ? {earlier:{count:earlier.results.length,at:earlier.at}} : {}) };
+        currentSearch = true;
+        const savedSearch = await supabase.from("messages").update({ web_results: web }).eq("id", userMessageId).select("id").maybeSingle();
+        if (savedSearch.error || !savedSearch.data) return json({error:"search_save_failed",conversationId:conversation.id},503);
         if (!results.length) webNotes.push(`A web search for "${query}" found nothing. Say so, and answer from what you know, clearly marked as not from a search.`);
       } catch {
         await settle(searchId, "uncertain", 0, undefined, "search_failed");
-        webNotes.push("The web search failed this time. Say so in one sentence, and answer from what you know, clearly marked as not from a search.");
+        // Remember the failed attempt too: later Python/tool rounds must not silently buy another search.
+        web = {query,results:[],at:new Date().toISOString(),failed:true};
+        currentSearch = true;
+        const savedFailure = await supabase.from("messages").update({web_results:web}).eq("id",userMessageId).select("id").maybeSingle();
+        if (savedFailure.error || !savedFailure.data) return json({error:"search_save_failed",conversationId:conversation.id},503);
       }
     }
   }
+  if (request.signal.aborted) return json({error:"cancelled",conversationId:conversation.id},499);
+  if (web?.failed) webNotes.push("The web search failed this time. Say so in one sentence, and answer from what you know, clearly marked as not from a search.");
   const webSources: Source[] = (web?.results ?? []).map((w, i) => ({
     n: i + 1, kind: "web", url: w.url, fileId: "", fileName: domainOf(w.url), page: null,
     label: `${domainOf(w.url)} — ${w.title}`, excerpt: w.content.slice(0, 600),
   }));
   const webBlock = web && webSources.length
-    ? `Web search results for "${web.query}" (searched ${web.at.slice(0, 10)}):\n` + (web.results.map((w, i) => `[W${i + 1}] ${w.title} — ${w.url}${w.published ? ` (published ${w.published.slice(0, 10)})` : ""}\n${w.content}`).join("\n\n"))
+    ? `Web search results for "${web.query}" (searched ${web.at.slice(0, 10)}):\n` + (web.results.map((w, i) => `[W${i + 1}]${web.earlier && i<web.earlier.count ? ` (earlier search: ${web.earlier.at.slice(0,10)})` : ""} ${w.title} — ${w.url}${w.published ? ` (published ${w.published.slice(0, 10)})` : ""}\n${w.content}`).join("\n\n"))
     : "";
+  // Search evidence is generated here, never accepted from a browser continuation.
+  if (run && searchCall) {
+    const output = webBlock || webNotes.join("\n") || "Web search returned no results. Do not invent sources.";
+    const result = run.steps[searchCall.index].results[searchCall.resultIndex];
+    result.output = output;
+    result.status = currentSearch && !web?.failed ? "ok" : "error";
+  }
   const allSources = [...material.sources, ...webSources];
 
   // ---- quiz progress (this chat + earlier quizzes in the course). quiz_state comes with migration 0006.
@@ -300,9 +331,11 @@ export async function POST(request: Request): Promise<Response> {
   // Installed + connected plugins (Plugins page) and installed skills; the browser runs plugin tools with the student's sign-in.
   const pluginIds = FOLDER_ACCESS[provider] && Array.isArray(body.plugins) ? [...new Set(body.plugins.filter(isPluginId))] : [];
   const skillText = skillsPrompt(body.skills);
-  const offered = [...(codeOn ? CODE_TOOLS : []), ...(folderName ? FOLDER_TOOLS : []), ...pluginTools(pluginIds)];
+  const automaticSearch = live && Boolean(searchKey()) && !conversation.course_only && !voice && !currentSearch && !searchCall;
+  const offered = [...(automaticSearch ? SEARCH_TOOLS : []), ...(codeOn ? CODE_TOOLS : []), ...(folderName ? FOLDER_TOOLS : []), ...pluginTools(pluginIds)];
   const tools = offered.length && stepsUsed < MAX_TOOL_STEPS && !voice ? offered : undefined;
   const folderText = [
+    (automaticSearch && tools) || searchCall ? SEARCH_PROMPT + (searchCall ? " The search for this question has already been attempted. Do not request another search; use its results or disclose its failure." : "") : "",
     codeOn && tools ? codePrompt(material.dataFiles) : "",
     folderName && !voice ? folderPrompt(folderName, MAX_TOOL_STEPS - stepsUsed) : "",
     pluginIds.length && tools ? pluginPrompt(pluginIds, Array.isArray(body.mentions) ? body.mentions.filter((m): m is PluginId => isPluginId(m) && pluginIds.includes(m)) : []) : "",

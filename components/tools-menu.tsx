@@ -184,8 +184,8 @@ export function ToolsMenu(p: {
               onClick={() => { p.onWeb!(!p.web); setOpen(false); }}>
               <span className={icon}><GlobeIcon /></span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">Search the web</span>
-                <span className="block truncate text-xs text-ink-subtle">Current info with links · about 1¢ per search</span>
+                <span className="block text-sm font-medium">Always search first</span>
+                <span className="block truncate text-xs text-ink-subtle">Off: AI searches when needed · uses your allowance</span>
               </span>
               <Toggle on={Boolean(p.web)} />
             </button>

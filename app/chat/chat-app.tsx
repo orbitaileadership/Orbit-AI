@@ -104,6 +104,8 @@ function errorText(code: string, label: string, appName: string): string {
     case "model_unavailable": return `${label} isn't available on this API key. Pick another model in the menu.`;
     case "auth": return `${appName} rejected the API key. It may have expired or been revoked.`;
     case "rate_limit": return `${appName} is rate-limiting us or the API account is out of credit. Try again shortly.`;
+    case "search_in_progress": return "A search for this question is already running or was already attempted. Wait for it to finish; if the reply cannot continue, send a new message.";
+    case "search_save_failed": return "The search finished, but its results could not be saved. Send a new message to try again.";
     case "reserve_failed": return "Couldn't check your budget. Make sure the database migrations have been run.";
     case "db_setup": return "The database isn't fully set up yet. Run every file in supabase/migrations in order in the Supabase SQL Editor.";
     case "bad_request": return `${label} couldn't handle that request.`;
@@ -883,6 +885,12 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       };
       if (signal.aborted) {
         results.push({ id: c.id, name: c.name, output: "Stopped by the student.", status: "declined" });
+        continue;
+      }
+      if (c.name === "web_search") {
+        // The next authenticated chat round performs the search and replaces this placeholder.
+        setAct({status:"ok",detail:"Request sent; the server will supply search results."});
+        results.push({id:c.id,name:c.name,output:"Search requested. Await server-provided results.",status:"ok"});
         continue;
       }
       if (isCodeTool(c.name)) {
