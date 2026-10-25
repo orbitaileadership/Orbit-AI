@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeSupabase } from "@/test/fake-supabase";
 import type { StreamEvent } from "@/lib/providers/types";
 import { ProviderError } from "@/lib/providers/types";
+import { CONTEXT } from "@/config/context";
+import { MODELS } from "@/config/models";
 import { RESPONSE_QUALITY_VERSION } from "@/config/quality";
 
 // Route test with mocked auth, database, budget and providers (no live calls, no money).
@@ -79,6 +81,61 @@ beforeEach(() => {
 });
 
 describe("POST /api/chat", () => {
+  it("accepts a large pasted prompt above the old input and character limits without shortening it", async () => {
+    state.live = true;
+    const content = "Synthetic study material. ".repeat(5000);
+    const response = await POST(req({ provider: "anthropic", modelId: "anthropic-default", content }));
+    expect(response.status).toBe(200);
+    expect((await readEvents(response)).at(-1)).toMatchObject({ t: "done", status: "complete" });
+    expect(state.lastArgs!.history.at(-1)!.content).toBe(content.trim());
+    const reservation = vi.mocked(budget.reserve).mock.calls[0];
+    expect(reservation[5]!.inputEstimate).toBeGreaterThan(24000);
+    expect(reservation[5]!.inputEstimate).toBeLessThanOrEqual(48000);
+    expect(budget.settle).toHaveBeenCalledOnce();
+  });
+
+  it("still rejects combined input above 48k before reserving or calling the provider", async () => {
+    state.live = true;
+    const response = await POST(req({ provider: "anthropic", modelId: "anthropic-default", content: "x".repeat(144000) }));
+    expect(response.status).toBe(413);
+    expect(await response.json()).toMatchObject({ error: "context_too_large" });
+    expect(budget.reserve).not.toHaveBeenCalled();
+    expect(state.lastArgs).toBeNull();
+  });
+
+  it("respects a smaller configured model window even below 48k", async () => {
+    state.live = true;
+    const model = MODELS.find((m) => m.id === "anthropic-default")!;
+    const original = model.contextTokens;
+    model.contextTokens = 40000;
+    try {
+      const response = await POST(req({ provider: "anthropic", modelId: model.id, content: "x".repeat(100000) }));
+      expect(response.status).toBe(413);
+      expect(await response.json()).toMatchObject({ error: "context_too_large" });
+      expect(budget.reserve).not.toHaveBeenCalled();
+      expect(state.lastArgs).toBeNull();
+    } finally {
+      model.contextTokens = original;
+    }
+  });
+
+  it("rejects pasted messages above the character guard before saving", async () => {
+    const response = await POST(req({ provider: "anthropic", modelId: "anthropic-default", content: "x".repeat(144001) }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "message_too_long" });
+    expect(state.fake!.db.messages).toHaveLength(0);
+    expect(budget.reserve).not.toHaveBeenCalled();
+  });
+
+  it("keeps monetary budget rejection for a larger prompt", async () => {
+    state.live = true;
+    state.reserveOk = false;
+    const response = await POST(req({ provider: "anthropic", modelId: "anthropic-default", content: "x".repeat(100000) }));
+    expect(response.status).toBe(402);
+    expect(budget.reserve).toHaveBeenCalled();
+    expect(state.lastArgs).toBeNull();
+  });
+
   it('derives private token analytics on the server and keeps retries linked to the same question',async()=>{
     state.live=true;
     const first=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-default',content:'PRIVATE SYNTHETIC PROMPT',usageContext:{promptTokens:999999,content:'DO NOT STORE'}})));
@@ -485,7 +542,7 @@ describe("automatic GitHub context handling", () => {
     expect(results.map((r) => r.id)).toEqual(calls.map((c) => c.id));
     expect(results.every((r) => r.output.includes('source excerpt'))).toBe(true);
     const reservation = vi.mocked(budget.reserve).mock.calls.find((call) => call[5]?.operation === "chat")!;
-    expect(reservation[5]!.inputEstimate).toBeLessThanOrEqual(24000);
+    expect(reservation[5]!.inputEstimate).toBeLessThanOrEqual(CONTEXT.maximumInputTokens);
     expect(state.fake!.db.messages.find((m) => m.role === "assistant")!.tool_log).toEqual(expect.arrayContaining([expect.objectContaining({contextLimited: true})]));
   });
 });
@@ -677,7 +734,7 @@ describe("response completion quality",()=>{
 describe("video input cost guard", () => {
   const askVideo = () => POST(req({ provider: "google", modelId: "google-default", content: "Explain https://youtu.be/dQw4w9WgXcQ" }));
   it("blocks over-limit video input before reserving or generating an answer", async () => {
-    state.live = true; state.countInput = 24001;
+    state.live = true; state.countInput = CONTEXT.maximumInputTokens + 1;
     const res = await askVideo();
     expect(res.status).toBe(413); expect(await res.json()).toMatchObject({error:"video_too_large"});
     expect(budget.reserve).not.toHaveBeenCalled(); expect(state.lastArgs).toBeNull();

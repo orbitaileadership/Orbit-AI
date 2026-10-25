@@ -2,7 +2,8 @@
 export const CONTEXT = {
   ordinaryInputTokens: 8_000,
   complexInputTokens: 16_000,
-  maximumInputTokens: 24_000,
+  maximumInputTokens: 48_000, // combined request; model capacity and monetary budgets still apply
+  maximumMessageChars: 144_000, // permits large pasted prompts; full input is checked separately
   toolInputTokens: 10_000, // shared evidence allowance; shrinks automatically for larger prompts
   toolSafetyTokens: 256,
   recentExchanges: 5,

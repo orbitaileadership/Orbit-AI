@@ -52,7 +52,6 @@ type Body = {
 };
 type Row = { id: string; seq: number; role: "user" | "assistant"; content: string; status: string; kind: string; attachment_ids: string[] | null; model_id: string | null };
 
-const MAX_MESSAGE_CHARS = 32_000;
 const MAX_ATTACHMENTS = 10;
 
 export async function POST(request: Request): Promise<Response> {
@@ -88,7 +87,7 @@ export async function POST(request: Request): Promise<Response> {
   const content = typeof body.content === "string" ? body.content.trim() : "";
   const attachmentIds = Array.isArray(body.attachmentIds) ? body.attachmentIds.filter(isUuid).slice(0, MAX_ATTACHMENTS) : [];
   if (!run && !retry && !content && !attachmentIds.length) return json({ error: "empty_message" }, 400);
-  if (content.length > MAX_MESSAGE_CHARS) return json({ error: "message_too_long" }, 400);
+  if (content.length > CONTEXT.maximumMessageChars) return json({ error: "message_too_long" }, 400);
 
   // ---- conversation (RLS: only the user's own rows are visible or writable)
   let conversation: { id: string; title: string; provider: string; project_id: string | null; section_folder_id: string | null; section_unavailable: boolean; mode: string; course_only: boolean; summary: string | null; summary_upto: number | null };
