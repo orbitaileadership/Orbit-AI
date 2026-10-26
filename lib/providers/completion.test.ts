@@ -27,3 +27,40 @@ describe('provider completion states',()=>{
   await expect(run(adapter,[])).rejects.toMatchObject({code:'incomplete_stream',started:true});
  });
 });
+
+it.each([
+ [openai,[{type:"response.completed",response:{usage:{input_tokens:10}}}]],
+ [anthropic,[{type:"message_delta",delta:{stop_reason:"end_turn"},usage:{output_tokens:5}},{type:"message_stop"}]],
+ [google,[{candidates:[{finishReason:"STOP"}],usageMetadata:{promptTokenCount:10}}]],
+ [xai,[{choices:[{finish_reason:"stop"}],usage:{prompt_tokens:10}}]],
+] as const)("$0.id never emits fabricated required usage",async(adapter,events)=>{
+ const out=await run(adapter,[...events]); expect(out.some(e=>e.usage)).toBe(false);
+});
+it("xAI captures final cost once and does not add reasoning twice",async()=>{
+ const out=await run(xai,[{choices:[{finish_reason:"stop"}],usage:{prompt_tokens:10,completion_tokens:5,total_tokens:15,completion_tokens_details:{reasoning_tokens:3},cost_in_usd_ticks:10001}}]);
+ expect(out.find(e=>e.usage)?.usage).toMatchObject({output:5,reasoning:3,costUsdMicros:2,costInUsdTicks:"10001"});
+});
+it("xAI preserves a known monetary cost even when tokens are missing",async()=>{
+ const out=await run(xai,[{choices:[{finish_reason:"stop"}],usage:{cost_in_usd_ticks:10000}}]);
+ expect(out.find(e=>e.usage)?.usage).toMatchObject({usageComplete:false,costUsdMicros:1});
+});
+
+it("xAI marks inconsistent totals as estimated instead of certifying fallback output",async()=>{
+ const out=await run(xai,[{choices:[{finish_reason:"stop"}],usage:{prompt_tokens:10,completion_tokens:5,total_tokens:999,completion_tokens_details:{reasoning_tokens:2},prompt_tokens_details:{cached_tokens:0}}}]);
+ expect(out.find(e=>e.usage)?.usage).toMatchObject({outputEstimated:true});
+});
+
+it("xAI image adapter preserves exact billed cost evidence",async()=>{
+ vi.stubGlobal("fetch",vi.fn(async()=>Response.json({id:"synthetic-image",data:[{b64_json:"AQ=="}],usage:{cost_in_usd_ticks:2000000}})));
+ const result=await xai.generateImage!({model:{provider:"xai",label:"Synthetic",apiModel:"synthetic",pricePerImage:0.04},prompt:"Synthetic",apiKey:"synthetic",signal:new AbortController().signal});
+ expect(result).toMatchObject({costUsdMicros:200,costInUsdTicks:"2000000",providerRequestId:"synthetic-image"});
+});
+
+it("Claude marks input incomplete when cache bucket counts are absent",async()=>{
+ const out=await run(anthropic,[{type:"message_start",message:{usage:{input_tokens:10}}},{type:"message_delta",delta:{stop_reason:"end_turn"},usage:{output_tokens:5}},{type:"message_stop"}]);
+ expect(out.find(e=>e.usage)?.usage).toMatchObject({inputEstimated:true,cachedReported:false,output:5});
+});
+it("Gemini marks output incomplete when the separate thought count is absent",async()=>{
+ const out=await run(google,[{candidates:[{finishReason:"STOP"}],usageMetadata:{promptTokenCount:10,candidatesTokenCount:5}}]);
+ expect(out.find(e=>e.usage)?.usage).toMatchObject({outputEstimated:true,reasoningReported:false});
+});

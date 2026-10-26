@@ -26,7 +26,7 @@ export default async function WaitlistPage() {
         <h1 className="mt-4 text-2xl font-semibold tracking-tight">You&apos;re on the waitlist</h1>
         <p className="mt-3 text-ink-muted">
           Thanks for signing up. Orbit AI brings GPT, Claude, Gemini and Grok together in one place for
-          Western students, and we&apos;re opening access soon.
+          students, and we&apos;re opening access school by school.
         </p>
         <p className="mt-3 text-ink-muted">
           We&apos;ll email <span className="font-medium text-ink">{result.user.email}</span>{" "}

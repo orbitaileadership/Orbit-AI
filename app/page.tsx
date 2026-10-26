@@ -1,6 +1,7 @@
 import { LandingPage } from "@/components/landing-page";
 import { redirect } from "next/navigation";
 import { getUserAccess } from "@/lib/auth/session";
+import { isAnalyticsAdmin } from "@/lib/analytics/admin";
 import { StudentApp } from "@/components/student-app";
 
 export default async function Home() {
@@ -8,5 +9,5 @@ export default async function Home() {
   const result = await getUserAccess();
   if (!result) return <LandingPage/>;
   if (result.access === "waitlist") redirect("/waitlist");
-  return <StudentApp email={result.user.email ?? ""} userId={result.user.id} />;
+  return <StudentApp email={result.user.email ?? ""} userId={result.user.id} isAdmin={isAnalyticsAdmin(result.user.email)} />;
 }

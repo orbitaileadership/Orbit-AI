@@ -1,6 +1,9 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { OrbitBackdrop, Wordmark } from "./brand";
+import { ProviderLogo } from "./provider-logo";
+import { INSTITUTIONS } from "@/config/institutions";
+import { SchoolLogo } from "./school-logo";
 
 export const inputClass =
   "w-full rounded-lg border border-line-strong bg-surface-200 px-4 py-3 text-base text-ink outline-none transition placeholder:text-ink-subtle focus:border-brand focus:shadow-focus";
@@ -11,10 +14,36 @@ export const secondaryButtonClass =
 export const linkButtonClass =
   "text-sm font-medium text-brand underline underline-offset-[3px] disabled:opacity-45";
 
+/** Computers: what Orbit is beside the form (the four AIs, the schools). Phones show only the form. */
+function AuthAside() {
+  return (
+    <aside className="landing-rise hidden max-w-sm lg:block">
+      <h2 className="text-[34px] font-medium leading-[1.12] tracking-tight">Your AIs. Your courses.<br /><span className="orbit-gradient-text">One place to learn.</span></h2>
+      <ul className="mt-8 space-y-3">
+        {([["openai", "ChatGPT"], ["anthropic", "Claude"], ["google", "Gemini"], ["xai", "Grok"]] as const).map(([id, name]) => (
+          <li key={id} className="flex items-center gap-3 text-sm text-ink-muted">
+            <span className="grid h-9 w-9 place-items-center rounded-xl border border-line bg-surface-100"><ProviderLogo provider={id} size={20} /></span>{name}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-10 text-xs font-medium text-ink-subtle">Students sign up from</p>
+      <ul className="mt-3 grid grid-cols-4 gap-x-2 gap-y-4">
+        {INSTITUTIONS.map((s) => (
+          <li key={s.id} className="flex flex-col items-center gap-1.5 text-center">
+            <SchoolLogo school={s} size={48} />
+            <span className="text-[10px] leading-3 text-ink-muted">{s.name}</span>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
 export function AuthShell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
     <OrbitBackdrop className="min-h-dvh">
-      <main className="flex min-h-dvh items-center justify-center px-4 py-10 text-ink">
+      <main className="flex min-h-dvh items-center justify-center gap-20 px-4 py-10 text-ink">
+        <AuthAside />
         <div className={`w-full ${wide ? "max-w-md" : "max-w-sm"}`}>
           <p className="mb-6 text-center"><Wordmark className="text-[22px]" /></p>
           {children}

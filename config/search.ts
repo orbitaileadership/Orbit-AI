@@ -1,4 +1,4 @@
-// Web search (one search per question when the student turns on "Search the web"). Provider: Tavily
+// Web search: model-directed by default; the student can force a search before answering. One search per question. Provider: Tavily
 // (docs.tavily.com). Prices checked Oct 12 2026: 1 credit per basic search, $0.008 per credit pay-as-you-go
 // (1,000 free credits/month on Tavily's side; students are still charged so budgets stay predictable).
 export const WEB_SEARCH = {

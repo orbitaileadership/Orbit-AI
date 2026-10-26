@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AppLogo } from "./app-logos";
+import { AppLogo, GlyphTile, skillGlyph } from "./app-logos";
 import { PluginConnect } from "./plugin-connect";
 import { PLUGINS, type PluginId, type PluginInfo } from "@/lib/plugins/catalog";
 import { connectPopup, disconnect, loadServerReady, pluginAccount, pluginConfigured, pluginConnected, usesPopup } from "@/lib/plugins/connect";
@@ -26,7 +26,7 @@ const SECTIONS: { title: string; filter: (p: PluginInfo) => boolean }[] = [
 ];
 const SHOWN = new Set(["Popular", "Research", "Developer", "Files", "Mail & calendar", "Notes & library"]);
 
-export function PluginsPage({ ext, appName, onTry, initialTab = "plugins" }: { ext: Ext; appName: string; onTry: (prompt: string) => void; initialTab?: "plugins" | "skills" }) {
+export function PluginsPage({ ext, appName, onTry, initialTab = "plugins", isAdmin = false }: { ext: Ext; appName: string; isAdmin?: boolean; onTry: (prompt: string) => void; initialTab?: "plugins" | "skills" }) {
   const [tab, setTab] = useState<"plugins" | "skills">(initialTab);
   const [scope, setScope] = useState<"public" | "personal">("public");
   const [q, setQ] = useState("");
@@ -62,6 +62,7 @@ export function PluginsPage({ ext, appName, onTry, initialTab = "plugins" }: { e
 
   // One click, like the apps: + installs and goes straight to the app's own sign-in page (no extra steps).
   async function install(p: PluginInfo) {
+    if (!pluginConfigured(p)) return setOpen(p.id); // not available yet: explain instead of installing something that can't work
     ext.installPlugin(p.id, true);
     // No awaiting before the pop-up opens, or the browser may block it.
     const signIn = p.auth === "github" ? githubSignInConfigured && githubConnectReadyNow() : usesPopup(p) && pluginConfigured(p);
@@ -235,7 +236,7 @@ export function PluginsPage({ ext, appName, onTry, initialTab = "plugins" }: { e
 
       {open && (
         <PluginSheet plugin={PLUGINS.find((p) => p.id === open)!} ext={ext} status={status[open] ?? "no"} onClose={() => setOpen(null)}
-          onChanged={() => void refresh()} onTry={(t) => { setOpen(null); onTry(t); }} onToast={setToast} />
+          onChanged={() => void refresh()} onTry={(t) => { setOpen(null); onTry(t); }} onToast={setToast} isAdmin={isAdmin} />
       )}
       {skillOpen && (
         <SkillSheet skill={skillOpen === "new" ? null : skillOpen} ext={ext} onClose={() => setSkillOpen(null)} onToast={setToast}
@@ -283,14 +284,14 @@ function PluginGrid({ list, installed, status, onOpen, onInstall }: {
     <div className="mt-2 grid grid-cols-1 gap-x-10 md:grid-cols-2">
       {list.map((p) => (
         <Row key={p.id} logo={<AppLogo id={p.id} size={56} framed />} title={p.name}
-          text={installed.has(p.id) && status[p.id] === "no" && p.auth !== "none" ? "Installed · not connected" : p.tagline}
-          onOpen={() => onOpen(p.id)} added={installed.has(p.id)} onAdd={() => onInstall(p)} />
+          text={!pluginConfigured(p) ? `Coming soon · ${p.tagline}` : installed.has(p.id) && status[p.id] === "no" && p.auth !== "none" ? "Installed · not connected" : p.tagline}
+          onOpen={() => onOpen(p.id)} added={installed.has(p.id)} soon={!pluginConfigured(p)} onAdd={() => onInstall(p)} />
       ))}
     </div>
   );
 }
 
-function Row({ logo, title, text, onOpen, added, onAdd }: { logo: ReactNode; title: string; text: string; onOpen: () => void; added: boolean; onAdd: () => void }) {
+function Row({ logo, title, text, onOpen, added, onAdd, soon = false }: { logo: ReactNode; title: string; text: string; onOpen: () => void; added: boolean; onAdd: () => void; soon?: boolean }) {
   return (
     <div className="flex items-center gap-4 py-4">
       <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-4 text-left">
@@ -300,7 +301,9 @@ function Row({ logo, title, text, onOpen, added, onAdd }: { logo: ReactNode; tit
           <span className="block truncate text-[16px] text-ink-muted">{text}</span>
         </span>
       </button>
-      {added ? (
+      {soon && !added ? (
+        <button type="button" onClick={onOpen} title="Not available yet" className="shrink-0 rounded-full border border-line px-3 py-1 text-xs font-medium text-ink-subtle hover:bg-surface-200">Soon</button>
+      ) : added ? (
         <button type="button" onClick={onOpen} aria-label={`${title} installed — open settings`} title="Installed"
           className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-muted hover:bg-surface-200 hover:text-ink">
           <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden><path d="M4.5 10.5l3.5 3.5 7.5-8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>
@@ -321,12 +324,7 @@ function StatusDot({ s }: { s: "on" | "off" | "needs" }) {
 }
 
 function SkillTile({ skill, size }: { skill: Skill; size: number }) {
-  return (
-    <span aria-hidden className="grid shrink-0 place-items-center border border-line bg-surface-100 shadow-[0_1px_2px_rgba(0,0,0,0.06)]"
-      style={{ width: size, height: size, borderRadius: size * 0.26, fontSize: size * 0.45 }}>
-      {skill.emoji ?? "✨"}
-    </span>
-  );
+  return <GlyphTile glyph={skillGlyph(skill)} size={size} framed />;
 }
 
 function Empty({ title, text }: { title: string; text: string }) {
@@ -364,8 +362,8 @@ function Sheet({ onClose, children, label }: { onClose: () => void; children: Re
   );
 }
 
-function PluginSheet({ plugin: p, ext, status, onClose, onChanged, onTry, onToast }: {
-  plugin: PluginInfo; ext: Ext; status: Status; onClose: () => void; onChanged: () => void; onTry: (t: string) => void; onToast: (t: string) => void;
+function PluginSheet({ plugin: p, ext, status, onClose, onChanged, onTry, onToast, isAdmin = false }: {
+  isAdmin?: boolean; plugin: PluginInfo; ext: Ext; status: Status; onClose: () => void; onChanged: () => void; onTry: (t: string) => void; onToast: (t: string) => void;
 }) {
   const row = ext.ext.plugins.find((x) => x.id === p.id);
   const isInstalled = Boolean(row);
@@ -385,7 +383,11 @@ function PluginSheet({ plugin: p, ext, status, onClose, onChanged, onTry, onToas
 
         <div className="mt-6 flex w-full flex-col items-center gap-3">
           {!configured ? (
-            <p className="text-sm text-ink-muted">{p.name} isn&apos;t set up on this server yet{p.setup ? ` (${p.setup})` : ""}.</p>
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="rounded-full bg-surface-200 px-3 py-1 text-xs font-medium text-ink-muted">Coming soon</span>
+              <p className="max-w-sm text-sm text-ink-muted">{p.name} isn&apos;t available in Orbit yet. The team is turning on {p.auth === "google" ? "Google" : p.auth === "microsoft" ? "Microsoft" : p.auth === "notion" ? "Notion" : p.name} sign-in; check back soon.</p>
+              {isAdmin && p.setup && <p className="text-xs text-ink-subtle">Admin: set <code>{p.setup}</code> in the deployment settings and redeploy.</p>}
+            </div>
           ) : signs && !connected ? (
             <>
               {connect}
@@ -408,7 +410,7 @@ function PluginSheet({ plugin: p, ext, status, onClose, onChanged, onTry, onToas
         </div>
       </div>
 
-      {isInstalled && p.tools.length > 0 && (
+      {isInstalled && configured && p.tools.length > 0 && (
         <label className="mt-6 flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-surface-100 px-4 py-3 text-sm">
           <span>Use in chats<span className="block text-xs text-ink-subtle">The AI uses it when it helps. Type @ to pick it for a message.</span></span>
           <input type="checkbox" checked={row?.enabled !== false} onChange={(e) => ext.enablePlugin(p.id, e.target.checked)} className="h-5 w-9 shrink-0 cursor-pointer appearance-none rounded-full bg-surface-300 transition before:block before:h-4 before:w-4 before:translate-x-0.5 before:rounded-full before:bg-surface-000 before:shadow before:transition checked:bg-brand checked:before:translate-x-[18px]" />
@@ -419,7 +421,7 @@ function PluginSheet({ plugin: p, ext, status, onClose, onChanged, onTry, onToas
       <Section title="Try asking">
         <div className="flex flex-wrap gap-2">
           {p.examples.map((e) => (
-            <button key={e} type="button" onClick={() => onTry(e)} disabled={!isInstalled && p.tools.length > 0}
+            <button key={e} type="button" onClick={() => onTry(e)} disabled={!configured || (!isInstalled && p.tools.length > 0)}
               className="rounded-full border border-line px-3.5 py-1.5 text-left text-sm hover:bg-surface-200 disabled:opacity-50" title={isInstalled ? "Start a chat with this" : "Install first"}>{e}</button>
           ))}
         </div>
@@ -520,7 +522,7 @@ function ConnectionsSheet({ status, onClose, onChanged, onOpen }: { status: Part
             <AppLogo id={p.id} size={40} framed />
             <span className="min-w-0 flex-1">
               <span className="block font-medium">{p.name}</span>
-              <span className="block text-xs text-ink-subtle">{!pluginConfigured(p) ? "Not set up on this server" : status[p.id] === "yes" ? "Connected" : status[p.id] === "limited" ? "Public access only" : "Not connected"}</span>
+              <span className="block text-xs text-ink-subtle">{!pluginConfigured(p) ? "Coming soon" : status[p.id] === "yes" ? "Connected" : status[p.id] === "limited" ? "Public access only" : "Not connected"}</span>
             </span>
             {status[p.id] === "yes" ? (
               <button type="button" onClick={async () => { await disconnect(p); onChanged(); }} className="rounded-full border border-line-strong px-3.5 py-1.5 text-sm hover:bg-surface-200">Disconnect</button>

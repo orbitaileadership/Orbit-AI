@@ -23,28 +23,37 @@ export default async function AnalyticsPage({searchParams}:{searchParams?:Promis
   const report=await loadAnalyticsReport(days,model,user).catch(()=>null);
   if(!report) return <main className="p-8 text-ink">Analytics unavailable. Apply migrations 0009–0011 and check the server configuration.</main>;
   const f=report.financial,p=report.product,c=report.context;
-  const completeFx=Number(f.costs_without_fx)===0 && Number(f.legacy_cost_rows)===0 && Number(f.uncertain_calls)===0 && Number(f.reserved_usd_micros)===0;
+  const completeFx=Number(f.accounting_version)===2 && Number(f.estimated_cost_calls)===0 && Number(f.unclassified_cost_calls)===0 && Number(f.all_time_unknown_cost_calls)===0 && Number(f.costs_without_fx)===0 && Number(f.legacy_cost_rows)===0 && Number(f.uncertain_calls)===0 && Number(f.reserved_usd_micros)===0;
   const contribution=completeFx && Number(f.revenue_cad_micros)>0?Number(f.revenue_cad_micros)-Number(f.fees_cad_micros)-Number(f.api_cad_micros):null;
   const text=(v:Metric)=>v==null?"No data":String(v);
   return <main className="mx-auto min-w-0 max-w-6xl space-y-6 px-4 py-8 text-ink"><h1 className="text-3xl font-semibold">Orbit analytics</h1>
     <TokenUsage report={report.tokenUsage} days={days} model={model} user={user}/>
     <details className="min-w-0 space-y-6"><summary className="cursor-pointer text-xl font-semibold">Financial, engagement & operational reports</summary>
-    <p className="text-ink-muted">Last {report.days} days · Live usage only in engagement metrics. Provider costs are calculated from reported usage and versioned rates, pending invoice reconciliation. Payments remain disabled.</p>
+    <p className="text-ink-muted">Last {report.days} days · Financial reports cover all users and models; the filters above apply only to standard-chat tokens. Costs remain pending external reconciliation. Unreported expense is additional to the recorded subtotal. Payments remain disabled.</p>
+    {Number(f.accounting_version)!==2&&<p role="status">Accounting completeness unavailable. Apply reporting migration 0020 before relying on financial totals.</p>}
     <div className="grid gap-6 lg:grid-cols-3">
-    <Panel title="Financial" items={[["Net revenue",money(f.revenue_cad_micros,"CAD")],["Recorded API cost",money(f.api_usd_micros)],["API cost with known FX",money(f.api_cad_micros,"CAD")],
-      ["Contribution after API and payment fees",money(contribution,"CAD")],["Contribution %",contribution==null?"No data":percent(contribution/Number(f.revenue_cad_micros))],
+    <Panel title="Financial" items={[["Net revenue",money(f.revenue_cad_micros,"CAD")],["Recorded expense subtotal",money(f.api_usd_micros)],["API cost with known FX",money(f.api_cad_micros,"CAD")],
+      ["Recorded contribution after API and payment fees",money(contribution,"CAD")],["Contribution %",contribution==null?"No data":percent(contribution/Number(f.revenue_cad_micros))],
       ["Mean API cost per spending user",money(f.mean_user_cost_usd_micros)],["User spending p50 / p95",`${money(f.user_spend_p50_usd_micros)} / ${money(f.user_spend_p95_usd_micros)}`],
-      ["Uncertain budget charges",money(f.uncertain_charges_usd_micros)],["Held reservations",money(f.reserved_usd_micros)],["Rows missing FX / legacy rows",`${number(f.costs_without_fx)} / ${number(f.legacy_cost_rows)}`]]}/>
+      ["Uncertain budget charges",money(f.uncertain_charges_usd_micros)],["Held reservations (window)",money(f.reserved_usd_micros)],["Held reservations (all time)",money(f.all_time_reserved_usd_micros)],
+      ["Unknown costs (window / all time)",`${number(f.unknown_cost_calls)} / ${number(f.all_time_unknown_cost_calls)}`],
+      ["Estimated expense",money(f.estimated_usd_micros)],["Provider-reported expense",money(f.provider_reported_usd_micros)],
+      ["Usage-priced expense",money(f.usage_priced_usd_micros)],["Estimated / unclassified calls",`${number(f.estimated_cost_calls)} / ${number(f.unclassified_cost_calls)}`],
+      ["Stale reservations (>10 min, all time)",number(f.stale_reservations)],["Rows missing FX / legacy rows",`${number(f.costs_without_fx)} / ${number(f.legacy_cost_rows)}`]]}/>
     <Panel title="Product" items={[["DAU / WAU / MAU",`${number(p.dau)} / ${number(p.wau)} / ${number(p.mau)}`],["Messages",number(p.messages)],["Messages per active user",number(p.messages_per_active_user)],
       ["Messages per active conversation",number(p.messages_per_active_conversation)],["Model switches",number(p.model_switches)],["Allowance exhaustion events",number(p.allowance_exhaustions)],["Files uploaded",number(p.file_uploads)]]}/>
-    <Panel title="Context performance" items={[["Mean input tokens",number(c.mean_input_tokens)],["Cache read share",percent(c.cache_read_ratio)],["Cost per 100 model calls",money(c.usd_micros_per_100_calls)],
+    <Panel title="Context performance" items={[["Mean input tokens",number(c.mean_input_tokens)],["Standard-chat cache read share",percent(c.cache_read_ratio)],["Cost per 100 settled standard-chat calls",money(c.usd_micros_per_100_calls)],
       ["Summary / embedding cost",`${money(c.summary_usd_micros)} / ${money(c.embedding_usd_micros)}`],["Memory overhead share",percent(c.memory_cost_ratio)],
-      ["Mean request latency (ms)",number(c.mean_latency_ms)],["Trimmed / retrieval calls",`${number(c.trimmed_calls)} / ${number(c.retrieval_used_calls)}`],["Provider errors",number(c.errors)]]}/>
+      ["Mean request latency (ms)",number(c.mean_latency_ms)],["Trimmed / retrieval calls",`${number(c.trimmed_calls)} / ${number(c.retrieval_used_calls)}`],["Provider errors",number(c.errors)],
+      ["Platform input / output tokens",`${number(c.platform_input_tokens)} / ${number(c.platform_output_tokens)}`],
+      ["Platform cache-write / reported reasoning tokens",`${number(c.platform_cache_write_tokens)} / ${number(c.platform_reasoning_tokens)}`],
+      ["Calls without reasoning breakdown",number(c.missing_reasoning_calls)]]}/>
     </div>
     <Table title="Trial cohorts (all time)" rows={report.cohorts} columns={[["cohort","Cohort",text],["trial_days","Days",number],["enrolled","Enrolled",number],["matured_trials","Matured",number],["trial_conversion_rate","Conversion",percent],["week2_retention","Week 2 retention",percent],["trial_cost_usd_micros","API trial cost",money],["trial_cost_per_conversion_usd_micros","Trial cost / conversion",money]]}/>
-    <Table title="Cost by provider, model and operation" rows={report.models} columns={[["provider","Provider",text],["model_id","Model",text],["operation","Operation",text],["calls","Calls",number],["cost_usd_micros","Recorded cost",money],["unknown_cost_calls","Unknown cost calls",number]]}/>
+    <Table title="Cost by provider, model and operation" rows={report.models} columns={[["provider","Provider",text],["model_id","Model",text],["operation","Operation",text],["calls","Calls",number],["cost_usd_micros","Recorded cost",money],["unknown_cost_calls","Unknown cost calls",number],["estimated_cost_calls","Estimated calls",number],["unclassified_cost_calls","Unclassified calls",number]]}/>
+    <Table title="Conversation spending (top 200, IDs only)" rows={report.conversations??[]} columns={[["conversation_id","Conversation",text],["user_id","User",text],["calls","Calls",number],["cost_usd_micros","Recorded subtotal",money],["unknown_cost_calls","Unknown costs",number]]}/>
     <Table title="Feature adoption" rows={report.features} columns={[["feature","Feature",text],["users","Users",number],["uses","Uses",number]]}/>
-    <Table title="User spending (top 200, IDs only)" rows={report.users} columns={[["user_id","User ID",text],["api_usd_micros","API cost",money],["allowance_utilization","Allowance charged",percent],["reserved_micros","Reserved USD",money]]}/>
+    <Table title="User spending (top 200, IDs only)" rows={report.users} columns={[["user_id","User ID",text],["api_usd_micros","API cost",money],["allowance_utilization","Allowance charged",percent],["reserved_micros","Reserved USD",money],["available_usd_micros","Available USD (current budget)",money]]}/>
     </details>
     <p className="text-sm text-ink-muted">Contribution excludes hosting, retrieval/database compute, support, refunds outside this window and acquisition costs. Retrieval usage measures inclusion, not answer quality. Compare identical synthetic benchmarks before claiming quality or cost savings.</p>
   </main>;

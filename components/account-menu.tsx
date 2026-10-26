@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 
 // Bottom-left account button (like other AI apps): opens a menu with Settings and Sign out.
 // compact = just the round initial (desktop app rail); otherwise initial + email (phone sidebar).
-export function AccountMenu({ email, onSettings, signOut, compact = false }: {
+export function AccountMenu({ email, onSettings, signOut, compact = false, isAdmin = false }: {
   email: string;
+  isAdmin?: boolean; // server-decided; /admin/analytics re-checks on the server
   onSettings: () => void;
   signOut: () => Promise<void> | void;
   compact?: boolean;
@@ -45,6 +46,22 @@ export function AccountMenu({ email, onSettings, signOut, compact = false }: {
             <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0"><circle cx="8" cy="8" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.3" /><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
             Settings
           </button>
+          <a href="/feedback" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-300">
+            <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0"><path d="M3 3.5h10v7H7l-3.5 2v-2H3z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/><path d="M5.5 6h5M5.5 8h3.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>
+            Send feedback
+          </a>
+          {isAdmin && (
+            <>
+            <a href="/admin/feedback" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-300">
+              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0"><path d="M3 3.5h10v7H7l-3.5 2v-2H3z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/><path d="M5.5 6h5M5.5 8h3.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/></svg>
+              Feedback inbox
+            </a>
+            <a href="/admin/analytics" role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-300">
+              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0"><path d="M2.5 13.5v-4M6.5 13.5v-8M10.5 13.5v-6M14 13.5H2" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>
+              Analytics
+            </a>
+            </>
+          )}
           <form action={signOut}>
             <button role="menuitem" className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm hover:bg-surface-300">
               <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0"><path d="M6 3H3.5A1 1 0 0 0 2.5 4v8a1 1 0 0 0 1 1H6M10 5l3 3-3 3M13 8H6" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>

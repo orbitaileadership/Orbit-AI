@@ -1,7 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const billing = vi.hoisted(() => ({ reserve: vi.fn(), settle: vi.fn(), overRateLimit: vi.fn() }));
+vi.mock("@/lib/billing/budget", () => billing);
 import { cleanDoi, formatCrossref, parseArxiv, runPublicTool } from "./public";
 
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => { vi.clearAllMocks(); billing.reserve.mockResolvedValue({ok:true}); billing.settle.mockResolvedValue(undefined); billing.overRateLimit.mockResolvedValue(false); });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 const ATOM = `<?xml version="1.0" encoding="UTF-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
@@ -74,12 +77,33 @@ describe("tools (mocked services)", () => {
 describe("Wolfram|Alpha", () => {
   afterEach(() => { delete process.env.WOLFRAM_APP_ID; });
   it("needs the server key, then returns Wolfram's text (and its suggestions when it can't parse)", async () => {
+    delete process.env.WOLFRAM_APP_ID; // a developer shell may have a real key: never call Wolfram from tests
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("no network in tests"); }));
     await expect(runPublicTool("wolfram_query", { input: "2+2" })).rejects.toThrow(/isn't set up/);
     process.env.WOLFRAM_APP_ID = "APPID";
+    vi.stubEnv("WOLFRAM_REQUEST_USD_MICROS", "2000");
     const urls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (u: string) => { urls.push(u); return u.includes("gibberish") ? new Response("Try: 2+2", { status: 501 }) : new Response("Input: integrate x^2\nResult: x^3/3 + constant"); }));
-    expect(await runPublicTool("wolfram_query", { input: "integrate x^2" })).toContain("x^3/3");
+    expect(await runPublicTool("wolfram_query", { input: "integrate x^2" }, "synthetic")).toContain("x^3/3");
     expect(urls[0]).toBe("https://www.wolframalpha.com/api/v1/llm-api?input=integrate%20x%5E2&appid=APPID&maxchars=6000");
-    expect(await runPublicTool("wolfram_query", { input: "gibberish" })).toContain("couldn't interpret");
+    expect(await runPublicTool("wolfram_query", { input: "gibberish" }, "synthetic")).toContain("couldn't interpret");
   });
+});
+
+it("Wolfram fails closed without a rate, identity or approved reservation", async () => {
+ vi.stubEnv("WOLFRAM_APP_ID", "synthetic"); vi.stubEnv("WOLFRAM_REQUEST_USD_MICROS", "");
+ vi.stubGlobal("fetch", vi.fn());
+ await expect(runPublicTool("wolfram_query", {input:"2+2"}, "synthetic")).rejects.toThrow(/accounting/);
+ vi.stubEnv("WOLFRAM_REQUEST_USD_MICROS", "2000");
+ await expect(runPublicTool("wolfram_query", {input:"2+2"})).rejects.toThrow(/accounting/);
+ billing.reserve.mockResolvedValue({ok:false,reason:"budget"});
+ await expect(runPublicTool("wolfram_query", {input:"2+2"}, "synthetic")).rejects.toThrow(/allowance/);
+ expect(fetch).not.toHaveBeenCalled();
+});
+it("Wolfram records identity before dispatch and retains transport uncertainty", async () => {
+ vi.stubEnv("WOLFRAM_APP_ID", "synthetic"); vi.stubEnv("WOLFRAM_REQUEST_USD_MICROS", "2000");
+ vi.stubGlobal("fetch", vi.fn(async () => { expect(billing.reserve).toHaveBeenCalled(); throw new Error("timeout"); }));
+ await expect(runPublicTool("wolfram_query", {input:"2+2"}, "synthetic")).rejects.toThrow(/respond/);
+ expect(billing.reserve).toHaveBeenCalledWith("synthetic",expect.any(String),"wolfram-llm","text",2000,expect.objectContaining({operation:"wolfram",costBasis:"estimated"}));
+ expect(billing.settle).toHaveBeenCalledWith(expect.any(String),"uncertain",0,undefined,"wolfram_failed");
 });

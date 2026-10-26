@@ -37,11 +37,118 @@ export const MODELS: ModelOption[] = [
     provider: "openai", providerLabel: "OpenAI", enabled: true,
     apiModel: "gpt-6-luna", inputPrice: 0.1, outputPrice: 0.5, cachedInputPrice: 0.01, cacheWritePrice: 0.125, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
+  // More OpenAI models (developers.openai.com/api/docs/pricing, standard tier, checked Oct 19 2026; <272k-token rates —
+  // we never send more). "Pro", o1 and o3-pro ($80–$600 / 1M out) and legacy completions models are left out on cost/API grounds.
+  {
+    id: "openai-gpt-6-sol", label: "GPT-6 Sol", short: "GPT-6 Sol", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-6-sol", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-6-sol", label: "GPT-5.6 Sol", short: "GPT-5.6 Sol", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.6-sol", inputPrice: 4, outputPrice: 20, cachedInputPrice: 0.4, cacheWritePrice: 5.0, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-6-terra", label: "GPT-5.6 Terra", short: "GPT-5.6 Terra", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.6-terra", inputPrice: 2, outputPrice: 12, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-6-luna", label: "GPT-5.6 Luna", short: "GPT-5.6 Luna", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.6-luna", inputPrice: 0.2, outputPrice: 1.2, cachedInputPrice: 0.02, cacheWritePrice: 0.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-5", label: "GPT-5.5", short: "GPT-5.5", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.5", inputPrice: 5, outputPrice: 30, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-4", label: "GPT-5.4", short: "GPT-5.4", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.4", inputPrice: 2.5, outputPrice: 15, cachedInputPrice: 0.25, cacheWritePrice: 3.125, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-4-mini", label: "GPT-5.4 mini", short: "GPT-5.4 mini", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.4-mini", inputPrice: 0.75, outputPrice: 4.5, cachedInputPrice: 0.075, cacheWritePrice: 0.9375, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-4-nano", label: "GPT-5.4 nano", short: "GPT-5.4 nano", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.4-nano", inputPrice: 0.2, outputPrice: 1.25, cachedInputPrice: 0.02, cacheWritePrice: 0.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-2", label: "GPT-5.2", short: "GPT-5.2", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.2", inputPrice: 1.75, outputPrice: 14, cachedInputPrice: 0.175, cacheWritePrice: 2.1875, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-1", label: "GPT-5.1", short: "GPT-5.1", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5.1", inputPrice: 1.25, outputPrice: 10, cachedInputPrice: 0.125, cacheWritePrice: 1.5625, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5", label: "GPT-5", short: "GPT-5", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5", inputPrice: 1.25, outputPrice: 10, cachedInputPrice: 0.125, cacheWritePrice: 1.5625, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-mini", label: "GPT-5 mini", short: "GPT-5 mini", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5-mini", inputPrice: 0.25, outputPrice: 2, cachedInputPrice: 0.025, cacheWritePrice: 0.3125, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-5-nano", label: "GPT-5 nano", short: "GPT-5 nano", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-5-nano", inputPrice: 0.05, outputPrice: 0.4, cachedInputPrice: 0.005, cacheWritePrice: 0.0625, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-o3", label: "OpenAI o3", short: "o3", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "o3", inputPrice: 2, outputPrice: 8, cachedInputPrice: 0.5, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-o4-mini", label: "OpenAI o4-mini", short: "o4-mini", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "o4-mini", inputPrice: 1.1, outputPrice: 4.4, cachedInputPrice: 0.275, cacheWritePrice: 1.375, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-o3-mini", label: "OpenAI o3-mini", short: "o3-mini", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "o3-mini", inputPrice: 1.1, outputPrice: 4.4, cachedInputPrice: 0.55, cacheWritePrice: 1.375, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-4-1", label: "GPT-4.1", short: "GPT-4.1", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-4.1", inputPrice: 2, outputPrice: 8, cachedInputPrice: 0.5, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-4-1-mini", label: "GPT-4.1 mini", short: "GPT-4.1 mini", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-4.1-mini", inputPrice: 0.4, outputPrice: 1.6, cachedInputPrice: 0.1, cacheWritePrice: 0.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-4-1-nano", label: "GPT-4.1 nano", short: "GPT-4.1 nano", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-4.1-nano", inputPrice: 0.1, outputPrice: 0.4, cachedInputPrice: 0.025, cacheWritePrice: 0.125, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-4o", label: "GPT-4o", short: "GPT-4o", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-4o", inputPrice: 2.5, outputPrice: 10, cachedInputPrice: 1.25, cacheWritePrice: 3.125, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "openai-gpt-4o-mini", label: "GPT-4o mini", short: "GPT-4o mini", description: "",
+    provider: "openai", providerLabel: "OpenAI", enabled: true,
+    apiModel: "gpt-4o-mini", inputPrice: 0.15, outputPrice: 0.6, cachedInputPrice: 0.075, cacheWritePrice: 0.1875, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
 
   {
     id: "anthropic-default", label: "Claude Sonnet 5.5", short: "Sonnet 5.5", description: "Best balance of speed and intelligence",
     provider: "anthropic", providerLabel: "Anthropic", enabled: true,
-    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.1, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+    apiModel: "claude-sonnet-5-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
   {
     id: "anthropic-opus", label: "Claude Opus 5.5", short: "Opus 5.5", description: "Most capable for complex work",
@@ -53,24 +160,147 @@ export const MODELS: ModelOption[] = [
     provider: "anthropic", providerLabel: "Anthropic", enabled: true,
     apiModel: "claude-haiku-4-5-20251001", inputPrice: 1, outputPrice: 5, cachedInputPrice: 0.1, cacheWritePrice: 1.25, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
+  // Further Claude models (ids and US$ prices from Anthropic's model reference, cached Oct 6 2026; cache writes = 1.25× input).
+  // Ordinary chat sends no thinking/sampling/tool_choice settings; Orbit may set explicit lead effort. Fable 5/5.1 always think (counted in max_tokens and billed
+  // as output) and are unavailable to zero-data-retention orgs; verify tool loops and long answers on staging before launch.
+  {
+    id: "anthropic-haiku-5-5", label: "Claude Haiku 5.5", short: "Haiku 5.5", description: "Fastest and cheapest",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    // $0.10 / $0.50 applies to prompts ≤100k tokens; we never send more (contextTokens).
+    apiModel: "claude-haiku-5-5", inputPrice: 0.1, outputPrice: 0.5, cachedInputPrice: 0.01, cacheWritePrice: 0.125, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-fable-5-1", label: "Claude Fable 5.1", short: "Fable 5.1", description: "Most capable — uses much more budget",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-fable-5-1", inputPrice: 10, outputPrice: 50, cachedInputPrice: 0.25, cacheWritePrice: 12.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-sonnet-5", label: "Claude Sonnet 5", short: "Sonnet 5", description: "Previous Sonnet",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-sonnet-5", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.2, cacheWritePrice: 2.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-5", label: "Claude Opus 5", short: "Opus 5", description: "Previous Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-5", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-fable-5", label: "Claude Fable 5", short: "Fable 5", description: "Previous Fable — uses much more budget",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-fable-5", inputPrice: 10, outputPrice: 50, cachedInputPrice: 1, cacheWritePrice: 12.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-4-8", label: "Claude Opus 4.8", short: "Opus 4.8", description: "Earlier Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-4-8", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-4-7", label: "Claude Opus 4.7", short: "Opus 4.7", description: "Earlier Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-4-7", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-opus-4-6", label: "Claude Opus 4.6", short: "Opus 4.6", description: "Earlier Opus",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-opus-4-6", inputPrice: 5, outputPrice: 25, cachedInputPrice: 0.5, cacheWritePrice: 6.25, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "anthropic-sonnet-4-6", label: "Claude Sonnet 4.6", short: "Sonnet 4.6", description: "Earlier Sonnet",
+    provider: "anthropic", providerLabel: "Anthropic", enabled: true,
+    apiModel: "claude-sonnet-4-6", inputPrice: 3, outputPrice: 15, cachedInputPrice: 0.3, cacheWritePrice: 3.75, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
 
   {
     // Google doubles Flash prices on Jan 1 2027 ($1.50 / $7.50) — update then.
-    id: "google-default", label: "Gemini 3.8 Flash", short: "Flash", description: "Fast all-round help",
+    id: "google-default", label: "Gemini 3.8 Flash", short: "3.8 Flash", description: "Fast all-round help",
     provider: "google", providerLabel: "Google", enabled: true,
     apiModel: "gemini-3.8-flash", inputPrice: 0.75, outputPrice: 3.75, cachedInputPrice: 0.075, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
   {
     // Prices for prompts ≤200k tokens (we never send more).
-    id: "google-pro", label: "Gemini 3.1 Pro", short: "Pro", description: "Reasoning, math and code",
+    id: "google-pro", label: "Gemini 3.1 Pro", short: "3.1 Pro", description: "Reasoning, math and code",
     provider: "google", providerLabel: "Google", enabled: true,
     apiModel: "gemini-3.1-pro-preview", inputPrice: 2, outputPrice: 12, cachedInputPrice: 0.2, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  // More Gemini models (ai.google.dev pricing, paid tier, ≤200k-token prompts; page updated Oct 19 2026).
+  {
+    // Google raises Argon to $4 / $20 (cache $0.20) on Dec 1 2026 — update then.
+    id: "google-gemini-4-argon", label: "Gemini 4 Argon", short: "4 Argon", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-4-argon", inputPrice: 2, outputPrice: 10, cachedInputPrice: 0.1, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "google-3-5-flash-lite", label: "Gemini 3.5 Flash-Lite", short: "3.5 Flash-Lite", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-3.5-flash-lite", inputPrice: 0.3, outputPrice: 2.5, cachedInputPrice: 0.03, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    // Doubles on Jan 1 2027 with 3.8 Flash — update then.
+    id: "google-3-6-flash", label: "Gemini 3.6 Flash", short: "3.6 Flash", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-3.6-flash", inputPrice: 0.75, outputPrice: 3.75, cachedInputPrice: 0.075, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "google-3-1-flash-lite", label: "Gemini 3.1 Flash-Lite", short: "3.1 Flash-Lite", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-3.1-flash-lite", inputPrice: 0.25, outputPrice: 1.5, cachedInputPrice: 0.025, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "google-3-flash-preview", label: "Gemini 3 Flash (preview)", short: "3 Flash", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-3-flash-preview", inputPrice: 0.5, outputPrice: 3, cachedInputPrice: 0.05, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "google-2-5-pro", label: "Gemini 2.5 Pro", short: "2.5 Pro", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-2.5-pro", inputPrice: 1.25, outputPrice: 10, cachedInputPrice: 0.125, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "google-2-5-flash", label: "Gemini 2.5 Flash", short: "2.5 Flash", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-2.5-flash", inputPrice: 0.3, outputPrice: 2.5, cachedInputPrice: 0.03, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "google-2-5-flash-lite", label: "Gemini 2.5 Flash-Lite", short: "2.5 Flash-Lite", description: "",
+    provider: "google", providerLabel: "Google", enabled: true,
+    apiModel: "gemini-2.5-flash-lite", inputPrice: 0.1, outputPrice: 0.4, cachedInputPrice: 0.01, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
 
   {
     id: "xai-default", label: "Grok 4.7", short: "Grok 4.7", description: "xAI's flagship model",
     provider: "xai", providerLabel: "xAI", enabled: true,
     apiModel: "grok-4.7", inputPrice: 2, outputPrice: 6, cachedInputPrice: 0.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  // More Grok models (docs.x.ai models page, <200k-token rates, checked Oct 19 2026). Multi-agent model left out (different API).
+  {
+    id: "xai-grok-4-6", label: "Grok 4.6", short: "Grok 4.6", description: "",
+    provider: "xai", providerLabel: "xAI", enabled: true,
+    apiModel: "grok-4.6", inputPrice: 2, outputPrice: 6, cachedInputPrice: 0.5, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "xai-grok-4-5", label: "Grok 4.5", short: "Grok 4.5", description: "",
+    provider: "xai", providerLabel: "xAI", enabled: true,
+    apiModel: "grok-4.5", inputPrice: 2, outputPrice: 6, cachedInputPrice: 0.3, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "xai-grok-4-3", label: "Grok 4.3", short: "Grok 4.3", description: "",
+    provider: "xai", providerLabel: "xAI", enabled: true,
+    apiModel: "grok-4.3", inputPrice: 1.25, outputPrice: 2.5, cachedInputPrice: 0.2, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "xai-grok-4-20-reasoning", label: "Grok 4.20 Reasoning", short: "Grok 4.20", description: "",
+    provider: "xai", providerLabel: "xAI", enabled: true,
+    apiModel: "grok-4.20-0309-reasoning", inputPrice: 1.25, outputPrice: 2.5, cachedInputPrice: 0.2, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "xai-grok-4-20-fast", label: "Grok 4.20 Non-reasoning", short: "Grok 4.20 Fast", description: "",
+    provider: "xai", providerLabel: "xAI", enabled: true,
+    apiModel: "grok-4.20-0309-non-reasoning", inputPrice: 1.25, outputPrice: 2.5, cachedInputPrice: 0.2, contextTokens: 60_000, maxOutputTokens: 8_000,
+  },
+  {
+    id: "xai-grok-build-0-1", label: "Grok Build 0.1", short: "Grok Build", description: "",
+    provider: "xai", providerLabel: "xAI", enabled: true,
+    apiModel: "grok-build-0.1", inputPrice: 1, outputPrice: 2, cachedInputPrice: 0.2, contextTokens: 60_000, maxOutputTokens: 8_000,
   },
 ];
 
@@ -98,6 +328,26 @@ export const PDF_INPUT: Record<ProviderId, boolean> = { openai: true, anthropic:
 
 // Folder access (browser folder picker + file tools). All four APIs support function calling; switch one off here if needed.
 export const FOLDER_ACCESS: Record<ProviderId, boolean> = { openai: true, anthropic: true, google: true, xai: true };
+
+/**
+ * Model menu layout per app, like the apps' own pickers: these ids first (in this order), every other
+ * enabled model of that app under "More models". Menu order only; each app's default stays modelsFor()[0].
+ */
+export const MENU_MAIN: Record<ProviderId, string[]> = {
+  openai: ["openai-default", "openai-astra", "openai-luna"],
+  anthropic: ["anthropic-opus", "anthropic-default", "anthropic-fable-5-1", "anthropic-haiku-5-5"],
+  google: ["google-default", "google-gemini-4-argon", "google-pro", "google-3-5-flash-lite"],
+  xai: ["xai-default", "xai-grok-4-6", "xai-grok-4-3"],
+};
+/** Model that writes each app's conversation summaries (pinned so new cheap models don't change it silently). */
+export const SUMMARY_MODEL: Record<ProviderId, string> = {
+  openai: "openai-luna",
+  anthropic: "anthropic-haiku-5-5",
+  google: "google-default",
+  xai: "xai-default",
+};
+/** Models that cost far more per answer; the menu marks them so students know before choosing. */
+export const isPremium = (m: ModelOption) => m.outputPrice >= 40;
 
 export const DEFAULT_MODEL_ID = MODELS[0].id;
 export const PROVIDERS: ProviderId[] = ["openai", "anthropic", "google", "xai"];

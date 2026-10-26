@@ -1,3 +1,4 @@
+import { reportedUsage, tokenCount } from "./usage";
 import { readSse } from "./sse";
 import { decodeBase64, errorForStatus, normalizeTurns, parseArgs, ProviderError, toolSchema, type FinishReason, type ChatTurn, type ProviderAdapter, type StreamArgs } from "./types";
 
@@ -35,12 +36,12 @@ function toContent(t: ChatTurn) {
 }
 
 // Used unchanged by generation and counting, including system/tools/video resolution.
-function requestBody({ system, history, maxOutput, tools }: StreamArgs, lowThinking: boolean) {
+function requestBody({ system, history, maxOutput, tools, thinkingLevel }: StreamArgs, lowThinking: boolean) {
   return {
     systemInstruction: { parts: [{ text: system }] },
     contents: normalizeTurns(history).map(toContent),
     ...(tools?.length ? { tools: [{ functionDeclarations: tools.map(toolSchema) }] } : {}),
-    generationConfig: { maxOutputTokens: maxOutput, ...(history.some(t => t.videos?.length) ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}), ...(lowThinking ? { thinkingConfig: { thinkingLevel: "low" } } : {}) },
+    generationConfig: { maxOutputTokens: maxOutput, ...(history.some(t => t.videos?.length) ? { mediaResolution: "MEDIA_RESOLUTION_LOW" } : {}), ...(thinkingLevel || lowThinking ? { thinkingConfig: { thinkingLevel: thinkingLevel ?? "low" } } : {}) },
   };
 }
 
@@ -69,7 +70,7 @@ export const google: ProviderAdapter = {
       signal,
     });
     let res = await call(Boolean(fast));
-    if (fast && res.status === 400) res = await call(false); // a model without thinking settings: ask normally
+    if (fast && !args.thinkingLevel && res.status === 400) res = await call(false); // a model without thinking settings: ask normally
     if (!res.ok || !res.body) throw errorForStatus(res.status);
 
     let usage: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number; cachedContentTokenCount?: number } | undefined;
@@ -97,15 +98,13 @@ export const google: ProviderAdapter = {
       if (ev.usageMetadata) usage = ev.usageMetadata; // cumulative; the last one wins
     }
     if (usage) {
-      const thoughts = usage.thoughtsTokenCount ?? 0;
-      yield {
-        usage: {
-          input: usage.promptTokenCount ?? 0,
-          output: (usage.candidatesTokenCount ?? 0) + thoughts, // thinking is billed as output
-          reasoning: thoughts,
-          cached: usage.cachedContentTokenCount ?? 0,
-        },
-      };
+      const thoughts = usage.thoughtsTokenCount;
+      const output = tokenCount(usage.candidatesTokenCount) && (thoughts == null || tokenCount(thoughts))
+        ? usage.candidatesTokenCount + (thoughts ?? 0) : undefined;
+      const normalized = reportedUsage(usage.promptTokenCount, output, {
+        reasoning: thoughts, cached: usage.cachedContentTokenCount, cacheWrite: 0,
+      });
+      if (normalized) yield { usage: { ...normalized, outputEstimated: !tokenCount(thoughts) } };
     }
     if(finish) yield {finish};
     else throw new ProviderError("incomplete_stream",undefined,true);

@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { FOLDER_ACCESS, IMAGE_MODELS, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
+import { FOLDER_ACCESS, IMAGE_MODELS, MENU_MAIN, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
 import { THEMES } from "@/config/themes";
 import { missedConcepts, type QuizState } from "@/lib/chat/quiz";
 import { answersLeft, answersText, isLow, timesCheaper, typicalAnswerMicros } from "@/lib/billing/estimate";
@@ -11,6 +10,8 @@ import { signOut } from "../login/actions";
 import { ProviderLogo } from "@/components/provider-logo";
 import { OrbitChat } from "@/components/orbit-chat";
 import { ModelMenu } from "@/components/model-menu";
+import { UsageShortcut } from "@/components/usage-meter";
+import { ChatRowMenu } from "@/components/chat-row-menu";
 import { ToolsMenu, type ConnectedApp, type StudyMode } from "@/components/tools-menu";
 import { FolderBrowser } from "@/components/folder-browser";
 import { ProjectDialog } from "@/components/project-dialog";
@@ -21,6 +22,10 @@ import { FolderDialog } from "@/components/folder-dialog";
 import { ExportMenu, type ExportOption } from "@/components/export-menu";
 import { CopyAnswer, Markdown } from "@/components/markdown";
 import { SettingsDialog, type SettingsTab } from "@/components/settings-dialog";
+import { ImagePending, PendingIndicator } from "@/components/pending-indicator";
+import { AppRail, AppSwitcher, RunDot } from "@/components/app-rail";
+import { SidebarSection } from "@/components/sidebar-section";
+import { CourseChatTree } from "@/components/course-chat-tree";
 import { AccountMenu } from "@/components/account-menu";
 import { VoiceButton } from "@/components/voice-button";
 import { SpeakButton } from "@/components/speak-button";
@@ -70,16 +75,15 @@ type Message = {
 };
 type Pending = { key: string; file?: UploadedFile; name: string; uploading: boolean; error?: string };
 type ChatSettings = { mode: StudyMode; courseOnly: boolean; web?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null };
-type ConvSummary = { id: string; title: string; modelId: string; projectId: string | null; updatedAt: string };
-type Project = { id: string; name: string; instructions: string };
-type Usage = { live: boolean; liveProviders?: ProviderId[]; allowance: number; spent: number; reserved: number; typical?: Record<string, number>; allowanceCad?: number | null; usdCadRate?: number | null; expiresAt?: string | null };
+type ConvSummary = { id: string; title: string; modelId: string; projectId: string | null; sectionFolderId?: string | null; updatedAt: string };
+type Project = { id: string; name: string; instructions: string; parent_course_id?: string | null };
+type Usage = import("@/components/usage-meter").UsageData & { live: boolean; liveProviders?: ProviderId[]; allowance: number; spent: number; reserved: number; typical?: Record<string, number>; allowanceCad?: number | null; usdCadRate?: number | null; expiresAt?: string | null };
 
 const APP_KEY = "polar.app.v1";
 const SIDEBAR_KEY = "orbit.sidebar.collapsed";
 const DRAFT = "draft"; // messages key for a chat that hasn't been saved yet
 const tmpId = () => `tmp-${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
 const perProvider = <T,>(v: () => T) => Object.fromEntries(PROVIDERS.map((p) => [p, v()])) as Record<ProviderId, T>;
-const dollars = (micros: number) => `US$${(micros / 1_000_000).toFixed(2)}`;
 
 function errorText(code: string, label: string, appName: string): string {
   switch (code) {
@@ -96,9 +100,12 @@ function errorText(code: string, label: string, appName: string): string {
     case "provider_disabled": return `${appName} is turned off by the team right now. Try another app on the left.`;
     case "no_image_model": return `${appName} can't make images.`;
     case "message_too_long": return "That message is too long. Try splitting it up.";
+    case "section_unavailable": return "This section was removed. You can read the saved chat, then start a new chat in a current section.";
     case "model_unavailable": return `${label} isn't available on this API key. Pick another model in the menu.`;
     case "auth": return `${appName} rejected the API key. It may have expired or been revoked.`;
     case "rate_limit": return `${appName} is rate-limiting us or the API account is out of credit. Try again shortly.`;
+    case "search_in_progress": return "A search for this question is already running or was already attempted. Wait for it to finish; if the reply cannot continue, send a new message.";
+    case "search_save_failed": return "The search finished, but its results could not be saved. Send a new message to try again.";
     case "reserve_failed": return "Couldn't check your budget. Make sure the database migrations have been run.";
     case "db_setup": return "The database isn't fully set up yet. Run every file in supabase/migrations in order in the Supabase SQL Editor.";
     case "bad_request": return `${label} couldn't handle that request.`;
@@ -118,13 +125,14 @@ const STARTERS: { label: string; icon: string; text: string; mode?: StudyMode; u
   { label: "Plan my week", icon: "🗓️", text: "Help me plan my study week. My deadlines and exams are: " },
 ];
 
-export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: string; userId: string; onCourses?: () => void; courseLaunch?: (import("@/lib/courses/types").CourseLaunch & {key:number}) | null }) {
+export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunch }: { email: string; isAdmin?: boolean; userId: string; onCourses?: () => void; courseLaunch?: (import("@/lib/courses/types").CourseLaunch & {key:number}) | null }) {
   const router = useRouter();
   const [provider, setProvider] = useState<ProviderId>("openai");
   const [orbitMode, setOrbitMode] = useState(false);
   const [convs, setConvs] = useState<Record<ProviderId, ConvSummary[] | null>>(() => perProvider<ConvSummary[] | null>(() => null));
   const [projects, setProjects] = useState<Record<ProviderId, Project[]>>(() => perProvider<Project[]>(() => []));
   const [courseProjects, setCourseProjects] = useState<Project[]>([]);
+  const [quizReadyIds, setQuizReadyIds] = useState<Set<string>>(() => new Set());
   const [activeIds, setActiveIds] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [projectFilter, setProjectFilter] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [draftModels, setDraftModels] = useState<Record<ProviderId, string>>(() =>
@@ -148,7 +156,13 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       localStorage.setItem(SIDEBAR_KEY, next ? "1" : "0");
     } catch {}
   }
-  const [busy, setBusy] = useState(false);
+  // One answer runs at a time, but the student can move around the app while it does. run = the chat it belongs to.
+  const [run, setRun] = useState<{ key: string; provider: ProviderId } | null>(null);
+  const runRef = useRef<{ key: string; provider: ProviderId } | null>(null);
+  const [finished, setFinished] = useState<Record<string, ProviderId>>({}); // answered while the student was elsewhere
+  const [orbitDot, setOrbitDot] = useState<"running" | "done" | null>(null);
+  const [orbitLoaded, setOrbitLoaded] = useState(false); // Orbit mounts on first visit, then stays mounted
+  const viewKeyRef = useRef("");
   const [usage, setUsage] = useState<Usage | null>(null);
   const [ready, setReady] = useState(false); // saved app choice restored
   const [projectDialog, setProjectDialog] = useState<null | { editing?: Project }>(null);
@@ -205,12 +219,22 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   const theme = THEMES[provider];
   const appConvs = convs[provider];
   const filter = projectFilter[provider];
-  const visibleConvs = (appConvs ?? []).filter((c) => !filter || c.projectId === filter);
+  const groupProjectId = (id: string | null) => projects[provider].find(p => p.id === id)?.parent_course_id ?? id;
+  const courseIds = new Set(courseProjects.map(c => c.id));
+  const folderFilter = projects[provider].find(p => p.id === filter);
+  const courseFilter = Boolean(filter && (courseIds.has(filter) || folderFilter?.parent_course_id));
+  const visibleConvs = (appConvs ?? []).filter(c => !courseIds.has(c.projectId ?? '') && (!filter || courseFilter || c.projectId === filter));
   const activeId = activeIds[provider];
   const active = appConvs?.find((c) => c.id === activeId) ?? null;
+  const openedChatRef = useRef<string | null>(null);
+  useEffect(() => { openedChatRef.current = active?.id ?? null; }, [active?.id]);
   const msgKey = active ? active.id : `${DRAFT}:${provider}`;
+  const busy = run !== null && run.key === msgKey; // this chat's answer is still running
+  const otherRunning = run !== null && !busy;      // an answer is running in another chat
   const thread = messages[msgKey] ?? [];
-  const modelId = getModel(active?.modelId) ? active!.modelId : draftModels[provider];
+  // Each app uses only its own models; a chat saved with another AI's model (before Oct 19 2026) continues on this app's choice.
+  const savedModel = getModel(active?.modelId);
+  const modelId = savedModel?.enabled && savedModel.provider === provider ? savedModel.id : draftModels[provider];
   const generationProvider = getModel(modelId)?.provider ?? provider;
   const currentModel = getModel(modelId);
   const empty = thread.length === 0;
@@ -353,7 +377,8 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       setConvs(prev=>({...prev,[p]:c.conversations??[]}));setProjects(prev=>({...prev,[p]:projects.projects??[]}));
       setProvider(p);setOrbitMode(false);setPage("chat");setImageMode(false);setPending([]);
       setProjectFilter(prev=>({...prev,[p]:(courseLaunch.folder?.id ?? courseLaunch.course.id)}));setActiveIds(prev=>({...prev,[p]:courseLaunch.conversationId??null}));
-      setInput(courseLaunch.prompt+(courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
+      if (courseLaunch.conversationId) setQuizReadyIds(previous => { const next = new Set(previous); if (courseLaunch.startQuiz) next.add(courseLaunch.conversationId!); else next.delete(courseLaunch.conversationId!); return next; });
+      setInput(courseLaunch.prompt+(courseLaunch.startQuiz?"":courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
     }).catch(()=>alertLine("Could not open the course chat. Please try again."));
     return()=>{cancelled=true;};
   },[courseLaunch,ready]);
@@ -397,7 +422,12 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     (async () => {
       const res = await fetch(`/api/conversations/${id}`).catch(() => null);
       if (!res || handleAuth(res) || !res.ok) return;
-      const out = (await res.json()) as { messages: Message[]; mode?: StudyMode; courseOnly?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null };
+      const out = (await res.json()) as { messages: Message[]; mode?: StudyMode; courseOnly?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null; quizStartReady?: boolean };
+      setQuizReadyIds(previous => { const next = new Set(previous); if (out.quizStartReady) next.add(id); else next.delete(id); return next; });
+      if (out.quizStartReady) {
+        if (active.projectId) void fetch(`/api/courses/${active.projectId}/quiz?conversationId=${id}`)
+          .then(r => r.ok ? r.json() : null).then(data => { if (data?.prompt && openedChatRef.current === id) setInput(current => current || data.prompt); }).catch(() => {});
+      }
       const withActivity = out.messages.map((m) =>
         m.toolLog?.length ? { ...m, toolContextCompacted: m.toolLog.some(t => t.contextLimited), activity: m.toolLog.map((t, i) => ({ id: `${m.id}-${i}`, name: t.name, label: t.label, status: t.status, code: t.code, stdout: t.output, links: t.links })) } : m,
       );
@@ -435,6 +465,21 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
 
   const setActive = (id: string | null) => setActiveIds((prev) => ({ ...prev, [provider]: id }));
 
+  // Which chat the student is looking at, for the running (orange) / finished-unseen (blue) dots.
+  useEffect(() => { if (orbitMode) setOrbitLoaded(true); }, [orbitMode]); // eslint-disable-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    viewKeyRef.current = orbitMode ? "" : msgKey;
+    if (!orbitMode) setFinished((f) => { if (!(msgKey in f)) return f; const next = { ...f }; delete next[msgKey]; return next; }); // eslint-disable-line react-hooks/set-state-in-effect
+  }, [msgKey, orbitMode]);
+  function startRun(key: string) { runRef.current = { key, provider }; setRun(runRef.current); }
+  function moveRun(from: string, to: string) { if (runRef.current?.key === from) { runRef.current = { ...runRef.current, key: to }; setRun(runRef.current); } }
+  function endRun() {
+    const r = runRef.current;
+    runRef.current = null;
+    setRun(null);
+    if (r && viewKeyRef.current !== r.key) setFinished((f) => ({ ...f, [r.key]: r.provider }));
+  }
+
   function adoptConversation(newId: string, title: string, fromKey: string) {
     setMessages((prev) => {
       const next = { ...prev, [newId]: prev[fromKey] ?? [] };
@@ -447,10 +492,12 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       const existing = list.find((c) => c.id === newId);
       const summary: ConvSummary = existing
         ? { ...existing, modelId, updatedAt: new Date().toISOString() }
-        : { id: newId, title, modelId, projectId: filter, updatedAt: new Date().toISOString() };
+        : { id: newId, title, modelId, projectId: groupProjectId(filter), sectionFolderId: folderFilter?.parent_course_id ? folderFilter.id : null, updatedAt: new Date().toISOString() };
       return { ...prev, [provider]: [summary, ...list.filter((c) => c.id !== newId)] };
     });
-    setActive(newId);
+    moveRun(fromKey, newId);
+    // Follow the new chat only if the student is still looking at it (they may have moved on while it answers).
+    if (viewKeyRef.current === fromKey) setActive(newId);
   }
 
   async function setModel(id: string) {
@@ -463,7 +510,6 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   }
 
   function pickProvider(p: ProviderId) {
-    if (busy) return;
     setProvider(p);
     setInput("");
     setImageMode(false);
@@ -499,7 +545,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   async function moveToProject(id: string, projectId: string | null) {
     const res = await fetch(`/api/conversations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ projectId }) });
     if (!res.ok) alertLine("Couldn't move the chat. Make sure migration 0002 has been run.");
-    else setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).map((c) => (c.id === id ? { ...c, projectId } : c)) }));
+    else setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).map((c) => (c.id === id ? { ...c, projectId: groupProjectId(projectId), sectionFolderId: projects[provider].find(p => p.id === projectId)?.parent_course_id ? projectId : null } : c)) }));
   }
 
   function selectCourse(id: string | null) {
@@ -644,7 +690,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   const busyRef = useRef(false);
   const sendRef = useRef(send);
   useEffect(() => {
-    busyRef.current = busy;
+    busyRef.current = run !== null;
     sendRef.current = send;
   });
   const sendByVoice = useCallback(async (text: string) => {
@@ -654,14 +700,18 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
 
   // ---------------------------------------------------------------- sending
   async function send(text: string, retry = false, opts: { voice?: boolean; edit?: boolean } = {}) {
-    const content = text.trim();
+    // A ready quiz has no saved first user turn. Retry the optimistic question as
+    // a fresh first turn; the normal regeneration path requires a saved turn.
+    const readyQuizRetry = Boolean(retry && active?.id && quizReadyIds.has(active.id));
+    const priorQuestion = readyQuizRetry ? [...(messages[msgKey] ?? [])].reverse().find(m => m.role === "user") : null;
+    const content = text.trim() || (readyQuizRetry ? priorQuestion?.content?.trim() ?? "" : "");
     const ready = pending.filter((p) => p.file);
-    if ((!content && !retry && !ready.length) || busy || pending.some((p) => p.uploading)) return;
+    if ((!content && (!retry || readyQuizRetry) && !ready.length) || runRef.current || pending.some((p) => p.uploading)) return;
     const key = msgKey;
     const label = currentModel?.label ?? theme.appName;
     stick.current = true; // a new question always brings the view to the bottom
 
-    const attachmentIds = retry || imageMode ? [] : ready.map((p) => p.file!.id);
+    const attachmentIds = readyQuizRetry ? (priorQuestion?.attachments ?? []).map(a => a.id) : retry || imageMode ? [] : ready.map((p) => p.file!.id);
     if (!retry) {
       const attachments = imageMode ? [] : ready.map((p) => ({ id: p.file!.id, name: p.file!.name, kind: p.file!.kind, status: p.file!.status, error: p.file!.error }));
       patchMessages(key, (m) => [...m, { id: tmpId(), role: "user", kind: "text", content, status: "complete", attachments }]);
@@ -686,12 +736,13 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     let convId = active?.id;
     const patchReply = (fn: (m: Message) => Message) => patchMessages(currentKey, (list) => list.map((x) => (x.id === replyTmp ? fn(x) : x)));
 
-    setBusy(true);
+    startRun(key);
     const controller = new AbortController();
     abortRef.current = controller;
 
     // Folder tools only with the browser's permission. If it lapsed, this click lets the browser ask again.
-    let link = FOLDER_ACCESS[generationProvider] ? folder : null;
+    const quizRequest = Boolean(active?.id && quizReadyIds.has(active.id)) || chatSettings.mode === "quiz";
+    let link = !quizRequest && FOLDER_ACCESS[generationProvider] ? folder : null;
     if (link) {
       const ok = (await permission(link.handle, true).catch(() => "denied")) === "granted";
       setFolderOnline(ok);
@@ -711,10 +762,12 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     // An @-mentioned plugin is used for this message even if it's switched off for chats.
     const plugins = extensions.ext.plugins.filter((p) => (p.enabled || mentions.includes(p.id)) && PLUGIN_BY_ID.get(p.id)?.tools.length && pluginConfigured(PLUGIN_BY_ID.get(p.id)!)).map((p) => p.id);
     const skills = activeSkills(extensions.ext);
-    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: chatSettings.mode, courseOnly: chatSettings.courseOnly, web: Boolean(chatSettings.web), code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
-      plugins: plugins.length ? plugins : undefined, skills: skills.length ? skills : undefined,
-      mentions: mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
-    let body: object = { ...common, content, retry, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
+    const firstQuizTurn = Boolean(convId && quizReadyIds.has(convId) && (!retry || readyQuizRetry));
+    const quizTurn = firstQuizTurn || chatSettings.mode === "quiz";
+    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: quizTurn || chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
+      plugins: !quizTurn && plugins.length ? plugins : undefined, skills: !quizTurn && skills.length ? skills : undefined,
+      mentions: !quizTurn && mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
+    let body: object = { ...common, content, retry: retry && !readyQuizRetry, startQuiz: firstQuizTurn, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
     const steps: Step[] = [];
     const dataCache = new Map<string, RunFile>(); // data files downloaded once per reply
     try {
@@ -795,9 +848,16 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       const stopped = (e as Error).name === "AbortError";
       patchReply((m) => ({ ...m, status: stopped ? "partial" : "error", error: stopped ? undefined : errorText("unknown", label, theme.appName) }));
     } finally {
+      if (firstQuizTurn && convId) {
+        const checked = await fetch(`/api/conversations/${convId}`).catch(() => null);
+        if (checked?.ok) {
+          const status = await checked.json().catch(() => null);
+          setQuizReadyIds(previous => { const next = new Set(previous); if (status?.quizStartReady) next.add(convId!); else next.delete(convId!); return next; });
+        }
+      }
       for (const decide of approvals.current.values()) decide(false);
       approvals.current.clear();
-      setBusy(false);
+      endRun();
       abortRef.current = null;
       loadUsage();
     }
@@ -825,6 +885,12 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       };
       if (signal.aborted) {
         results.push({ id: c.id, name: c.name, output: "Stopped by the student.", status: "declined" });
+        continue;
+      }
+      if (c.name === "web_search") {
+        // The next authenticated chat round performs the search and replaces this placeholder.
+        setAct({status:"ok",detail:"Request sent; the server will supply search results."});
+        results.push({id:c.id,name:c.name,output:"Search requested. Await server-provided results.",status:"ok"});
         continue;
       }
       if (isCodeTool(c.name)) {
@@ -999,7 +1065,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     const replyTmp = tmpId();
     patchMessages(key, (m) => [...m, { id: replyTmp, role: "assistant", kind: "image", content: prompt, modelId: `${provider}-image`, status: "streaming" }]);
     let currentKey = key;
-    setBusy(true);
+    startRun(key);
     try {
       const res = await fetch("/api/images", {
         method: "POST",
@@ -1020,7 +1086,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
         ),
       );
     } finally {
-      setBusy(false);
+      endRun();
       loadUsage();
     }
   }
@@ -1032,7 +1098,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       <span className="h-3 w-3 rounded-[2px] bg-current" />
     </button>
   ) : (
-    <button type="submit" disabled={(!input.trim() && !pending.some((p) => p.file)) || busy || pending.some((p) => p.uploading)} aria-label={imageMode ? "Create image" : "Send"}
+    <button type="submit" disabled={(!input.trim() && !pending.some((p) => p.file)) || run !== null || pending.some((p) => p.uploading)} aria-label={imageMode ? "Create image" : "Send"}
       className={`grid shrink-0 place-items-center bg-brand text-on-brand transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-30 ${theme.sendClass}`}>
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
         <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -1041,8 +1107,8 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   );
 
   // Warn while there's still room to finish the session, in answers rather than dollars, and offer the cheapest model.
-  const remainingNow = usage?.live ? usage.allowance - usage.spent - usage.reserved : Infinity;
-  const cheapest = [...modelsFor(generationProvider)].sort((a, b) => typicalAnswerMicros(a, usage?.typical) - typicalAnswerMicros(b, usage?.typical))[0];
+  const remainingNow = usage?.live ? (usage.available ?? usage.allowance - usage.spent - usage.reserved) : Infinity;
+  const cheapest = modelsFor(generationProvider).filter((m) => MENU_MAIN[generationProvider].includes(m.id)).sort((a, b) => typicalAnswerMicros(a, usage?.typical) - typicalAnswerMicros(b, usage?.typical))[0];
   const perAnswer = currentModel ? typicalAnswerMicros(currentModel, usage?.typical) : 0;
   const cheapPerAnswer = cheapest ? typicalAnswerMicros(cheapest, usage?.typical) : 0;
   const offerCheaper = cheapest && cheapest.id !== modelId && remainingNow >= cheapPerAnswer;
@@ -1084,7 +1150,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
     </div>
   );
 
-  const placeholder = imageMode ? "Describe an image" : empty ? `Ask ${theme.appName}` : `Reply to ${theme.appName}…`;
+  const placeholder = otherRunning ? "Another answer is still running. You can type; send when it finishes." : imageMode ? "Describe an image" : empty ? theme.placeholder : theme.replyPlaceholder;
   const installedTools = PLUGINS.filter((p) => p.tools.length && pluginConfigured(p) && extensions.ext.plugins.some((x) => x.id === p.id));
   const mentionOptions = mention ? installedTools.filter((p) => !mentions.includes(p.id) && (p.name.toLowerCase().replace(/\s+/g, "").includes(mention.query.replace(/-/g, "")) || p.id.includes(mention.query))) : [];
   function pickMention(id: PluginId) {
@@ -1209,7 +1275,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M3 9v2M6.5 6.5v7M10 4v12M13.5 6.5v7M17 9v2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
     </button>
   );
-  const modelMenu = imageMode ? null : <ModelMenu provider={generationProvider} value={modelId} onChange={setModel} disabled={busy} />;
+  const modelMenu = imageMode ? null : <ModelMenu provider={generationProvider} app={provider} value={modelId} onChange={setModel} disabled={busy} />;
 
   const composer = (
     <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="relative w-full"
@@ -1220,7 +1286,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
       {lowBalance}
       {quizPanel}
       {theme.inlineComposer ? (
-        <div className={`relative mx-auto max-w-3xl py-2.5 pl-3 pr-3 transition ${theme.composerClass}`}>
+        <div className={`chat-column relative mx-auto max-w-3xl py-2.5 pl-3 pr-3 transition ${theme.composerClass}`}>
           {mentionMenu}
           {(pendingChips || mentionChips) && <div className="px-2 pt-1">{mentionChips}{pendingChips}</div>}
           <div className="flex items-center gap-1.5">
@@ -1233,7 +1299,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
           </div>
         </div>
       ) : (
-        <div className={`relative mx-auto max-w-3xl p-2.5 pl-4 transition ${theme.composerClass}`}>
+        <div className={`chat-column relative mx-auto max-w-3xl p-2.5 pl-4 transition ${theme.composerClass}`}>
           {mentionMenu}
           {mentionChips}
           {pendingChips}
@@ -1254,42 +1320,50 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
   const sidebarIcon = (
     <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><rect x="2.75" y="3.75" width="14.5" height="12.5" rx="2.25" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M7.75 4v12" stroke="currentColor" strokeWidth="1.5" /></svg>
   );
-  const remaining = usage?.live ? usage.allowance - usage.spent - usage.reserved : 0;
-  const usedPct = usage?.live && usage.allowance > 0 ? Math.min(100, ((usage.spent + usage.reserved) / usage.allowance) * 100) : 0;
 
-  if (orbitMode) return <OrbitChat userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null} onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />;
+  const settingsDialog = (
+    <SettingsDialog
+      open={settingsOpen !== null}
+      tab={settingsOpen ?? undefined}
+      onClose={() => setSettingsOpen(null)}
+      email={email}
+      appName={theme.appName}
+      courses={projects[provider]}
+      memoryVersion={memoryVersion}
+      isAdmin={isAdmin}
+      signOut={signOut}
+      onPlugins={() => { setOrbitMode(false); openPlugins(); }}
+      onImported={(p) => setConvs((prev) => ({ ...prev, [p]: null }))} // null = reload that app's chat list (now with the imported chats)
+      onOpenCourse={(id) => {
+        const p = projects[provider].find((x) => x.id === id);
+        setSettingsOpen(null);
+        if (p) openCourse(p);
+      }}
+    />
+  );
+  const railDots: Partial<Record<ProviderId | "orbit", "running" | "done">> = {
+    ...Object.fromEntries(Object.values(finished).map((p) => [p, "done"])),
+    ...(orbitDot ? { orbit: orbitDot } : {}),
+    ...(run ? { [run.provider]: "running" } : {}),
+  };
 
   return (
-    <div data-theme={provider} className="flex h-dvh bg-surface-000 font-ui text-ink">
+    <>
+    {(orbitMode || orbitLoaded) && <div hidden={!orbitMode}>
+      <OrbitChat onUsage={() => setSettingsOpen("usage")} visible={orbitMode} dots={railDots} onActivity={setOrbitDot} userId={userId} onCourses={onCourses} courseLaunch={courseLaunch?.provider === "orbit" ? courseLaunch : null}
+        account={(compact) => <AccountMenu compact={compact} isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("general")} signOut={signOut} />}
+        onSelectProvider={(p) => { setOrbitMode(false); pickProvider(p); }} />
+    </div>}
+    <div data-theme={provider} hidden={orbitMode} className="flex h-dvh bg-surface-000 font-ui text-ink">
       {/* App rail */}
-      <nav aria-label="AI apps" className="hidden w-[76px] shrink-0 flex-col items-center gap-3 border-r border-line bg-surface-100 py-4 md:flex">
-        <Image src="/brand/orbit-mark.png" alt="Orbit AI" width={32} height={32} className="logo-mono mb-3 h-8 w-8 object-contain" />
-        <button onClick={() => setOrbitMode(true)} disabled={busy} title="Orbit mode" className="flex flex-col items-center gap-1 disabled:opacity-50">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl border border-line text-2xl text-brand hover:bg-surface-200">◎</span>
-          <span className="text-[11px] text-ink-muted">Orbit</span>
-        </button>
-        {PROVIDERS.map((p) => {
-          const on = p === provider;
-          return (
-            <button key={p} onClick={() => pickProvider(p)} disabled={busy && !on} aria-pressed={on} title={THEMES[p].appName}
-              className="group flex flex-col items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50">
-              <span className={`grid h-11 w-11 place-items-center rounded-2xl border transition ${on ? "border-line-strong bg-surface-300 shadow-composer" : "border-transparent group-hover:bg-surface-200"}`}>
-                <ProviderLogo provider={p} size={24} />
-              </span>
-              <span className={`text-[11px] ${on ? "font-semibold text-ink" : "text-ink-subtle group-hover:text-ink-muted"}`}>{THEMES[p].appName}</span>
-            </button>
-          );
-        })}
-        <div className="mt-auto">
-          <AccountMenu compact email={email} onSettings={() => setSettingsOpen("profile")} signOut={signOut} />
-        </div>
-      </nav>
+      <AppRail active={provider} dots={railDots} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider}
+        account={<AccountMenu compact isAdmin={isAdmin} email={email} onSettings={() => setSettingsOpen("general")} signOut={signOut} />} />
 
       {/* This app's projects + chats */}
       <aside className={`fixed inset-y-0 left-0 z-30 flex w-72 flex-col bg-surface-100 transition-transform md:static md:translate-x-0 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"} ${collapsed ? "md:hidden" : ""}`}>
         <div className="flex items-center gap-2.5 px-5 pb-3 pt-5">
           <ProviderLogo provider={provider} size={22} />
-          <span className="text-[22px] font-normal tracking-tight">{theme.appName}</span>
+          <span className={theme.sidebarTitleClass}>{theme.appName}</span>
           <button onClick={() => setSidebarOpen(false)} className="ml-auto rounded-md p-1 text-ink-muted hover:text-ink md:hidden" aria-label="Close menu">
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
           </button>
@@ -1298,10 +1372,16 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
           </button>
         </div>
         <div className="px-3">
-          <button onClick={newChat} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 ${theme.itemClass}`}>
-            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>
-              <path d="M11.5 4.5H5.5a1.5 1.5 0 0 0-1.5 1.5v8.5A1.5 1.5 0 0 0 5.5 16H14a1.5 1.5 0 0 0 1.5-1.5v-6M13.6 3.4a1.4 1.4 0 0 1 2 2L10 11l-2.6.6.6-2.6 5.6-5.6z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+          <button onClick={newChat} className={`group/new flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 ${theme.itemClass}`}>
+            {theme.newChatAccent ? (
+              <span aria-hidden className="-ml-0.5 grid h-[22px] w-[22px] place-items-center rounded-full bg-brand text-on-brand transition-transform group-hover/new:rotate-90">
+                <svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
+              </span>
+            ) : (
+              <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>
+                <path d="M11.5 4.5H5.5a1.5 1.5 0 0 0-1.5 1.5v8.5A1.5 1.5 0 0 0 5.5 16H14a1.5 1.5 0 0 0 1.5-1.5v-6M13.6 3.4a1.4 1.4 0 0 1 2 2L10 11l-2.6.6.6-2.6 5.6-5.6z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
             New chat
           </button>
           <button onClick={() => { setSearchOpen(true); setSidebarOpen(false); }} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 ${theme.itemClass}`}>
@@ -1309,7 +1389,10 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
             Search chats
             <kbd className="ml-auto hidden font-sans text-xs text-ink-subtle md:inline">{isMac ? "⌘K" : "Ctrl K"}</kbd>
           </button>
-          <button onClick={onCourses} disabled={busy} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] hover:bg-surface-200">Courses workspace ↗</button>
+          <button onClick={onCourses} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50 ${theme.itemClass}`}>
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M2.5 7.5 10 4l7.5 3.5L10 11 2.5 7.5zM5.5 9v3.6c0 1.2 2 2.4 4.5 2.4s4.5-1.2 4.5-2.4V9M17.5 7.5v4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            Courses
+          </button>
           <button onClick={() => openPlugins("plugins")} aria-current={page === "plugins" ? "page" : undefined}
             className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition ${page === "plugins" ? "bg-surface-300" : "hover:bg-surface-200"} ${theme.itemClass}`}>
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden>{[[3, 3], [11, 3], [3, 11], [11, 11]].map(([x, y]) => <rect key={`${x}${y}`} x={x} y={y} width="6" height="6" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.5" />)}</svg>
@@ -1318,75 +1401,50 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
-          <FolderBrowser userId={userId} disabled={busy} onOpen={folder => {
+          <CourseChatTree storageKey="provider-course-tree" courses={courseProjects} folders={projects[provider]} chats={appConvs ?? []} activeId={activeId}
+            onCourse={c => selectCourse(c.id)} onSection={f => selectCourse(f.id)} onChat={c => { setProjectFilter(prev => ({ ...prev, [provider]: c.sectionFolderId ?? c.projectId })); setInput(""); setActive(c.id); setPage("chat"); setSidebarOpen(false); }}
+            renamingId={renaming} onRenameCommit={renameChat} renderChatAction={c => <ChatRowMenu title={c.title || "chat"} folders={projects[provider]} folderId={c.sectionFolderId ?? c.projectId}
+              onRename={() => setRenaming(c.id)} onMove={id => moveToProject(c.id, id)} onDelete={() => deleteChat(c.id)} />} />
+          <FolderBrowser userId={userId} standaloneOnly onOpen={folder => {
             setProjects(prev => Object.fromEntries(PROVIDERS.map(p => [p, [folder, ...prev[p].filter(f => f.id !== folder.id)]])) as Record<ProviderId, Project[]>);
             selectCourse(folder.id);
           }}/>
 
           {/* Chats */}
-          <div className="mt-5 flex items-center justify-between px-3 text-sm text-ink-subtle"><p>{filter ? "Chats in this folder" : "Recents"}</p>{filter && <button className="text-xs underline hover:text-ink" onClick={() => selectCourse(null)}>All chats</button>}</div>
-          <nav className="mt-1 space-y-0.5" aria-label={`${theme.appName} chats`}>
-            {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}
-            {appConvs !== null && visibleConvs.length === 0 && <p className="px-3 py-2 text-sm text-ink-subtle">No chats yet.</p>}
-            {visibleConvs.map((c) => (
-              <div key={c.id} className={`group flex items-center ${theme.itemClass} ${c.id === activeId ? "bg-surface-300 font-medium" : "hover:bg-surface-200"}`}>
-                {renaming === c.id ? (
-                  <input autoFocus defaultValue={c.title} aria-label="Chat name"
-                    onBlur={(e) => renameChat(c.id, e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setRenaming(null); }}
-                    className="min-w-0 flex-1 rounded-lg bg-surface-000 px-3 py-2 text-[15px] outline-none ring-1 ring-brand" />
-                ) : (
-                  <button onClick={() => { setActive(c.id); setPage("chat"); setSidebarOpen(false); }} onDoubleClick={() => setRenaming(c.id)}
-                    aria-current={c.id === activeId ? "page" : undefined} className="min-w-0 flex-1 truncate px-3 py-2.5 text-left text-[15px]">
-                    {c.title || "Untitled"}
-                  </button>
-                )}
-                <button onClick={() => setRenaming(c.id)} aria-label={`Rename ${c.title || "chat"}`}
-                  className="px-1.5 py-1 text-ink-subtle transition hover:text-ink focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M10.5 2.5l3 3L6 13H3v-3z" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" /></svg>
-                </button>
-                <button onClick={() => deleteChat(c.id)} aria-label={`Delete ${c.title || "chat"}`}
-                  className="py-1 pl-1.5 pr-3 text-ink-subtle transition hover:text-danger focus-visible:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                  <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                </button>
-              </div>
-            ))}
-          </nav>
+          <SidebarSection storageKey="recents" title="Chats"
+            actionVisible action={filter ? <button type="button" className="rounded-lg px-2 py-1 text-xs text-ink-muted transition hover:bg-surface-300 hover:text-ink" onClick={() => selectCourse(null)}>Show all</button> : undefined}>
+            <nav className="space-y-0.5" aria-label={`${theme.appName} chats`}>
+              {appConvs === null && <p className="px-3 py-2 text-sm text-ink-subtle">Loading…</p>}
+              {appConvs !== null && visibleConvs.length === 0 && <p className="px-3 py-2 text-sm text-ink-subtle">No chats yet.</p>}
+              {visibleConvs.map((c) => (
+                <div key={c.id} className={`group flex items-center transition-colors ${theme.itemClass} ${c.id === activeId ? "bg-surface-300 font-medium" : "hover:bg-surface-200"}`}>
+                  {renaming === c.id ? (
+                    <input autoFocus defaultValue={c.title} aria-label="Chat name"
+                      onBlur={(e) => renameChat(c.id, e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") setRenaming(null); }}
+                      className="min-w-0 flex-1 rounded-lg bg-surface-000 px-3 py-2 text-[15px] outline-none ring-1 ring-brand" />
+                  ) : (
+                    <button onClick={() => { setActive(c.id); setPage("chat"); setSidebarOpen(false); }} onDoubleClick={() => setRenaming(c.id)}
+                      aria-current={c.id === activeId ? "page" : undefined} className="min-w-0 flex-1 truncate px-3 py-2 text-left text-[15px]">
+                      <span className="flex min-w-0 items-center gap-2"><span className="truncate">{c.title || "Untitled"}</span>{run?.key === c.id ? <RunDot state="running" /> : finished[c.id] ? <RunDot state="done" /> : null}</span>
+                    </button>
+                  )}
+                  <div className="pr-1.5">
+                    <ChatRowMenu title={c.title || "chat"} folders={projects[provider]} folderId={c.projectId ?? null}
+                      onRename={() => setRenaming(c.id)} onMove={(id) => moveToProject(c.id, id)} onDelete={() => deleteChat(c.id)} />
+                  </div>
+                </div>
+              ))}
+            </nav>
+          </SidebarSection>
         </div>
 
-        {/* Usage */}
-        <div className="m-3 rounded-2xl bg-surface-200 p-4 text-sm">
-          <div className="mb-1.5 flex justify-between">
-            <span className="font-medium">{usage?.live ? "Budget" : "Demo mode"}</span>
-            <span className="tabular-nums text-ink-muted">
-              {usage?.live ? `USD ${dollars(remaining)} left of USD ${dollars(usage.allowance)}` : "Replies are fake"}
-            </span>
-          </div>
-          {usage?.live && currentModel && (
-            <p className="mb-1.5 text-xs text-ink-muted">
-              {answersText(answersLeft(remaining, currentModel, usage.typical)).replace(/^about/, "About")} with {currentModel.short}
-              {usage.reserved > 0 && " · a reply is in progress"}
-            </p>
-          )}
-          <div className="h-1.5 overflow-hidden rounded-full bg-surface-300" role="meter" aria-label="Budget used"
-            aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(usedPct)}>
-            <div className="h-full rounded-full bg-brand transition-all" style={{ width: `${usedPct}%` }} />
-          </div>
-          {usage?.live && (
-            <details className="mt-2 text-xs text-ink-muted">
-              <summary className="cursor-pointer select-none text-ink-subtle hover:text-ink-muted">How your budget works</summary>
-              <ul className="mt-1.5 list-disc space-y-1 pl-4">
-                <li>Each answer costs a little, based on how long the chat, files and answer are. Bigger models cost more per answer.</li>
-                <li>A cost estimate is set aside before each reply. Provider usage determines the final charge and unused credit is released.</li>
-                <li>Long chats and big files cost more per answer. Starting a new chat, or a cheaper model, makes your budget last longer.</li>
-                <li>If a request is rejected, its credit is released. If the provider outcome is unknown, the full estimate may be charged until reviewed.</li>
-              </ul>
-            </details>
-          )}
+        <div className="shrink-0 px-3 py-2">
+          <UsageShortcut onClick={() => { setSidebarOpen(false); setSettingsOpen("usage"); }} />
         </div>
         {/* Phone: account at the bottom of the menu (computers have it at the bottom of the app rail) */}
         <div className="border-t border-line px-3 py-2 md:hidden">
-          <AccountMenu email={email} onSettings={() => { setSidebarOpen(false); setSettingsOpen("profile"); }} signOut={signOut} />
+          <AccountMenu isAdmin={isAdmin} email={email} onSettings={() => { setSidebarOpen(false); setSettingsOpen("general"); }} signOut={signOut} />
         </div>
       </aside>
       {sidebarOpen && <div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={() => setSidebarOpen(false)} />}
@@ -1405,7 +1463,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                 <button onClick={() => toggleSidebar(false)} className="rounded-lg p-1.5 text-ink-muted hover:bg-surface-200 hover:text-ink" aria-label="Open sidebar" title="Open sidebar">{sidebarIcon}</button>
               </div>
             )}
-            <PluginsPage key={pluginsTab} ext={extensions} appName={theme.appName} initialTab={pluginsTab}
+            <PluginsPage key={pluginsTab} ext={extensions} appName={theme.appName} initialTab={pluginsTab} isAdmin={isAdmin}
               onTry={(prompt) => { newChat(); setInput(prompt); }} />
           </>
         ) : (<>
@@ -1430,30 +1488,13 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
               <span className="truncate">{activeProject.name}</span>
             </button>
           )}
-          {active && projects[provider].length > 0 && (
-            <label className="ml-auto hidden items-center gap-1.5 text-xs text-ink-subtle sm:flex">
-              Folder
-              <select value={active.projectId ?? ""} onChange={(e) => moveToProject(active.id, e.target.value || null)}
-                className="rounded-full border border-line bg-surface-100 px-2.5 py-1 text-xs text-ink outline-none">
-                <option value="">None</option>
-                {activeProject && !activeProjectIsFolder && <option value={activeProject.id}>Course: {activeProject.name}</option>}
-                {projects[provider].map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </label>
-          )}
           {exportable.some((m) => m.role === "assistant") && (
-            <div className={active && projects[provider].length > 0 ? "" : "ml-auto"}>
+            <div className="ml-auto hidden sm:block">
               <ExportMenu label="Export" options={chatOptions()} align="right" />
             </div>
           )}
-          <div className={`flex gap-1 md:hidden ${(active && projects[provider].length > 0) || exportable.some((m) => m.role === "assistant") ? "" : "ml-auto"}`} role="group" aria-label="AI apps">
-            <button onClick={() => setOrbitMode(true)} disabled={busy} aria-label="Orbit mode" className="grid h-9 w-9 place-items-center rounded-xl text-xl text-brand">◎</button>
-            {PROVIDERS.map((p) => (
-              <button key={p} onClick={() => pickProvider(p)} disabled={busy && p !== provider} aria-pressed={p === provider} aria-label={THEMES[p].appName}
-                className={`grid h-9 w-9 place-items-center rounded-xl ${p === provider ? "bg-surface-300" : ""}`}>
-                <ProviderLogo provider={p} size={20} />
-              </button>
-            ))}
+          <div className="ml-auto md:hidden">
+            <AppSwitcher active={provider} dots={railDots} onOrbit={() => setOrbitMode(true)} onProvider={pickProvider} />
           </div>
         </header>
 
@@ -1508,7 +1549,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
         ) : (
           <>
             <div ref={scrollRef} onScroll={onThreadScroll} className="relative flex-1 overflow-y-auto">
-              <div className="mx-auto max-w-3xl px-4 py-6">
+              <div className="chat-column chat-transcript mx-auto max-w-3xl px-4 py-6">
                 {active && (dropped[active.id] || chatSettings.summarized) && (
                   <p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">
                     {chatSettings.summaryIncomplete ? "Some earlier messages have not been summarized yet. Full history is saved; ask again or restate any important details." : chatSettings.summarized
@@ -1567,8 +1608,8 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                       );
                     }
                     return (
-                      <li key={m.id} className="relative">
-                        {theme.replyAvatar && m.kind === "text" && <span aria-hidden className="absolute -left-11 top-0.5 hidden lg:block"><ProviderLogo provider={provider} size={26} /></span>}
+                      <li key={m.id} className="msg-in relative">
+                        {theme.replyAvatar && m.kind === "text" && <span aria-hidden className={`absolute -left-11 top-0.5 hidden lg:block ${m.status === "streaming" && !m.content ? "pending-spin" : ""}`}><ProviderLogo provider={provider} size={26} /></span>}
                         {switched && (
                           <div role="separator" className="mb-4 flex items-center gap-3 text-xs text-ink-subtle">
                             <span className="h-px flex-1 bg-line" />
@@ -1585,7 +1626,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                         )}
                         {m.kind === "image" ? (
                           m.status === "streaming" ? (
-                            <div className="grid aspect-square w-full max-w-sm animate-pulse place-items-center rounded-2xl bg-surface-200 text-sm text-ink-subtle">Creating image…</div>
+                            <ImagePending />
                           ) : m.imageUrl ? (
                             <a href={m.imageUrl} target="_blank" rel="noreferrer" className="block w-full max-w-sm">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1596,7 +1637,11 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
                           )
                         ) : (
                           <div className={`${theme.replyClass} ${m.status === "streaming" ? "md-streaming" : ""}`} aria-busy={m.status === "streaming"}>
-                            {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} /> : m.status === "streaming" && <span aria-label="Writing" className="orbit-caret inline-block h-3 w-3 rounded-full bg-ink align-middle" />}
+                            {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
+                              onAnswer: (answer) => { void send(answer); },
+                              answers: thread.slice(idx + 1).filter((turn) => turn.role === "user").map((turn) => turn.content),
+                              disabledReason: m.status !== "complete" ? "Wait for the question to finish." : run !== null ? "Wait for the current reply." : imageMode ? "Switch to text chat to answer." : input.trim() || pending.length ? "Send or clear your draft and attachments first." : undefined,
+                            }} /> : m.status === "streaming" && <PendingIndicator provider={provider} />}
                             {m.status === "partial" && <span className="ml-1 text-xs text-ink-subtle">{m.finishReason==="length"?"[Reply reached its output limit]":"[Incomplete reply]"}</span>}
                           </div>
                         )}
@@ -1710,21 +1755,6 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
         }} />
       <GitHubDialog open={githubOpen} onClose={() => setGithubOpen(false)} onPicked={(files) => void attachFiles(files)} />
       <OneDriveDialog open={oneDriveOpen} onClose={() => setOneDriveOpen(false)} onPicked={(files) => void attachFiles(files)} />
-      <SettingsDialog
-        open={settingsOpen !== null}
-        tab={settingsOpen ?? undefined}
-        onClose={() => setSettingsOpen(null)}
-        email={email}
-        appName={theme.appName}
-        courses={projects[provider]}
-        memoryVersion={memoryVersion}
-        onImported={(p) => setConvs((prev) => ({ ...prev, [p]: null }))} // null = reload that app's chat list (now with the imported chats)
-        onOpenCourse={(id) => {
-          const p = projects[provider].find((x) => x.id === id);
-          setSettingsOpen(null);
-          if (p) openCourse(p);
-        }}
-      />
       <ProjectDialog
         open={projectDialog !== null}
         initial={projectDialog?.editing}
@@ -1740,5 +1770,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
         <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-surface-000 shadow-menu">{notice}</div>
       )}
     </div>
+    {settingsDialog}
+    </>
   );
 }

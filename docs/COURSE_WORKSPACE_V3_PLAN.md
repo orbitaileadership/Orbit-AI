@@ -1,0 +1,9 @@
+# Course Workspace V3 — navigation and quiz handoff
+
+Approved by the October 25 Course Workspace update. Goal: students can find a chat under Course → Graded Section → Chat in each AI, and a quiz opens in its chosen AI after saving to that section. Priority P1. This follows local V2 and requires migration 0024 before rollout.
+
+1. Remove the duplicate section syllabus panel and low-value helper copy. Replace the native progress select's understated styling with a labeled, high-contrast status control. Use existing Orbit colors and provider logos in section AI choices.
+2. Return `section_folder_id` in conversation summaries. Render a shared nested course tree in provider and Orbit sidebars; course and section rows filter chats, chat rows open the saved conversation. Standalone folders and loose chats stay in their existing sidebar areas. No conversation or file move is needed beyond V2's migration.
+3. Keep the existing server quiz session creation and atomic first-turn claim. Redesign Quiz as a compact setup plus saved-session list. Launch a newly saved or resumed quiz into its selected provider/Orbit composer with an editable first prompt; mark only the first send with `startQuiz`. Preserve flashcard export from completed saved cards. Do not start a paid model call merely by opening Quiz.
+
+Acceptance: section-created and quiz chats appear under the correct course and section after refresh; selecting a saved quiz opens the right AI; first quiz turn is claimed once; partial/pending sessions do not silently restart; phone and desktop navigation remain usable. Check focused route/component tests, lint/typecheck, build when network allows, and a synthetic desktop/phone UI journey. Context and ownership changes need independent second-model review before merge. Shared migration/deployment remain separate release steps.

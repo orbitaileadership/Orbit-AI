@@ -26,7 +26,7 @@ beforeAll(async()=>{
  insert into public.conversations(id,user_id,provider,model_id) values('${C}','${U}','openai','openai-default');`);
 },30_000);
 afterAll(async()=>{await db?.close();});
-async function reserve(id:string,bound:number=1000000){
+async function reserve(id:string,bound:number=300000){
  return (await db.query<{r:{ok:boolean;reason?:string}}>(`select public.reserve_budget_v2($1,$2,'openai-default','text',$3,$4::jsonb,'{}') as r`,[U,id,bound,JSON.stringify({provider:'openai',operation:'chat',conversationId:C})])).rows[0].r;
 }
 describe('financial SQL and RLS',()=>{
@@ -46,6 +46,9 @@ describe('financial SQL and RLS',()=>{
    await db.exec('reset role');
  });
  it('requires configured FX and creates a USD $3, time-limited trial once',async()=>{
+   // Migration 0021 seeds a rate; remove it to check the guard, then use a round test rate.
+   expect((await db.query(`select value from public.settings where key='usd_cad_rate'`)).rows).toHaveLength(1);
+   await db.exec(`delete from public.settings where key='usd_cad_rate';`);
    expect(await reserve('fx-missing')).toMatchObject({ok:false,reason:'fx_not_configured'});
    await db.exec(`insert into public.settings values('usd_cad_rate','1.25');`);
    expect(await reserve('r1')).toMatchObject({ok:true});
@@ -59,11 +62,11 @@ describe('financial SQL and RLS',()=>{
  it('settles only once and distinguishes unknown provider cost from a charged reservation',async()=>{
    await db.exec(`select public.settle_budget_v2('r1','uncertain',0); select public.settle_budget_v2('r1','settled',100);`);
    const l=(await db.query<{actual_micros:number;actual_usd_micros:number|null}>(`select * from public.ledger where request_id='r1'`)).rows[0];
-   expect(Number(l.actual_micros)).toBe(1_000_000);expect(l.actual_usd_micros).toBeNull();
-   expect(await reserve('r2',500_000)).toMatchObject({ok:true});
+   expect(Number(l.actual_micros)).toBe(300_000);expect(l.actual_usd_micros).toBeNull();
+   expect(await reserve('r2',200_000)).toMatchObject({ok:true});
    await db.exec(`select public.settle_budget_v2('r2','settled',50000,1000,100,20,200,null,100); select public.settle_budget_v2('r2','settled',999999);`);
    const b=(await db.query<{spent_micros:number;reserved_micros:number}>(`select * from public.budgets where user_id=$1`,[U])).rows[0];
-   expect(Number(b.spent_micros)).toBe(1_050_000);expect(Number(b.reserved_micros)).toBe(0);
+   expect(Number(b.spent_micros)).toBe(350_000);expect(Number(b.reserved_micros)).toBe(0);
  });
  it('blocks expired trials even when balance remains',async()=>{
    await db.exec(`update public.budgets set expires_at=now()-interval '1 day' where user_id='${U}'`);
@@ -99,6 +102,29 @@ describe('financial SQL and RLS',()=>{
    await db.query(`insert into public.context_embeddings(user_id,source_kind,source_id,memory_id,content_hash,embedding) values($1,'memory',$2,$2,$3,$4)`,[U,m,hash,vec]);
    await db.exec(`delete from public.memories where id='${m}'`);
    expect((await db.query('select * from public.context_embeddings')).rows).toHaveLength(0);
+ });
+});
+
+describe('private feedback intake SQL',()=>{
+ it('serializes duplicate retries, rate limits per user, and keeps feedback server-only',async()=>{
+  await db.exec('set role service_role');
+  const submit=async(n:number,submissionId:string,user=U)=>db.query<{result:Record<string,unknown>}>(
+   `select public.submit_feedback_report($1,$2,'bug',$3,'A synthetic report with enough descriptive text.','Repro step',null) as result`,
+   [user,submissionId,`Synthetic feedback ${n}`]);
+  const ids=Array.from({length:6},(_,i)=>`90000000-0000-4000-8000-${String(i+1).padStart(12,'0')}`);
+  try {
+   const first=(await submit(1,ids[0])).rows[0].result;
+   expect(first).toMatchObject({ok:true,duplicate:false});
+   expect((await submit(1,ids[0])).rows[0].result).toMatchObject({ok:true,duplicate:true,id:first.id});
+   for(let i=1;i<5;i++) expect((await submit(i+1,ids[i])).rows[0].result).toMatchObject({ok:true});
+   expect((await submit(6,ids[5])).rows[0].result).toMatchObject({ok:false,reason:'rate_limited'});
+   expect((await submit(1,ids[5],V)).rows[0].result).toMatchObject({ok:true});
+  } finally { await db.exec('reset role'); }
+  await db.exec(`set role authenticated; select set_config('app.user_id','${U}',false);`);
+  try {
+   await expect(db.exec(`select public.submit_feedback_report('${U}','${ids[5]}','bug','Title','Enough descriptive text','',null)`)).rejects.toThrow(/permission denied/);
+   expect((await db.query('select * from public.feedback_reports')).rows).toHaveLength(0);
+  } finally { await db.exec('reset role'); }
  });
 });
 
@@ -251,5 +277,100 @@ describe('course folders', () => {
   expect((await db.query(`select parent_course_id from public.projects where id='${folder}'`)).rows[0]).toEqual({parent_course_id:null});
   expect((await db.query(`select project_id from public.conversations where id='${C}'`)).rows[0]).toEqual({project_id:folder});
   expect((await db.query(`select project_id from public.files where id='${file}'`)).rows[0]).toEqual({project_id:folder});
+ });
+});
+
+
+describe("Phase 1 accounting completeness report",()=>{
+ it("separates estimated expense, exact provider expense, old unresolved holds and allowance charges",async()=>{
+  const W="77777777-7777-4777-8777-777777777777";
+  await db.exec("begin");
+  try {
+   await db.query("insert into auth.users values($1,'accounting-synthetic@uwo.ca',now())",[W]);
+   await db.query("insert into public.budgets(user_id,allowance_micros,usd_cad_rate) values($1,10000000,1.25)",[W]);
+   const make=async(id:string,model:string,bound:number,metadata:object)=>{
+    const r=(await db.query<{r:{ok:boolean}}>("select public.reserve_budget_v2($1,$2,$3,'image',$4,$5::jsonb,$6::jsonb) as r",[W,id,model,bound,JSON.stringify(metadata),JSON.stringify({version:'original',unitCostUsdMicros:bound})])).rows[0].r;
+    expect(r.ok).toBe(true);
+   };
+   await make('accuracy-image','exact-image',40000,{provider:'xai',operation:'image'});
+   await db.exec(`select public.settle_budget_v2('accuracy-image','settled',40000,null,null,null,null,null,null,false,'{"costBasis":"provider_reported","providerCostUsdMicros":200,"costInUsdTicks":"2000000"}');`);
+   await make('accuracy-estimate','estimate-only',1000,{provider:'synthetic',operation:'speech'});
+   await db.exec(`select public.settle_budget_v2('accuracy-estimate','settled',1000,null,null,null,null,null,null,false,'{"costBasis":"estimated"}');`);
+   await make('accuracy-unknown','unknown-only',3000,{provider:'synthetic',operation:'search'});
+   await make('accuracy-old','old-unknown',5000,{provider:'synthetic',operation:'search'});
+   await db.exec("update public.ledger set created_at=now()-interval '100 days' where request_id='accuracy-old'");
+   const original=(await db.query("select request_id,actual_micros,actual_usd_micros,price_snapshot,metadata from public.ledger where user_id=$1 order by request_id",[W])).rows;
+   const report=(await db.query<{r:Record<string,unknown>}>("select public.orbit_analytics_report(1) as r")).rows[0].r;
+   const f=report.financial as Record<string,number>;
+   expect(f.accounting_version).toBe(2); expect(Number(f.provider_reported_usd_micros)).toBe(200);
+   expect(Number(f.estimated_usd_micros)).toBe(1000); expect(Number(f.estimated_cost_calls)).toBe(1);
+   expect(Number(f.all_time_reserved_usd_micros)).toBeGreaterThanOrEqual(8000);
+   expect(Number(f.stale_reservations)).toBeGreaterThanOrEqual(1);
+   const models=report.models as Record<string,unknown>[];
+   expect(models.find(m=>m.model_id==='unknown-only')).toMatchObject({cost_usd_micros:null,unknown_cost_calls:1});
+   expect(models.find(m=>m.model_id==='exact-image')).toMatchObject({cost_usd_micros:200});
+   expect(models.some(m=>m.model_id==='old-unknown')).toBe(false);
+   const balance=(await db.query<{spent_micros:number}>("select spent_micros from public.budgets where user_id=$1",[W])).rows[0];
+   expect(Number(balance.spent_micros)).toBe(41000);
+   expect((await db.query("select request_id,actual_micros,actual_usd_micros,price_snapshot,metadata from public.ledger where user_id=$1 order by request_id",[W])).rows).toEqual(original);
+   await db.exec(`select public.settle_budget_v2('accuracy-image','settled',999999);`);
+   expect(Number((await db.query<{spent_micros:number}>("select spent_micros from public.budgets where user_id=$1",[W])).rows[0].spent_micros)).toBe(41000);
+   await db.exec("set role anon"); await expect(db.exec("select public.orbit_analytics_report(1)")).rejects.toThrow(/permission denied/);
+  } finally { await db.exec("rollback"); }
+ });
+ it("enforces exhaustion and idempotency for queued calls on one local database connection",async()=>{
+  const W="88888888-8888-4888-8888-888888888888";
+  await db.exec("begin");
+  try {
+   await db.query("insert into auth.users values($1,'concurrency-synthetic@uwo.ca',now())",[W]);
+   await db.query("insert into public.budgets(user_id,allowance_micros,usd_cad_rate) values($1,1000,1.25)",[W]);
+   const attempt=(id:string)=>db.query<{r:{ok:boolean}}>("select public.reserve_budget_v2($1,$2,'synthetic','text',700) as r",[W,id]);
+   const results=await Promise.all([attempt('parallel-a'),attempt('parallel-b')]);
+   expect(results.filter(r=>r.rows[0].r.ok)).toHaveLength(1);
+   const id=results[0].rows[0].r.ok?'parallel-a':'parallel-b';
+   await Promise.all([db.query("select public.settle_budget_v2($1,'settled',500)",[id]),db.query("select public.settle_budget_v2($1,'settled',500)",[id])]);
+   expect(Number((await db.query<{spent_micros:number}>("select spent_micros from public.budgets where user_id=$1",[W])).rows[0].spent_micros)).toBe(500);
+  } finally { await db.exec("rollback"); }
+ });
+});
+
+it("cache share pairs known cache and known total input from the same calls",async()=>{
+ const W="99999999-9999-4999-8999-999999999999";
+ await db.exec("begin");
+ try {
+  const baseline=(await db.query<{cached:number;input:number}>(`select coalesce(sum(cached_tokens),0) as cached,coalesce(sum(input_tokens),0) as input from public.ledger where operation='chat' and state='settled' and cached_tokens is not null and input_tokens is not null and created_at>=now()-interval '1 day'`)).rows[0];
+  await db.query("insert into auth.users values($1,'cache-synthetic@uwo.ca',now())",[W]);
+  await db.query("insert into public.budgets(user_id,allowance_micros,usd_cad_rate) values($1,10000,1.25)",[W]);
+  for(const id of ['cache-complete','cache-input-unknown']) await db.query(`select public.reserve_budget_v2($1,$2,'synthetic-cache','text',1000,'{"operation":"chat"}')`,[W,id]);
+  await db.exec(`select public.settle_budget_v2('cache-complete','settled',100,100,10,0,10);
+   select public.settle_budget_v2('cache-input-unknown','settled',100,null,10,0,50);`);
+  const report=(await db.query<{r:{context:{cache_read_ratio:number}}}>("select public.orbit_analytics_report(1) as r")).rows[0].r;
+  expect(Number(report.context.cache_read_ratio)).toBeCloseTo((Number(baseline.cached)+10)/(Number(baseline.input)+100),10);
+ } finally {await db.exec("rollback");}
+});
+
+describe('course workspace calendar and quiz schema',()=>{
+ it('isolates calendar rows and rejects foreign course associations',async()=>{
+  const own='a1111111-1111-4111-8111-111111111111',foreign='b1111111-1111-4111-8111-111111111111',event='c1111111-1111-4111-8111-111111111111';
+  await db.exec(`insert into public.projects(id,user_id,name,is_folder) values('${own}','${U}','Synthetic course',false),('${foreign}','${V}','Other course',false);`);
+  try{
+   await db.exec(`set role authenticated;select set_config('app.user_id','${U}',false);`);
+   await db.exec(`insert into public.course_calendar_events(id,user_id,course_id,title,start_value,end_value,all_day,time_zone) values('${event}','${U}','${own}','Study','2026-10-23','2026-10-24',true,'America/Toronto');`);
+   await expect(db.exec(`update public.course_calendar_events set course_id='${foreign}' where id='${event}'`)).rejects.toThrow(/row-level security/);
+   await db.exec(`select set_config('app.user_id','${V}',false);`);
+   expect((await db.query(`select * from public.course_calendar_events where id='${event}'`)).rows).toHaveLength(0);
+   expect((await db.query(`delete from public.course_calendar_events where id='${event}' returning id`)).rows).toHaveLength(0);
+   await expect(db.exec(`insert into public.course_calendar_events(id,user_id,title,start_value,end_value,all_day,time_zone) values('d1111111-1111-4111-8111-111111111111','${U}','Forged','2026-10-23','2026-10-24',true,'UTC')`)).rejects.toThrow(/row-level security/);
+  }finally{await db.exec('reset role');}
+ });
+ it('rejects invalid calendar ranges and malformed quiz configuration at the database boundary',async()=>{
+  await expect(db.exec(`insert into public.course_calendar_events(id,user_id,title,start_value,end_value,all_day,time_zone) values('e1111111-1111-4111-8111-111111111111','${U}','Backwards','2026-10-24','2026-10-23',true,'UTC')`)).rejects.toThrow(/check constraint/);
+  await expect(db.query(`update public.conversations set study_config=$1::jsonb where id=$2`,[JSON.stringify({format:'mcq'}),C])).rejects.toThrow(/check constraint/);
+ });
+ it('permits only one initial study generation claim',async()=>{
+  const config={format:'mcq',count:5,section_id:'synthetic',start_state:'ready'};
+  await db.query(`update public.conversations set study_config=$1::jsonb where id=$2`,[JSON.stringify(config),C]);
+  const claim=()=>db.query(`update public.conversations set study_config=jsonb_set(study_config,'{start_state}','"started"') where id=$1 and study_config->>'start_state'='ready' returning id`,[C]);
+  const results=await Promise.all([claim(),claim()]);expect(results.reduce((n,r)=>n+r.rows.length,0)).toBe(1);
  });
 });

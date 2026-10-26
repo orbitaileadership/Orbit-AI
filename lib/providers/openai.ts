@@ -1,3 +1,4 @@
+import { reportedUsage } from "./usage";
 import { readSse } from "./sse";
 import { decodeBase64, errorForStatus, normalizeTurns, parseArgs, ProviderError, toolSchema, type ChatTurn, type ProviderAdapter } from "./types";
 
@@ -23,12 +24,12 @@ function toInput(t: ChatTurn): object[] {
 export const openai: ProviderAdapter = {
   id: "openai",
 
-  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, fast, cacheKey }) {
+  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, fast, cacheKey, thinkingLevel }) {
     const call = (lowEffort: boolean, useCacheKey = true) => fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        ...(lowEffort ? { reasoning: { effort: "low" } } : {}),
+        ...(thinkingLevel || lowEffort ? { reasoning: { effort: thinkingLevel ?? "low" } } : {}),
         model: model.apiModel,
         instructions: system,
         input: normalizeTurns(history).flatMap(toInput),
@@ -42,7 +43,7 @@ export const openai: ProviderAdapter = {
     });
     let res = await call(Boolean(fast));
     // A 400 can come from an optional setting this model doesn't accept: retry once with the plain request.
-    if (res.status === 400 && (fast || cacheKey)) res = await call(false, false);
+    if (res.status === 400 && !thinkingLevel && (fast || cacheKey)) res = await call(false, false);
     if (!res.ok || !res.body) throw errorForStatus(res.status);
 
     let finished = false;
@@ -61,15 +62,12 @@ export const openai: ProviderAdapter = {
         finished=true;
         const u = ev.response?.usage;
         if (u) {
-          yield {
-            usage: {
-              input: u.input_tokens ?? 0,
-              output: u.output_tokens ?? 0,
-              reasoning: u.output_tokens_details?.reasoning_tokens ?? 0,
-              cached: u.input_tokens_details?.cached_tokens ?? 0,
-              cacheWrite: u.input_tokens_details?.cache_write_tokens ?? 0,
-            },
-          };
+          const usage = reportedUsage(u.input_tokens, u.output_tokens, {
+            reasoning: u.output_tokens_details?.reasoning_tokens,
+            cached: u.input_tokens_details?.cached_tokens,
+            cacheWrite: u.input_tokens_details?.cache_write_tokens,
+          });
+          if (usage) yield { usage: { ...usage, providerRequestId: ev.response?.id } };
         }
         const why = ev.response?.incomplete_details?.reason;
         yield { finish: ev.type === "response.incomplete" ? (why === "max_output_tokens" ? "length" : why === "content_filter" ? "blocked" : "unknown") : refusal ? "blocked" : hasCalls ? "tool_calls" : "stop" };

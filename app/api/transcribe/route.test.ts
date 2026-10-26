@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/transcribe", () => {
-  it("transcribes, reserving first and charging the real length after", async () => {
+  it("transcribes, reserving first and recording an estimated duration charge after", async () => {
     const res = await POST(req(webm()));
     expect(await res.json()).toEqual({ text: "What is a p-value?", seconds: 10 });
     expect(budget.reserve).toHaveBeenCalledWith("u1", expect.any(String), "voice-transcribe", "text", 1000, expect.objectContaining({ operation: "transcription" }));
@@ -40,10 +40,10 @@ describe("POST /api/transcribe", () => {
     expect((init!.body as FormData).get("model")).toBe("gpt-4o-mini-transcribe");
   });
 
-  it("doesn't charge a failed transcription", async () => {
+  it("retains an ambiguous failed transcription reservation", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("no", { status: 500 })));
     expect((await POST(req(webm()))).status).toBe(502);
-    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "released", 0, undefined, "transcribe_failed");
+    expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "uncertain", 0, undefined, "transcribe_failed");
   });
 
   it("refuses demo mode, missing key, no budget, non-audio and huge files", async () => {
@@ -60,4 +60,13 @@ describe("POST /api/transcribe", () => {
     expect((await POST(req(new Blob([new Uint8Array(4_100_000)], { type: "audio/webm" })))).status).toBe(413);
     expect(fetch).not.toHaveBeenCalled();
   });
+});
+
+it("keeps network and response parse failures uncertain but releases explicit authentication rejection",async()=>{
+ for(const response of [()=>Promise.reject(new Error("timeout")),()=>Promise.resolve(new Response("malformed JSON"))]) {
+  vi.stubGlobal("fetch",vi.fn(response)); await POST(req(webm()));
+  expect(budget.settle).toHaveBeenLastCalledWith(expect.any(String),"uncertain",0,undefined,"transcribe_failed");
+ }
+ vi.stubGlobal("fetch",vi.fn(async()=>new Response("unauthorized",{status:401}))); await POST(req(webm()));
+ expect(budget.settle).toHaveBeenLastCalledWith(expect.any(String),"released",0,undefined,"transcribe_failed");
 });

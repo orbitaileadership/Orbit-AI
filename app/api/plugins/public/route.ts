@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as { tool?: unknown; args?: unknown };
   if (!isPublicTool(body.tool) || !body.args || typeof body.args !== "object" || JSON.stringify(body.args).length > 2_000) return json({ error: "bad_request" }, 400);
   try {
-    return json({ output: await runPublicTool(body.tool, body.args as Record<string, unknown>) });
+    return json({ output: await runPublicTool(body.tool, body.args as Record<string, unknown>, auth.user.id) });
   } catch (e) {
     return json({ error: e instanceof PublicToolError ? e.message : "The service didn't respond. Try again." }, 502);
   }

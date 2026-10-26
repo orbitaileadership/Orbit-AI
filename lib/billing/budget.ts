@@ -5,25 +5,31 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Usage } from "@/lib/providers/types";
 import type { UsageContext } from '@/lib/analytics/context';
 
-// SQL v2 functions from migration 0009. No paid call may fall back to the legacy functions.
+// v3 reservations add rolling windows; v2 settlement retains the existing accounting semantics.
 export type ReserveResult =
   | { ok: true; remaining: number }
   | { ok: false; reason: "budget" | "global_stop" | "duplicate" | "trial_expired" | "fx_not_configured" | "error"; remaining?: number };
 
 export type CallMetadata = {
   usageContext?: UsageContext;
-  conversationId?: string; provider?: ProviderId | "tavily" | "elevenlabs"; operation?: "syllabus" | "chat" | "summary" | "embedding" | "search" | "image" | "transcription" | "speech" | "orbit_vote" | "orbit_specialist" | "orbit_answer";
+  costBasis?: "provider_reported" | "usage_priced" | "estimated" | "unknown" | "unbilled";
+  apiModel?: string; unitType?: "image" | "minute" | "1000_characters" | "request";
+  units?: number; parentRequestId?: string; providerRequestId?: string;
+  environment?: "evaluation"; providerCostUsdMicros?: number; costInUsdTicks?: string;
+  conversationId?: string; provider?: ProviderId | "tavily" | "elevenlabs" | "wolfram"; operation?: "evaluation" | "wolfram" | "syllabus" | "chat" | "summary" | "embedding" | "search" | "image" | "transcription" | "speech" | "orbit_vote" | "orbit_specialist" | "orbit_answer";
   inputEstimate?: number; contextTarget?: number; historyDropped?: boolean; retrievedCount?: number; latencyMs?: number; finishReason?: string; qualityVersion?: string; unitCostUsdMicros?: number;
 };
 export async function reserve(userId: string, requestId: string, modelId: string, kind: "text" | "image", boundMicros: number, metadata: CallMetadata = {}): Promise<ReserveResult> {
-  const { data, error } = await createAdminClient().rpc("reserve_budget_v2", {
+  if (!Number.isFinite(boundMicros) || boundMicros <= 0 || !Number.isSafeInteger(Math.ceil(boundMicros))) return { ok: false, reason: "error" };
+  const { data, error } = await createAdminClient().rpc("reserve_budget_v3", {
     p_user_id: userId,
     p_request_id: requestId,
     p_model_id: modelId,
     p_kind: kind,
     p_bound_micros: Math.ceil(boundMicros),
     p_metadata: { ...metadata, provider: metadata.provider ?? getModel(modelId)?.provider ?? null, operation: metadata.operation ?? (kind === "image" ? "image" : "chat") },
-    p_price_snapshot: { version: ECONOMICS.pricingVersion, input: getModel(modelId)?.inputPrice ?? (modelId===SEMANTIC_MEMORY.model?SEMANTIC_MEMORY.inputPrice:null), unitCostUsdMicros:metadata.unitCostUsdMicros??null, output: getModel(modelId)?.outputPrice ?? null,
+    p_price_snapshot: { version: ECONOMICS.pricingVersion, currency: "USD", apiModel: metadata.apiModel ?? getModel(modelId)?.apiModel ?? modelId,
+      unitType: metadata.unitType ?? "token", unitCostUsdMicros: metadata.unitCostUsdMicros ?? null, input: getModel(modelId)?.inputPrice ?? (modelId===SEMANTIC_MEMORY.model?SEMANTIC_MEMORY.inputPrice:null), output: getModel(modelId)?.outputPrice ?? null,
       read: getModel(modelId)?.cachedInputPrice ?? null, write: getModel(modelId)?.cacheWritePrice ?? null },
   });
   if (error || !data) return { ok: false, reason: "error" };
@@ -34,18 +40,26 @@ export async function reserve(userId: string, requestId: string, modelId: string
 
 /** settled = charge actual · uncertain = charge the full reservation · released = charge nothing. */
 export async function settle(requestId: string, state: "settled" | "uncertain" | "released", actualMicros: number, usage?: Usage, errorCode?: string, metadata: CallMetadata = {}) {
+  const validAmount = Number.isFinite(actualMicros) && actualMicros >= 0 && Number.isSafeInteger(Math.ceil(actualMicros));
+  if (state === "settled" && !validAmount) { state = "uncertain"; actualMicros = 0; errorCode = "invalid_cost"; }
+  const costBasis = state === "released" ? "unbilled" : state !== "settled" ? "unknown" :
+    usage?.costUsdMicros != null ? "provider_reported" : metadata.costBasis ??
+    (usage && usage.usageComplete !== false && usage.cachedReported !== false && usage.cacheWriteReported !== false && !usage.outputEstimated && !usage.inputEstimated ? "usage_priced" : "estimated");
+  const measured = usage?.usageComplete !== false;
   const { error } = await createAdminClient().rpc("settle_budget_v2", {
     p_request_id: requestId,
     p_state: state,
     p_actual_micros: Math.ceil(actualMicros),
-    p_input_tokens: usage?.input ?? null,
-    p_output_tokens: usage?.output ?? null,
-    p_reasoning_tokens: usage?.reasoning ?? null,
-    p_cached_tokens: usage?.cached ?? null,
+    p_input_tokens: measured && !usage?.inputEstimated ? usage?.input ?? null : null,
+    p_output_tokens: measured && !usage?.outputEstimated ? usage?.output ?? null : null,
+    p_reasoning_tokens: measured && usage?.reasoningReported !== false ? usage?.reasoning ?? null : null,
+    p_cached_tokens: measured && usage?.cachedReported !== false ? usage?.cached ?? null : null,
     p_error_code: errorCode ?? null,
-    p_cache_write_tokens: usage?.cacheWrite ?? 0,
-    p_reasoning_reported: usage?.reasoningReported ?? true,
-    p_metadata: metadata,
+    p_cache_write_tokens: measured && usage?.cacheWriteReported !== false ? usage?.cacheWrite ?? null : null,
+    p_reasoning_reported: measured && (usage?.reasoningReported ?? false),
+    p_metadata: { ...metadata, costBasis, usageComplete: Boolean(usage && measured && !usage.outputEstimated && !usage.inputEstimated), outputEstimated: usage?.outputEstimated ?? false, inputEstimated: usage?.inputEstimated ?? false,
+      ...(usage?.costInUsdTicks != null ? { costInUsdTicks: usage.costInUsdTicks } : {}),
+      ...(usage?.providerRequestId ? { providerRequestId: usage.providerRequestId } : {}) },
   });
   // The ledger row stays "reserved" (still counted against the budget) if this fails, so we never under-charge.
   if (error) console.error("settle_budget failed", { requestId, code: error.code });

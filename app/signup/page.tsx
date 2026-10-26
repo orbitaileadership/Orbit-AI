@@ -9,7 +9,7 @@ export default async function SignUpPage() {
   return (
     <AuthCard
       title="Get started with Orbit"
-      subtitle="Start with your institution."
+      subtitle="Pick your school, then create your account."
       footer={<>Already have an account? <TextLink href="/login">Sign in</TextLink></>}
     >
       <RegistrationForm />

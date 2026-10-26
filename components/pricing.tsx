@@ -34,6 +34,6 @@ export function Pricing() {
         <p className="mt-4 text-xs leading-5 text-ink-subtle">Paid subscriptions are not available yet.</p>
       </article>)}
     </div>
-    <p className="mt-5 text-xs leading-5 text-ink-subtle">The USD allowance depends on the configured CAD/USD exchange rate. Annual billing does not provide the full year’s usage upfront. Western students can create an account; other Canadian institutions can join the waitlist.</p>
+    <p className="mt-5 text-xs leading-5 text-ink-subtle">The USD allowance depends on the configured CAD/USD exchange rate. Annual billing does not provide the full year’s usage upfront. Create an account to try Orbit. Access is subject to availability.</p>
   </section>;
 }

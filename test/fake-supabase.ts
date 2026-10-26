@@ -2,7 +2,7 @@
 // it holds one user's rows, which is what RLS would expose.
 type Row = Record<string, unknown>;
 
-export function fakeSupabase(tables: Record<string, Row[]> = {}) {
+export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record<string, number> = {}, options: { groupCourseChats?: boolean } = {}) {
   let seq = 0;
   const db: Record<string, Row[]> = { conversations: [], messages: [], projects: [], files: [], file_chunks: [], ...tables };
   const storage: Record<string, { bytes: Uint8Array; type: string }> = {};
@@ -13,9 +13,11 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}) {
     private op: "select" | "insert" | "update" | "delete" = "select";
     private payload: Row | Row[] | null = null;
     private orderBy: string | null = null;
+    private descending=false;
     private returning = false;
+    private exactCount = false;
     constructor(private table: string) {}
-    select() { if (this.op !== "select") this.returning = true; return this; }
+    select(_columns?: string, options?: { count?: string }) { if (this.op !== "select") this.returning = true; this.exactCount = options?.count === "exact"; return this; }
     insert(p: Row | Row[]) { this.op = "insert"; this.payload = p; return this; }
     // upsert with ignoreDuplicates: rows matching an existing row on the onConflict columns are skipped
     upsert(p: Row | Row[], o: { onConflict?: string; ignoreDuplicates?: boolean } = {}) {
@@ -26,7 +28,8 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}) {
     }
     update(p: Row) { this.op = "update"; this.payload = p; return this; }
     delete() { this.op = "delete"; return this; }
-    eq(c: string, v: unknown) { this.filters.push((r) => r[c] === v); return this; }
+    eq(c: string, v: unknown) { this.filters.push((r) => (c.includes("->>") ? (r[c.split("->>")[0]] as Record<string,unknown>|undefined)?.[c.split("->>")[1]] : r[c]) === v); return this; }
+    lt(c:string,v:string){this.filters.push(r=>String(r[c])<v);return this;}
     gt(c: string, v: number) { this.filters.push((r) => (r[c] as number) > v); return this; }
     in(c: string, vs: unknown[]) { this.filters.push((r) => vs.includes(r[c])); return this; }
     is(c: string, v: null) { this.filters.push((r) => (r[c] ?? null) === v); return this; }
@@ -36,28 +39,36 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}) {
       this.filters.push((r) => parts.some(([c, op, v]) => (op === "is" ? (r[c] ?? null) === null : String(r[c]) === v)));
       return this;
     }
-    order(c: string) { this.orderBy = c; return this; }
+    order(c: string,o?:{ascending?:boolean}) { this.orderBy = c; this.descending=o?.ascending===false; return this; }
     limit() { return this; }
     private run(): Row[] {
       const t = (db[this.table] ??= []);
       if (this.op === "insert") {
         const defaults: Row = this.table === "messages" ? { status: "complete", kind: "text", attachment_ids: [] } : this.table === "conversations" ? { mode: "chat", course_only: false, summary: null, summary_upto: null, project_id: null } : {};
-        const rows = (Array.isArray(this.payload) ? this.payload : [this.payload!]).map((r) => ({
+        const rows: Row[] = (Array.isArray(this.payload) ? this.payload : [this.payload!]).map((r) => ({
           id: uuid(), seq: ++seq, ...defaults, ...r,
         }));
+        if (options.groupCourseChats && this.table === "conversations") for (const row of rows) {
+          const project = db.projects.find((p) => p.id === row.project_id && p.user_id === row.user_id);
+          if (project?.is_folder && project.parent_course_id) {
+            row.section_folder_id = project.id;
+            row.project_id = project.parent_course_id;
+          }
+        }
         t.push(...rows);
         return rows;
       }
       const hit = t.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") hit.forEach((r) => Object.assign(r, this.payload));
       if (this.op === "delete") db[this.table] = t.filter((r) => !hit.includes(r));
-      if (this.orderBy) hit.sort((a, b) => (a[this.orderBy!] as number) - (b[this.orderBy!] as number));
+      if (this.orderBy) hit.sort((a,b)=>{const x=a[this.orderBy!] as string|number,y=b[this.orderBy!] as string|number;const n=x===y?0:x<y?-1:1;return this.descending?-n:n;});
       return hit;
     }
     async single() { const r = this.run(); return { data: r[0] ?? null, error: r[0] ? null : { message: "none" } }; }
     async maybeSingle() { return { data: this.run()[0] ?? null, error: null }; }
-    then(ok?: (v: { data: Row[]; error: null }) => unknown, bad?: (e: unknown) => unknown) {
-      return Promise.resolve({ data: this.run(), error: null as null }).then(ok, bad);
+    then(ok?: (v: { data: Row[]; error: null; count: number | null }) => unknown, bad?: (e: unknown) => unknown) {
+      const rows = this.run();
+      return Promise.resolve({ data: this.op === "select" ? rows.slice(0, rowCaps[this.table] ?? rows.length) : rows, error: null as null, count: this.exactCount ? rows.length : null }).then(ok, bad);
     }
   }
   const client = {

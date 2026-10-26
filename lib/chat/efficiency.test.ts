@@ -11,8 +11,9 @@ describe('economic context and accounting',()=>{
    const short:ChatTurn[]=[{role:'user',content:'Explain meiosis'}];
    expect(economicInputBudget(short,1500,60000)).toBe(8000);
    expect(economicInputBudget(short,1500,60000,true)).toBe(16000);
-   expect(economicInputBudget([{role:'user',content:'x'.repeat(100000)}],1000,60000)).toBe(24000);
+   expect(economicInputBudget([{role:'user',content:'x'.repeat(150000)}],1000,60000)).toBe(48000);
    expect(economicInputBudget(short,1500,5000)).toBe(5000);
+   expect(economicInputBudget([{role:'user',content:'x'.repeat(120000)}],1000,32000)).toBe(32000);
  });
  it('keeps complete recent exchanges and newest question without a leading orphan assistant',()=>{
    const turns:ChatTurn[]=Array.from({length:21},(_,i)=>({role:i%2?'assistant':'user',content:`${i}:`+'x'.repeat(900)}));

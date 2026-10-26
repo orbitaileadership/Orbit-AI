@@ -75,6 +75,8 @@ export async function googleToken(scopes: string[]): Promise<string> {
       client_id: CLIENT_ID,
       scope: key,
       callback: (r: any) => {
+        // access_denied also comes back when the Google app only allows its own organization or listed test users.
+        if (r.error === "access_denied") return reject(new ConnectorError("Google didn't allow this account. If Google said Orbit is limited to an organization or still being tested, the Orbit team needs to open it to all Google accounts; otherwise try again and choose Allow."));
         if (r.error || !r.access_token) return reject(new ConnectorError("Google sign-in was cancelled."));
         if (!scopes.every((s) => g.accounts.oauth2.hasGrantedAllScopes(r, s))) return reject(new ConnectorError("Orbit needs the permission you unticked to do this. Try again and allow it."));
         tokens.set(key, { value: r.access_token, expires: Date.now() + (Number(r.expires_in) || 3000) * 1000 });
@@ -83,7 +85,9 @@ export async function googleToken(scopes: string[]): Promise<string> {
       },
       error_callback: () => reject(new ConnectorError("Google sign-in was cancelled or blocked (allow pop-ups for Orbit).")),
     });
-    client.requestAccessToken({ prompt: "" });
+    // First connection: let the student pick which Google account (personal Gmail or school). Later permission
+    // requests reuse that account instead of asking again.
+    client.requestAccessToken({ prompt: tokens.size === 0 ? "select_account" : "" });
   });
 }
 const accessToken = () => googleToken([SCOPE]);

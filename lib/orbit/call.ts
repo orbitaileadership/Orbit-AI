@@ -1,3 +1,5 @@
+import { supportsThinkingLevel, type ThinkingLevel } from '@/config/thinking';
+import { failureState } from "@/lib/billing/outcome";
 import type { ModelOption } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
 import { isProviderDisabled, reserve, settle } from "@/lib/billing/budget";
@@ -6,7 +8,7 @@ import { ADAPTERS, apiKeyFor } from "@/lib/providers";
 import { ProviderError, type ChatTurn, type FinishReason, type Usage } from "@/lib/providers/types";
 
 export class OrbitError extends Error {
-  constructor(public code: string) { super(code); }
+  constructor(public code: string, public retryableUnavailable = false) { super(code); }
 }
 
 export function orbitInputTokens(system: string, history: ChatTurn[]): number {
@@ -16,11 +18,13 @@ export function orbitInputTokens(system: string, history: ChatTurn[]): number {
 /** Every paid phase has its own priced ledger row. Never logs prompt or output text. */
 export async function orbitCall(o: {
   userId: string; conversationId: string; model: ModelOption; operation: "orbit_vote" | "orbit_specialist" | "orbit_answer";
+  thinkingLevel?: ThinkingLevel;
   system: string; history: ChatTurn[]; maxOutput: number; signal: AbortSignal; delta?: (text: string) => void;
 }): Promise<{ text: string; finish: FinishReason }> {
+  if (o.thinkingLevel && (o.operation !== "orbit_answer" || !supportsThinkingLevel(o.model.apiModel))) throw new OrbitError("orbit_thinking_unavailable");
   const key = apiKeyFor(o.model.provider);
   if (!key || await isProviderDisabled(o.model.provider)) throw new OrbitError("orbit_provider_unavailable");
-  if (o.signal.aborted) throw new OrbitError("orbit_cancelled");
+  if (o.signal.aborted) throw new OrbitError(o.signal.reason?.name === "TimeoutError" ? "orbit_call_timeout" : "orbit_cancelled");
   const input = orbitInputTokens(o.system,o.history);
   if (input > ORBIT.inputTokens) throw new OrbitError("context_too_large");
   const id = crypto.randomUUID();
@@ -30,17 +34,28 @@ export async function orbitCall(o: {
   if (!r.ok) throw new OrbitError(r.reason === "global_stop" ? "paused" : r.reason === "error" ? "reserve_failed" : r.reason);
   let text = "", usage: Usage | undefined, finish: FinishReason = "unknown";
   try {
-    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,apiKey:key,signal:o.signal })) {
+    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,...(o.thinkingLevel ? {thinkingLevel:o.thinkingLevel} : {}),...(o.operation === "orbit_vote" && o.model.apiModel === "claude-haiku-5-5" ? {disableThinking:true} : {}),apiKey:key,signal:o.signal })) {
       if (event.delta) { text += event.delta; o.delta?.(event.delta); }
       if (event.usage) usage = event.usage;
       if (event.finish) finish = event.finish;
     }
   } catch (error) {
+    // Classify the caller's own deadline, never arbitrary exception messages. User
+    // cancellation has an AbortError reason and must not become provider exclusion.
+    const timedOut = o.signal.aborted && o.signal.reason?.name === "TimeoutError" &&
+      !(error instanceof ProviderError) && (error === o.signal.reason || (error instanceof Error && error.name === "AbortError"));
+    // Safe operational diagnostics: never include the provider body, prompt, key or raw error message.
+    console.error("[orbit] provider call failed", {
+      requestId: id, provider: o.model.provider, modelId: o.model.id, operation: o.operation,
+      code: timedOut ? "timeout" : error instanceof ProviderError ? error.code : "unknown",
+      status: error instanceof ProviderError ? error.status : undefined,
+      started: error instanceof ProviderError ? error.started : undefined,
+    });
     if (usage) await settle(id,"settled",costMicros(o.model,usage),usage,"orbit_call_failed");
-    else if (error instanceof ProviderError && !error.started && error.status != null && error.status >= 400 && error.status < 500 && error.status !== 408)
+    else if (error instanceof ProviderError && failureState(error) === "released")
       await settle(id,"released",0,undefined,error.code);
     else await settle(id,"uncertain",0,undefined,"orbit_call_failed");
-    throw new OrbitError("orbit_call_failed");
+    throw new OrbitError(timedOut ? "orbit_call_timeout" : "orbit_call_failed", !timedOut && !usage && error instanceof ProviderError && error.code === "unavailable" && error.status === 503 && !error.started);
   }
   if (usage) await settle(id,"settled",costMicros(o.model,usage),usage,undefined,{finishReason:finish});
   else await settle(id,"uncertain",0,undefined,"no_usage");

@@ -1,4 +1,4 @@
-import { xaiBillableOutput } from "./usage";
+import { reportedUsage, tokenCount, xaiCost, xaiBillableOutput } from "./usage";
 import { readSse } from "./sse";
 import { decodeBase64, errorForStatus, normalizeTurns, parseArgs, ProviderError, toolSchema, type FinishReason, type ChatTurn, type ProviderAdapter } from "./types";
 
@@ -27,12 +27,13 @@ function toMessages(t: ChatTurn): object[] {
 export const xai: ProviderAdapter = {
   id: "xai",
 
-  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey }) {
+  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey, thinkingLevel }) {
     const res = await fetch("https://api.x.ai/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", ...(cacheKey ? { "x-grok-conv-id": cacheKey } : {}) },
       body: JSON.stringify({
         model: model.apiModel,
+        ...(thinkingLevel ? { reasoning_effort: thinkingLevel } : {}),
         messages: [
           { role: "system", content: system },
           ...normalizeTurns(history).flatMap(toMessages),
@@ -65,16 +66,17 @@ export const xai: ProviderAdapter = {
         calls.set(i, c);
       }
       if (ev.usage) {
-        const reasoning = ev.usage.completion_tokens_details?.reasoning_tokens ?? 0;
-        yield {
-          usage: {
-            input: ev.usage.prompt_tokens ?? 0,
-            // Aggregate tells us whether reasoning is already included, avoiding duplicate charges.
-            output: xaiBillableOutput(ev.usage.prompt_tokens ?? 0, ev.usage.completion_tokens ?? 0, reasoning, ev.usage.total_tokens),
-            reasoning,
-            cached: ev.usage.prompt_tokens_details?.cached_tokens ?? 0,
-          },
-        };
+        const u = ev.usage, reasoning = u.completion_tokens_details?.reasoning_tokens;
+        const output = tokenCount(u.prompt_tokens) && tokenCount(u.completion_tokens) && (reasoning == null || tokenCount(reasoning))
+          ? xaiBillableOutput(u.prompt_tokens, u.completion_tokens, reasoning ?? 0, u.total_tokens) : undefined;
+        const normalized = reportedUsage(u.prompt_tokens, output, {
+          reasoning, cached: u.prompt_tokens_details?.cached_tokens, cacheWrite: 0,
+        });
+        const cost = xaiCost(u.cost_in_usd_ticks);
+        if (normalized) yield { usage: { ...normalized, ...cost,
+          outputEstimated: u.total_tokens !== u.prompt_tokens + u.completion_tokens && u.total_tokens !== u.prompt_tokens + u.completion_tokens + (reasoning ?? 0), providerRequestId: ev.id } };
+        else if (cost.costUsdMicros != null) yield { usage: { input: 0, output: 0, reasoning: 0, cached: 0,
+          usageComplete: false, ...cost, providerRequestId: ev.id } };
       }
     }
     for (const [i, c] of [...calls.entries()].sort((a, b) => a[0] - b[0])) {
@@ -95,6 +97,7 @@ export const xai: ProviderAdapter = {
     const json = await res.json();
     const b64 = json.data?.[0]?.b64_json;
     if (!b64) throw new ProviderError("unknown", res.status, true);
-    return { mime: "image/jpeg", bytes: decodeBase64(b64) };
+    return { mime: "image/jpeg", bytes: decodeBase64(b64), ...xaiCost(json.usage?.cost_in_usd_ticks),
+      providerRequestId: typeof json.id === "string" ? json.id : undefined };
   },
 };

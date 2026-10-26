@@ -9,7 +9,8 @@ export async function GET(){
   const legacy=await auth.supabase.from('projects').select('id,name,instructions,course_data,syllabus_id,updated_at').eq('user_id',auth.user.id).order('name');
   data=legacy.data;error=legacy.error;
  }
- if(error)return dbError(error,'load_failed');return json({courses:data??[]});
+ // Older chat projects can predate is_folder; only reviewed/manual course metadata identifies a course.
+ if(error)return dbError(error,'load_failed');return json({courses:(data??[]).filter(course=>Boolean(course.course_data))});
 }
 
 export async function POST(request:Request){

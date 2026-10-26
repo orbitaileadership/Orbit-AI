@@ -1,3 +1,4 @@
+import { reportedUsage, tokenCount } from "./usage";
 import { readSse } from "./sse";
 import { errorForStatus, normalizeTurns, parseArgs, ProviderError, type FinishReason, type ChatTurn, type ProviderAdapter } from "./types";
 
@@ -31,7 +32,7 @@ function toMessage(t: ChatTurn) {
 export const anthropic: ProviderAdapter = {
   id: "anthropic",
 
-  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey }) {
+  async *stream({ model, system, history, maxOutput, apiKey, signal, tools, cacheKey, thinkingLevel, disableThinking }) {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -41,6 +42,8 @@ export const anthropic: ProviderAdapter = {
       },
       body: JSON.stringify({
         model: model.apiModel,
+        ...(disableThinking && model.apiModel === "claude-haiku-5-5" ? { thinking: { type: "disabled" } } : {}),
+        ...(thinkingLevel && !disableThinking ? { output_config: { effort: thinkingLevel } } : {}),
         max_tokens: maxOutput,
         system,
         ...(cacheKey ? { cache_control: { type: "ephemeral" } } : {}),
@@ -52,10 +55,10 @@ export const anthropic: ProviderAdapter = {
     });
     if (!res.ok || !res.body) throw errorForStatus(res.status);
 
-    let input = 0;
-    let cached = 0;
-    let cacheWrite = 0;
-    let output = 0;
+    let input: number | undefined;
+    let cached: number | undefined;
+    let cacheWrite: number | undefined;
+    let output: number | undefined;
     let finish:FinishReason="unknown";
     const blocks = new Map<number, { id: string; name: string; json: string }>(); // tool_use blocks being streamed
     for await (const { data } of readSse(res.body)) {
@@ -63,10 +66,11 @@ export const anthropic: ProviderAdapter = {
       switch (ev.type) {
         case "message_start": {
           const u = ev.message?.usage ?? {};
-          cached = u.cache_read_input_tokens ?? 0;
-          cacheWrite = u.cache_creation_input_tokens ?? 0;
-          input = (u.input_tokens ?? 0) + cached + cacheWrite;
-          output = u.output_tokens ?? 0;
+          cached = u.cache_read_input_tokens;
+          cacheWrite = u.cache_creation_input_tokens;
+          input = tokenCount(u.input_tokens) && (cached == null || tokenCount(cached)) && (cacheWrite == null || tokenCount(cacheWrite))
+            ? u.input_tokens + (cached ?? 0) + (cacheWrite ?? 0) : undefined;
+          output = u.output_tokens;
           break;
         }
         case "content_block_start":
@@ -91,10 +95,12 @@ export const anthropic: ProviderAdapter = {
           if (ev.usage?.output_tokens != null) output = ev.usage.output_tokens;
           if(ev.delta?.stop_reason) finish=ev.delta.stop_reason==="max_tokens"?"length":ev.delta.stop_reason==="refusal"?"blocked":ev.delta.stop_reason==="tool_use"?"tool_calls":["end_turn","stop_sequence"].includes(ev.delta.stop_reason)?"stop":"unknown";
           break;
-        case "message_stop":
-          yield { usage: { input, output, reasoning: 0, cached, cacheWrite, reasoningReported: false } };
+        case "message_stop": {
+          const usage = reportedUsage(input, output, { cached, cacheWrite });
+          if (usage) yield { usage: { ...usage, inputEstimated: !tokenCount(cached) || !tokenCount(cacheWrite) } };
           yield {finish};
           return;
+        }
         case "error":
           throw new ProviderError(ev.error?.type === "overloaded_error" ? "unavailable" : "unknown", undefined, true);
       }

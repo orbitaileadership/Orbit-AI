@@ -88,3 +88,24 @@ Copy OAuth client ID (to both `NEXT_PUBLIC_NOTION_CLIENT_ID` and `NOTION_CLIENT_
 | Discord | Needs a bot added to each server by its admins; low study value vs. risk. |
 | Canva | Canva Connect API needs Canva's partner approval. Students can export a Canva design as PDF and upload it. |
 | Google Docs / Word editing | Write access breaks the memo's "read-only first" rule. Orbit creates new Word/PowerPoint/Excel files instead (Download menu). |
+
+## Production setup checklist — October 19, 2026
+
+Plugins whose sign-in isn't configured now show **Coming soon** to students (no "+", no broken "Use in chats"); admins also see which setting is missing. To make every plugin connectable, set these in the deployment (Vercel → Settings → Environment Variables) and redeploy:
+
+| Plugins | Variables | Notes |
+|---|---|---|
+| Gmail, Google Calendar, Google Drive (plugin) | `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Add the scopes listed in `.env.example` in Google Auth Platform. Gmail/Drive scopes are sensitive/restricted: public use beyond test users needs Google's app verification. |
+| Google Drive file picker (+ menu) | `NEXT_PUBLIC_GOOGLE_PICKER_KEY`, `NEXT_PUBLIC_GOOGLE_APP_ID` | In addition to the client id. |
+| Outlook Email, Outlook Calendar, OneDrive | `NEXT_PUBLIC_MICROSOFT_CLIENT_ID` | Western accounts may need tenant admin consent for Mail/Calendars/Files scopes. |
+| Notion | `NEXT_PUBLIC_NOTION_CLIENT_ID`, `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | Public integration with the app's redirect URL. |
+| GitHub private repos | `NEXT_PUBLIC_GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, optional `NEXT_PUBLIC_GITHUB_APP_SLUG` | Public repos work without these. |
+| Wolfram\|Alpha | `WOLFRAM_APP_ID` (server only) | |
+| Zotero | none | Student pastes their own API key. |
+| Wikipedia, arXiv, Semantic Scholar, Crossref, YouTube (Gemini) | none | Work without setup. |
+
+Write actions (send email, edit docs, change events) ask for the extra permission at the moment of the action, so connecting only grants read access.
+
+**Personal accounts (Gmail, Hotmail, Outlook.com, Live).** The code accepts any account: Microsoft sign-in uses the `common` endpoint and Google has no domain restriction; the first Google connection asks which account to use. Two settings outside the code decide whether personal accounts actually work:
+- **Microsoft (Azure → App registrations → Authentication):** Supported account types = "Accounts in any organizational directory and personal Microsoft accounts". Single-tenant or "organizational only" blocks Hotmail/Outlook.com (students see a clear message).
+- **Google (Google Auth Platform → Audience):** User type = External and publishing status = In production. "Internal" allows only one Workspace domain; "Testing" allows only listed test users (up to 100). Gmail and Drive scopes need Google's verification before production.

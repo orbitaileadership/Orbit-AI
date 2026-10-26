@@ -3,7 +3,7 @@ export type Metric = number | string | null;
 export type TokenUsageReport = { days:number; modelId:string|null; userId:string|null; modelOptions:string[];
   summary:Record<string,Metric>; growth:Record<string,Metric>[]; complexity:Record<string,Metric>[]; users:Record<string,Metric>[] };
 export type AnalyticsReport = { days:number; financial:Record<string,Metric>; product:Record<string,Metric>; context:Record<string,Metric>;
-  cohorts:Record<string,Metric>[]; models:Record<string,Metric>[]; features:Record<string,Metric>[]; users:Record<string,Metric>[]; tokenUsage?:TokenUsageReport|null };
+  conversations?:Record<string,Metric>[]; cohorts:Record<string,Metric>[]; models:Record<string,Metric>[]; features:Record<string,Metric>[]; users:Record<string,Metric>[]; tokenUsage?:TokenUsageReport|null };
 export function validAnalyticsFilters(days:number,model?:string,user?:string) {
   return Number.isInteger(days)&&days>=1&&days<=90&&(!model||/^[a-zA-Z0-9_-]{1,80}$/.test(model))&&(!user||/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user));
 }

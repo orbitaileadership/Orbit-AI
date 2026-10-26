@@ -1,5 +1,6 @@
 import { getModel } from "@/config/models";
 import { dbError, isUuid, json, requireAppUser } from "@/lib/api";
+import { ownedCourseEvidenceFiles } from "@/lib/courses/evidence";
 
 // GET    /api/conversations/:id → messages (generated images come back as short-lived signed URLs)
 // PATCH  /api/conversations/:id { title?, projectId?, modelId? }
@@ -10,7 +11,7 @@ export async function GET(_: Request, ctx: RouteContext<"/api/conversations/[id]
   const { id } = await ctx.params;
   if (!isUuid(id)) return json({ error: "not_found" }, 404);
 
-  const { data: conv } = await auth.supabase.from("conversations").select("id, mode, course_only, summary, summary_upto").eq("id", id).maybeSingle();
+  const { data: conv } = await auth.supabase.from("conversations").select("id, mode, course_only, summary, summary_upto, study_config").eq("id", id).maybeSingle();
   if (!conv) return json({ error: "not_found" }, 404);
   const { data: q } = await auth.supabase.from("conversations").select("quiz_state").eq("id", id).maybeSingle(); // migration 0006
   const cols = "id, role, kind, content, image_path, model_id, status, attachment_ids, sources";
@@ -37,6 +38,7 @@ export async function GET(_: Request, ctx: RouteContext<"/api/conversations/[id]
 
   return json({
     mode: conv.mode,
+    quizStartReady: conv.mode === "quiz" && (conv.study_config as { start_state?: string } | null)?.start_state === "ready",
     courseOnly: conv.course_only,
     summarized: Boolean(conv.summary),
     // Never imply that an old partial summary covers everything after reopening.
@@ -66,7 +68,12 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/conversati
 
   const patch: Record<string, unknown> = {};
   if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim().slice(0, 120);
-  if (body.projectId === null || isUuid(body.projectId)) patch.project_id = body.projectId;
+  if (body.projectId === null || isUuid(body.projectId)) {
+    patch.project_id = body.projectId;
+    // A deliberate move to a course clears the old section context. The database
+    // trigger sets it again when the destination is a section folder.
+    patch.section_folder_id = null;
+  }
   if (typeof body.modelId === "string") {
     const { data: conv } = await auth.supabase.from("conversations").select("provider").eq("id", id).maybeSingle();
     const model = getModel(body.modelId);
@@ -86,10 +93,27 @@ export async function DELETE(_: Request, ctx: RouteContext<"/api/conversations/[
   if ("error" in auth) return auth.error;
   const { id } = await ctx.params;
   if (!isUuid(id)) return json({ error: "not_found" }, 404);
-  // Remove this chat's uploaded files from storage too (rows go with the chat).
-  const { data: files } = await auth.supabase.from("files").select("storage_path").eq("conversation_id", id);
-  if (files?.length) await auth.supabase.storage.from("uploads").remove(files.map((f) => f.storage_path as string));
-  const { error } = await auth.supabase.from("conversations").delete().eq("id", id);
+  const conversation = await auth.supabase.from("conversations").select("id").eq("id", id).eq("user_id", auth.user.id).maybeSingle();
+  if (conversation.error) return dbError(conversation.error, "load_failed");
+  if (!conversation.data) return json({ error: "not_found" }, 404);
+  const { data: files, error: fileError, count } = await auth.supabase.from("files").select("id,storage_path,project_id", { count: "exact" }).eq("conversation_id", id).eq("user_id", auth.user.id);
+  if (fileError) return dbError(fileError, "load_failed");
+  if (count != null && count > (files?.length ?? 0)) return json({ error: "load_failed" }, 500);
+  try {
+    const evidence = files?.length ? await ownedCourseEvidenceFiles(auth.supabase, auth.user.id) : new Set<string>();
+    // Saving an attachment to a course/folder gives it a life beyond the original chat.
+    const keep = (files ?? []).filter(f => f.project_id || evidence.has(f.id));
+    if (keep.length) {
+      const detached = await auth.supabase.from("files").update({ conversation_id: null }).in("id", keep.map(f => f.id)).eq("conversation_id", id).eq("user_id", auth.user.id);
+      if (detached.error) return dbError(detached.error, "delete_failed");
+    }
+    const disposable = (files ?? []).filter(f => !f.project_id && !evidence.has(f.id));
+    if (disposable.length) {
+      const removed = await auth.supabase.storage.from("uploads").remove(disposable.map(f => f.storage_path as string));
+      if (removed.error) return json({ error: "delete_failed" }, 500);
+    }
+  } catch { return json({ error: "load_failed" }, 500); }
+  const { error } = await auth.supabase.from("conversations").delete().eq("id", id).eq("user_id", auth.user.id);
   if (error) return json({ error: "delete_failed" }, 500);
   return json({ ok: true });
 }
