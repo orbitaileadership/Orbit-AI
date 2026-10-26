@@ -85,7 +85,7 @@ export function LandingPage() {
             <div className="landing-rise flex flex-wrap items-center justify-center gap-3 [animation-delay:180ms]">
               <Link href="/signup" className={`${primaryButtonClass} mt-8 !w-auto !px-8`}>Get Started <span aria-hidden="true">→</span></Link>
             </div>
-            <p className="mt-4 text-xs leading-5 text-ink-subtle">Free for students. Pick your school and sign up in a minute.</p>
+            <p className="mt-4 text-xs leading-5 text-ink-subtle">Start with a 7-day free trial. Pick your school to create an account.</p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-4">
               {providers.map(([id, name]) => <div key={id} className="flex items-center gap-2 text-sm text-ink-muted"><ProviderLogo provider={id} size={22} /><span>{name}</span></div>)}
             </div>
