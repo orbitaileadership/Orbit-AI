@@ -1,4 +1,4 @@
-import { RESPONSE_QUALITY_PROMPT } from "@/config/quality";
+import { RESPONSE_QUALITY_CORE_PROMPT, RESPONSE_QUALITY_PROMPT } from "@/config/quality";
 import { CONTEXT } from "@/config/context";
 import type { ModelOption } from "@/config/models";
 import type { ChatTurn, Usage } from "@/lib/providers/types";
@@ -112,7 +112,7 @@ export function systemPrompt(o: {
   summary?: string | null;  // summary of earlier messages that no longer fit
   voice?: boolean;          // voice conversation: the answer is read aloud
 }): string {
-  const parts = [`${BASE_SYSTEM_PROMPT}\nYou are ${o.modelLabel}.`, RESPONSE_QUALITY_PROMPT];
+  const parts = [`${BASE_SYSTEM_PROMPT}\nYou are ${o.modelLabel}.`, o.voice ? RESPONSE_QUALITY_CORE_PROMPT : RESPONSE_QUALITY_PROMPT];
   if (o.personal) parts.push(o.personal);
   if (o.projectName) parts.push(`This chat is part of the student's course "${o.projectName}".`);
   if (o.projectInstructions?.trim()) parts.push(`Course instructions from the student:\n${o.projectInstructions.trim()}`);
