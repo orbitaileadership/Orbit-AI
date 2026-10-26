@@ -1359,7 +1359,7 @@ export function ChatApp({ email, userId, onCourses, courseLaunch }: { email: str
           <div className="mb-1.5 flex justify-between">
             <span className="font-medium">{usage?.live ? "Budget" : "Demo mode"}</span>
             <span className="tabular-nums text-ink-muted">
-              {usage?.live ? usage.usdCadRate && usage.allowanceCad!=null ? `C$${(Math.max(0,remaining)*usage.usdCadRate/1e6).toFixed(2)} left of C$${(usage.allowanceCad/1e6).toFixed(2)}` : `${dollars(remaining)} left of ${dollars(usage.allowance)}` : "Replies are fake"}
+              {usage?.live ? `USD ${dollars(remaining)} left of USD ${dollars(usage.allowance)}` : "Replies are fake"}
             </span>
           </div>
           {usage?.live && currentModel && (

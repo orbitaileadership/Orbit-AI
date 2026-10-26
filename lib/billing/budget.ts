@@ -99,10 +99,10 @@ export async function getUsage(userId: string): Promise<{ allowance: number; spe
     .eq("user_id", userId)
     .maybeSingle();
   if (!data) {
-    const {data: settings} = await createAdminClient().from("settings").select("key,value").in("key",["trial_allowance_cad_micros","usd_cad_rate"]);
+    const {data: settings} = await createAdminClient().from("settings").select("key,value").in("key",["trial_allowance_usd_micros","usd_cad_rate"]);
     const values = new Map((settings??[]).map(s=>[s.key,s.value]));
-    const rate=Number(values.get("usd_cad_rate")??0),cad=Number(values.get("trial_allowance_cad_micros")??ECONOMICS.trialAllowanceCadMicros);
-    return {allowance:rate>0?Math.floor(cad/rate):0,spent:0,reserved:0,currency:"USD",allowanceCad:cad,usdCadRate:rate>0?rate:null};
+    const rate=Number(values.get("usd_cad_rate")??0),usd=Number(values.get("trial_allowance_usd_micros")??ECONOMICS.trialAllowanceUsdMicros);
+    return {allowance:rate>0?usd:0,spent:0,reserved:0,currency:"USD",allowanceCad:rate>0?Math.ceil(usd*rate):null,usdCadRate:rate>0?rate:null};
   }
   return { allowance: Number(data.allowance_micros), spent: Number(data.spent_micros), reserved: Number(data.reserved_micros),currency:"USD",allowanceCad:data.allowance_cad_micros,usdCadRate:data.usd_cad_rate?Number(data.usd_cad_rate):null,expiresAt:data.expires_at };
 }

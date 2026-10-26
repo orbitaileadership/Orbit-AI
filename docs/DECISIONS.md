@@ -19,3 +19,7 @@ New entry format: decision; owner; date; source/link; affected behavior; what it
 ## October 19, 2026 — Courses contain folders
 
 Jake requested folders in the main sidebar, with pinned and recent folders. Folders group chats and files; courses can contain multiple folders, including assignment folders, and expose them through the course workspace. Implemented on `folders-course-navigation`; migration 0018 and deployment remain pending. Existing courses and their direct chat/file links are preserved.
+
+## October 26, 2026 — approved subscription pricing
+
+Jake approved in the pricing chat: all subscription prices CAD, all provider usage budgets USD; a seven-day trial with USD $3 total; student CAD $30/month and regular CAD $40/month; CAD $20 converted to USD in usage per month for both paid plans. Annual plans cost CAD $324/student or CAD $432/regular upfront (10% off) with identical monthly limits. Lower annual margins are accepted. Student is the primary marketed offer. Payments remain disabled pending lifecycle and release approval.

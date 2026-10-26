@@ -45,14 +45,16 @@ describe('financial SQL and RLS',()=>{
    await expect(db.exec(`select public.release_orbit_turn('${U}','${b}')`)).rejects.toThrow(/permission denied/);
    await db.exec('reset role');
  });
- it('requires configured FX and creates CAD-capped, time-limited trial once',async()=>{
+ it('requires configured FX and creates a USD $3, time-limited trial once',async()=>{
    expect(await reserve('fx-missing')).toMatchObject({ok:false,reason:'fx_not_configured'});
    await db.exec(`insert into public.settings values('usd_cad_rate','1.25');`);
    expect(await reserve('r1')).toMatchObject({ok:true});
    const b=(await db.query<{allowance_micros:number;allowance_cad_micros:number}>(`select * from public.budgets where user_id=$1`,[U])).rows[0];
-   expect(Number(b.allowance_micros)).toBe(2_000_000); expect(Number(b.allowance_cad_micros)).toBe(2_500_000);
+   expect(Number(b.allowance_micros)).toBe(3_000_000); expect(Number(b.allowance_cad_micros)).toBe(3_750_000);
+   const enrollment=(await db.query<{days:number}>(`select extract(epoch from (trial_ends_at-trial_started_at))/86400 as days from public.enrollments where user_id=$1`,[U])).rows[0];
+   expect(Number(enrollment.days)).toBe(7);
    expect(await reserve('r1')).toMatchObject({ok:false,reason:'duplicate'});
-   expect(await reserve('over',1_500_000)).toMatchObject({ok:false,reason:'budget'});
+   expect(await reserve('over',2_500_000)).toMatchObject({ok:false,reason:'budget'});
  });
  it('settles only once and distinguishes unknown provider cost from a charged reservation',async()=>{
    await db.exec(`select public.settle_budget_v2('r1','uncertain',0); select public.settle_budget_v2('r1','settled',100);`);

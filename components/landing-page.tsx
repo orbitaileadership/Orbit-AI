@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Pricing } from "./pricing";
 import { Wordmark, OrbitBackdrop } from "./brand";
 import { ProviderLogo } from "./provider-logo";
 import { primaryButtonClass } from "./auth-ui";
@@ -18,6 +19,7 @@ export function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-8">
           <Link href="/" aria-label="Orbit AI home"><Wordmark className="text-xl" markSize={30} /></Link>
           <nav aria-label="Main navigation" className="flex items-center gap-4 text-sm">
+            <a href="#pricing" className="rounded-lg py-3 text-ink-muted hover:text-ink">Pricing</a>
             <Link href="/login" className="rounded-lg px-2 py-3 text-ink-muted hover:text-ink">Log In</Link>
             <Link href="/signup" className={`${primaryButtonClass} !w-auto !px-4 !py-2.5`}>Get Started</Link>
           </nav>
@@ -42,6 +44,7 @@ export function LandingPage() {
           </div>
           <p className="mt-5 text-xs leading-5 text-ink-subtle">Model availability and features vary. AI can make mistakes; review generated answers and deadlines.</p>
         </section>
+        <Pricing />
       </main>
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-5 py-6 text-xs text-ink-muted sm:px-8">
