@@ -1,0 +1,5 @@
+# A bounded local validation run. Use with compose.document-worker.yml.
+services:
+  document-worker:
+    restart: "no"
+    command: ["node", "scripts/document-worker.mjs", "--once"]
