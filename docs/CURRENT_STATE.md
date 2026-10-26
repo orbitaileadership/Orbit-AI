@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## Large-file uploads and in-app previews — local, October 26, 2026
+
+On `codex/large-file-preview`, supported documents up to 512 MiB are accepted through private resumable Storage upload. Files over 20 MiB queue for a separate worker that converts Office documents into private PDF previews and indexes page-scoped text; existing chats and Orbit select bounded excerpts only after indexing. Saved provider/Orbit chat files and course/section resources open in an in-app viewer. Local synthetic checks, typecheck, lint and a production webpack build have passed; see [plan](LARGE_FILE_PREVIEW_PLAN.md) and [handoff](handoffs/2026-10-26-large-file-preview.md). Migration 0026, the Storage global limit, and the worker have **not** been deployed. A real 512 MiB upload, conversion and signed-in desktop/phone journey are still unverified; production should not be described as supporting this yet.
+
 ## Response prompt v5 — local branch, October 26, 2026
 
 `codex/chat-response-quality` shortens the shared student response contract and omits text-widget schemas from voice prompts. Text chat still supports multiple-choice and interactive visuals, with a more explicit invitation to add a useful visual without a direct request. All four provider chats and Orbit lead responses use the shared contract. Local validation and prompt-size measurements are in [the response-quality note](RESPONSE_QUALITY.md) and [handoff](handoffs/2026-10-26-response-quality-v5.md). Live provider quality, latency and billed token comparisons remain awaiting approval and validation. This branch has not been merged or deployed.

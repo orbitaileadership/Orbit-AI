@@ -7,7 +7,7 @@ import { FileChip } from "./file-chip";
 
 // Create / edit a course: name, instructions every chat in it follows, and reusable course files
 // (lectures, slides, assignment specs) that answers can quote with page references.
-export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete, onUpload, onDeleteFile, uploading, courses, defaultCourseId, error }: {
+export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete, onUpload, onDeleteFile, onOpenFile, uploading, courses, defaultCourseId, error }: {
   open: boolean;
   error?: string;
   courses?: { id: string; name: string }[];
@@ -20,6 +20,7 @@ export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete,
   onDelete?: () => Promise<void>;
   onUpload?: (files: File[]) => void;
   onDeleteFile?: (id: string) => void;
+  onOpenFile?: (id: string) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -84,6 +85,7 @@ export function ProjectDialog({ open, initial, files, onClose, onSave, onDelete,
               {(uploading ?? []).map((n) => <FileChip key={`u-${n}`} name={n} state="uploading" />)}
               {(files ?? []).map((f) => (
                 <FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={fileNote(f)}
+                  onOpen={onOpenFile ? () => onOpenFile(f.id) : undefined}
                   onRemove={onDeleteFile ? () => onDeleteFile(f.id) : undefined} wide />
               ))}
               {!files?.length && !uploading?.length && <p className="rounded-xl bg-surface-200 px-3 py-3 text-center text-xs text-ink-subtle">No files yet.</p>}

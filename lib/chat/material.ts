@@ -1,4 +1,5 @@
 import { CONTEXT } from "@/config/context";
+import { INLINE_INDEX_BYTES } from "@/config/files";
 import { DATA_FILE } from "@/lib/code/tools";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { referenceLabel } from "@/lib/files/extract";
@@ -15,7 +16,7 @@ export type Source = { n: number; fileId: string; fileName: string; page: number
 
 const tag = (s: Pick<Source, "kind" | "n">) => `${s.kind === "web" ? "W" : "S"}${s.n}`;
 type FileRow = {
-  id: string; name: string; kind: string; status: string; char_count: number | null; page_count: number | null;
+  id: string; name: string; kind: string; status: string; char_count: number | null; page_count: number | null; size_bytes?: number | null;
   project_id: string | null; conversation_id: string | null; storage_path: string; mime: string;
   visual_pages?: number[] | null; image_count?: number | null;
 };
@@ -53,7 +54,7 @@ export async function gatherMaterial(
     previousQuestion?: string; // the student's message before this one, for follow-ups like "and the second one?"
   },
 ): Promise<Material> {
-  const cols = "id, name, kind, status, char_count, page_count, project_id, conversation_id, storage_path, mime";
+  const cols = "id, name, kind, status, char_count, page_count, size_bytes, project_id, conversation_id, storage_path, mime";
   const load = (extra: string) => {
     const q = supabase.from("files").select(cols + extra);
     const clauses = [`conversation_id.eq.${opts.conversationId}`];
@@ -70,7 +71,10 @@ export async function gatherMaterial(
   const images = await courseImages(supabase, all, opts, notes);
   const ready = files.filter((f) => f.status === "ready" || f.status === "needs_ocr");
   const unreadable = files.filter((f) => f.status === "failed").map((f) => f.name);
+  const processing = files.filter((f) => f.status === "queued" || f.status === "processing");
+  if (processing.length) notes.push(`${processing.map((f) => f.name).join(", ")} ${processing.length === 1 ? "is" : "are"} still being indexed. Do not claim to have read or cited their contents yet; tell the student to try again when processing finishes.`);
   for (const f of ready) {
+    if ((f.size_bytes ?? 0) > INLINE_INDEX_BYTES) notes.push(`${f.name}: background indexing captured text only. Diagrams, scans, pictures and speaker notes may not be represented; ask for a smaller PDF or screenshots when visual content matters.`);
     if ((f.image_count ?? 0) > 0) notes.push(`${f.name} contains ${f.image_count} picture${f.image_count === 1 ? "" : "s"} (diagrams, figures…) that can't be read from the file; only its text is available. If the question depends on them, ask the student to upload screenshots.`);
     if (f.mime !== "application/pdf" && f.visual_pages?.length) {
       notes.push(`${f.name}: ${f.visual_pages.length === 1 ? `slide ${f.visual_pages[0]} has a picture or chart` : `slides ${f.visual_pages.slice(0, 15).join(", ")}${f.visual_pages.length > 15 ? "…" : ""} have pictures or charts`} that can't be seen here (only slide text is read). If they matter, ask the student to export the slides as PDF and upload that instead.`);
@@ -82,7 +86,7 @@ export async function gatherMaterial(
   const ownFiles = courseFiles.filter((f) => !parentFiles.includes(f));
   if (parentFiles.length) notes.push(`Files in this folder: ${ownFiles.length ? courseIndex(ownFiles) : "none yet"}. Files in its course: ${courseIndex(parentFiles)}. If the answer is probably in one of them but nothing below covers it, say which file and ask the student to point to the page or topic.`);
   else if (courseFiles.length) notes.push(`Files in this course: ${courseIndex(courseFiles)}. If the answer is probably in one of them but nothing below covers it, say which file and ask the student to point to the page or topic.`);
-  const dataFiles = [...new Set(all.filter((f) => f.status !== "failed" && DATA_FILE.test(f.name)).map((f) => f.name))];
+  const dataFiles = [...new Set(ready.filter((f) => DATA_FILE.test(f.name) && (f.size_bytes == null || f.size_bytes <= INLINE_INDEX_BYTES)).map((f) => f.name))];
   const imageTokens = images.length * IMAGE_TOKENS;
   const empty = { sources: [], block: "", unreadable, notes, documents: [], images, tokens: imageTokens, visualTokens: imageTokens, hasFiles: all.length > 0, dataFiles };
   if (!ready.length) return empty;
@@ -192,6 +196,10 @@ export async function gatherMaterial(
       notes.push(`${file.name}: ${describePages(pages)} ${pages.length === 1 ? "is a scanned page or diagram" : "are scanned pages or diagrams"} this app can't see (it can't read PDFs visually). Say so if it matters, and suggest uploading screenshots of those pages.`);
       continue;
     }
+    if ((file.size_bytes ?? 0) > INLINE_INDEX_BYTES) {
+      notes.push(`${file.name}: ${describePages(pages)} could not be shown visually from this large PDF. Only indexed text passages are available for this question; ask for a smaller PDF or screenshots if the diagrams or scans matter.`);
+      continue;
+    }
     const pdf = await pagesAsPdf(supabase, file, pages);
     if (!pdf) {
       notes.push(`${file.name}: ${describePages(pages)} couldn't be prepared as images (the PDF may be protected).`);
@@ -215,7 +223,7 @@ function courseIndex(files: FileRow[]): string {
   const shown = files.slice(0, 40).map((f) => {
     const n = f.page_count;
     const unit = /\.pptx$/i.test(f.name) ? "slide" : /\.(xlsx|xlsm|csv|tsv)$/i.test(f.name) ? "sheet" : "page";
-    const state = f.status === "failed" ? ", couldn't be read" : f.kind === "image" ? ", image" : "";
+    const state = f.status === "failed" ? ", couldn't be read" : f.status === "queued" || f.status === "processing" ? ", indexing" : f.kind === "image" ? ", image" : "";
     return `${f.name}${n ? ` (${n} ${unit}${n === 1 ? "" : "s"}${state})` : state ? ` (${state.slice(2)})` : ""}`;
   });
   return shown.join(", ") + (files.length > shown.length ? `, and ${files.length - shown.length} more` : "");

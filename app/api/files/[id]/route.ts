@@ -11,11 +11,11 @@ export async function GET(_: Request, ctx: RouteContext<"/api/files/[id]">) {
   const { id } = await ctx.params;
   if (!isUuid(id)) return json({ error: "not_found" }, 404);
   // RLS: only the student's own rows are visible.
-  const { data: file } = await auth.supabase.from("files").select("name, storage_path").eq("id", id).maybeSingle();
+  const { data: file } = await auth.supabase.from("files").select("name, storage_path, size_bytes").eq("id", id).maybeSingle();
   if (!file) return json({ error: "not_found" }, 404);
   const { data, error } = await auth.supabase.storage.from("uploads").createSignedUrl(file.storage_path, 60);
   if (error || !data) return json({ error: "download_failed" }, 500);
-  return json({ name: file.name, url: data.signedUrl });
+  return json({ name: file.name, size: file.size_bytes, url: data.signedUrl });
 }
 
 export async function PATCH(request: Request, ctx: RouteContext<"/api/files/[id]">) {
@@ -44,7 +44,7 @@ export async function DELETE(_: Request, ctx: RouteContext<"/api/files/[id]">) {
   if ("error" in auth) return auth.error;
   const { id } = await ctx.params;
   if (!isUuid(id)) return json({ error: "not_found" }, 404);
-  const { data: file, error: fileError } = await auth.supabase.from("files").select("storage_path,project_id").eq("id", id).eq("user_id", auth.user.id).maybeSingle();
+  const { data: file, error: fileError } = await auth.supabase.from("files").select("storage_path,preview_path,project_id").eq("id", id).eq("user_id", auth.user.id).maybeSingle();
   if (fileError) return dbError(fileError, "load_failed");
   if (!file) return json({ error: "not_found" }, 404);
     try {
@@ -52,7 +52,7 @@ export async function DELETE(_: Request, ctx: RouteContext<"/api/files/[id]">) {
         return json({ error: "course_source", message: "This file supports reviewed course details. Keep it so syllabus evidence remains available." }, 409);
       }
     } catch { return json({ error: "load_failed" }, 500); }
-  const removed = await auth.supabase.storage.from("uploads").remove([file.storage_path]);
+  const removed = await auth.supabase.storage.from("uploads").remove([file.storage_path, ...(file.preview_path ? [file.preview_path] : [])]);
   if (removed.error) return json({ error: "delete_failed" }, 500);
   const { error } = await auth.supabase.from("files").delete().eq("id", id).eq("user_id", auth.user.id);
   if (error) return json({ error: "delete_failed" }, 500);

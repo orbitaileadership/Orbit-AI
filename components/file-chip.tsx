@@ -1,9 +1,10 @@
 // One uploaded file: name, type, and whether we could read it.
-export function FileChip({ name, kind, state, detail, onRemove, wide }: {
+export function FileChip({ name, kind, state, detail, onOpen, onRemove, wide }: {
   name: string;
   kind?: "document" | "image" | string;
   state: "uploading" | "ready" | "failed" | "needs_ocr" | string;
   detail?: string;
+  onOpen?: () => void;
   onRemove?: () => void;
   wide?: boolean;
 }) {
@@ -15,12 +16,15 @@ export function FileChip({ name, kind, state, detail, onRemove, wide }: {
       <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[10px] font-bold ${kind === "image" ? "bg-surface-300 text-ink-muted" : "bg-brand text-on-brand"}`}>
         {state === "uploading" ? <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : kind === "image" ? "IMG" : ext}
       </span>
-      <span className="min-w-0 flex-1">
+      {onOpen ? <button type="button" onClick={onOpen} aria-label={`Preview ${name}`} className="min-w-0 flex-1 text-left hover:underline">
         <span className="block truncate text-xs font-medium text-ink">{name}</span>
         <span className={`block truncate text-[11px] ${bad ? "text-danger" : "text-ink-subtle"}`}>
-          {state === "uploading" ? "Uploading…" : state === "needs_ocr" ? detail ?? "Scanned · read as page images" : state === "failed" ? detail ?? "Couldn't read this file" : detail ?? (kind === "image" ? "Image" : "Ready")}
+          {state === "uploading" ? detail ?? "Uploading…" : state === "queued" || state === "processing" ? detail ?? "Indexing…" : state === "needs_ocr" ? detail ?? "Scanned · read as page images" : state === "failed" ? detail ?? "Couldn't read this file" : detail ?? (kind === "image" ? "Image" : "Ready")}
         </span>
-      </span>
+      </button> : <span className="min-w-0 flex-1">
+        <span className="block truncate text-xs font-medium text-ink">{name}</span>
+        <span className={`block truncate text-[11px] ${bad ? "text-danger" : "text-ink-subtle"}`}>{state === "uploading" ? detail ?? "Uploading…" : state === "queued" || state === "processing" ? detail ?? "Indexing…" : state === "failed" ? detail ?? "Couldn't read this file" : detail ?? (kind === "image" ? "Image" : "Ready")}</span>
+      </span>}
       {onRemove && (
         <button type="button" onClick={onRemove} aria-label={`Remove ${name}`} className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-surface-300 hover:text-ink">
           <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>

@@ -30,11 +30,17 @@ export async function GET(request: Request) {
   const {data:conv,error} = await auth.supabase.from("conversations").select("id,project_id,mode,study_config").eq("id",id).eq("orbit_mode",true).maybeSingle();
   if (error) return dbError(error,"load_failed");
   if (!conv) return json({error:"not_found"},404);
-  const {data:rows,error:loadError} = await auth.supabase.from("messages").select("id,role,content,status,model_id,orbit_details,seq")
+  const {data:rows,error:loadError} = await auth.supabase.from("messages").select("id,role,content,status,model_id,orbit_details,seq,attachment_ids")
     .eq("conversation_id",id).order("seq",{ascending:false}).limit(ORBIT.contextRows);
   if (loadError) return dbError(loadError,"load_failed");
+  const fileIds=[...new Set((rows??[]).flatMap(row=>(row.attachment_ids??[]) as string[]))];
+  const {data:attached,error:attachedError}=fileIds.length
+    ? await auth.supabase.from("files").select("id,name,kind,status,error").eq("user_id",auth.user.id).in("id",fileIds)
+    : {data:[],error:null};
+  if(attachedError)return dbError(attachedError,"load_failed");
+  const byId=new Map((attached??[]).map(file=>[file.id,file]));
   const course=conv.project_id?(await auth.supabase.from("projects").select("id,name").eq("id",conv.project_id).maybeSingle()).data:null;
-  return json({course,messages:(rows??[]).reverse(),olderMessages:(rows?.length??0)>=ORBIT.contextRows,
+  return json({course,messages:(rows??[]).reverse().map(row=>({...row,attachments:((row.attachment_ids??[]) as string[]).map(fileId=>byId.get(fileId)).filter(Boolean)})),olderMessages:(rows?.length??0)>=ORBIT.contextRows,
     quizStartReady:conv.mode==="quiz"&&(conv.study_config as {start_state?:string}|null)?.start_state==="ready"});
 }
 

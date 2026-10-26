@@ -37,6 +37,6 @@ export async function attachmentContext(db: SupabaseClient, userId: string, ids:
     if (estimateTokens(block + passage) > ORBIT.attachmentTokens - 60) { omitted = true; continue; }
     block += passage;
   }
-  block += "\nOnly selected excerpts of the attached files are available" + (omitted ? " and some passages were left out" : "") + ". Say when evidence is insufficient; do not claim to have read the whole file.\n</attached_files>";
+  block += "\nOnly selected text excerpts of the attached files are available" + (omitted ? " and some passages were left out" : "") + ". Scans, diagrams, pictures and speaker notes may be absent. Say when evidence is insufficient; do not claim to have read the whole file.\n</attached_files>";
   return { block, fileIds, names: usable.map(f => f.name as string) };
 }

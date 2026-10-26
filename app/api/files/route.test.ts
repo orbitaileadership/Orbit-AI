@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeSupabase } from "@/test/fake-supabase";
+import { INLINE_INDEX_BYTES, MAX_DOCUMENT_UPLOAD_BYTES } from "@/config/files";
 
 // Upload route with mocked auth + database (files are read for real).
 const state = vi.hoisted(() => ({ fake: null as ReturnType<typeof import("@/test/fake-supabase").fakeSupabase> | null }));
@@ -12,10 +13,10 @@ vi.mock("@/lib/api", async (orig) => ({
 import { POST } from "./route";
 
 const fixture = (name: string) => new Uint8Array(readFileSync(new URL(`../../../test/fixtures/${name}`, import.meta.url)));
-async function upload(name: string, bytes: Uint8Array, type = "") {
+async function upload(name: string, bytes: Uint8Array, type = "", sizeOverride?: number) {
   const id = crypto.randomUUID();
   const path = `user-1/${id}/${name}`;
-  state.fake!.storage[path] = { bytes, type };
+  state.fake!.storage[path] = { bytes, type, sizeOverride };
   const res = await POST(new Request("http://x/api/files", { method: "POST", body: JSON.stringify({ id, path, name }) }));
   return { res, body: await res.json(), row: state.fake!.db.files.find((f) => f.id === id), path };
 }
@@ -44,5 +45,34 @@ describe("POST /api/files", () => {
     expect(res.status).toBe(400);
     expect(body.message).toContain("Save it as .xlsx or CSV");
     expect(state.fake!.storage[path]).toBeUndefined();
+  });
+
+  it("queues a large PDF without downloading it in the request", async () => {
+    const { body, row } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", INLINE_INDEX_BYTES + 1);
+    expect(body.file).toMatchObject({ status: "queued" });
+    expect(row!.size_bytes).toBe(INLINE_INDEX_BYTES + 1);
+    expect(state.fake!.storageCalls.downloads).toBe(0);
+    expect(state.fake!.db.file_chunks).toHaveLength(0);
+  });
+
+  it("accepts exactly 512 MiB for background indexing", async () => {
+    const { res, body } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", MAX_DOCUMENT_UPLOAD_BYTES);
+    expect(res.status).toBe(200);
+    expect(body.file.status).toBe("queued");
+  });
+
+  it("retries registration idempotently after a completed upload", async () => {
+    const { row, path } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", INLINE_INDEX_BYTES + 1);
+    const response = await POST(new Request("http://x/api/files", { method: "POST", body: JSON.stringify({ id: row!.id, path, name: "lecture.pdf" }) }));
+    expect(response.status).toBe(200);
+    expect(state.fake!.db.files).toHaveLength(1);
+    expect(state.fake!.storage[path]).toBeDefined();
+  });
+
+  it("rejects an oversized stored document before download and removes it", async () => {
+    const { res, path } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", MAX_DOCUMENT_UPLOAD_BYTES + 1);
+    expect(res.status).toBe(400);
+    expect(state.fake!.storage[path]).toBeUndefined();
+    expect(state.fake!.storageCalls.downloads).toBe(0);
   });
 });
