@@ -114,4 +114,4 @@ Signed-in app users can send categorized reports, optionally include only the cu
 
 ## Pricing trial database update — October 26, 2026
 
-Supabase project rcfnptnaoncfsavxgybc received migration 0025_trial_usd_budget.sql (tool name trial_usd_budget). New trials receive USD $3 for seven days; existing budgets and enrollments are preserved. Verified settings, service-only v2 execution, and unchanged rolling guard. Payments remain disabled. CAD subscription pricing release is in progress; see handoffs/2026-10-26-pricing.md.
+Supabase project rcfnptnaoncfsavxgybc received migration 0025_trial_usd_budget.sql (tool name trial_usd_budget). New trials receive USD $3 for seven days; existing budgets and enrollments are preserved. Verified settings, service-only v2 execution, and unchanged rolling guard. Payments remain disabled. CAD subscription pricing released at main 347827e, Vercel reported success, and public homepage prices/trial wording verified. See handoffs/2026-10-26-pricing.md.
