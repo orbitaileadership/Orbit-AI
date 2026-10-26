@@ -111,3 +111,7 @@ Signed-in app users can send categorized reports, optionally include only the cu
 ## October 25 — model-directed search (local)
 
 `feat/automatic-web-search` lets standard provider chats request Tavily when needed, preserves Python and summary/retrieval memory, and keeps explicit search as “Always search first.” One ledger claim per question, saved server-owned citations and cancellation/storage checks bound the new path. No migration, paid test call, merge or deployment. See [handoff](handoffs/2026-10-25-automatic-web-search.md) for validation and remaining live checks.
+
+## Pricing trial database update — October 26, 2026
+
+Supabase project rcfnptnaoncfsavxgybc received migration 0025_trial_usd_budget.sql (tool name trial_usd_budget). New trials receive USD $3 for seven days; existing budgets and enrollments are preserved. Verified settings, service-only v2 execution, and unchanged rolling guard. Payments remain disabled. CAD subscription pricing release is in progress; see handoffs/2026-10-26-pricing.md.
