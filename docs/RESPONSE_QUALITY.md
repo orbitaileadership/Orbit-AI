@@ -1,5 +1,13 @@
 # Response quality: first implementation
 
+## October 26, 2026 — shared prompt v5 (local, awaiting live evaluation)
+
+The current branch `codex/chat-response-quality` condenses the shared answer contract in `config/quality.ts` while retaining direct answers, source honesty, latest corrections, study-mode rules and quantitative checks. Text replies keep the existing multiple-choice and calculator/chart/diagram contracts. The visual instruction now explicitly permits a useful chart, calculator or diagram without a user asking for one. Spoken replies receive the core guidance and voice instructions, without the text-only widget schemas. The same v5 contract reaches all four single-provider chats and the Orbit lead response; provider routing, model IDs, reasoning settings, output caps, history and reserve → call → reconcile are unchanged.
+
+The app's conservative character-based estimate for the shared contract is **1,595 → 1,010 input tokens** for text, and **1,595 → 455** for the voice core. These are prompt-size proxies, not measured provider token usage, latency or savings per whole request. The evaluation corpus has 21 synthetic cases, including a new unrequested-visual case. It needs a blind, repeated comparison with v4 on each provider, including widget validity, factual quality, actual usage/cost and latency. No paid live-provider evaluation or signed-in staging check has been run for v5, so this is awaiting validation.
+
+We did not globally change temperature, reasoning effort or output ceilings. Those controls vary by model and can cause worse answers or incomplete visible responses; tune them per model only after the same synthetic cases establish a quality/cost benefit. This change adds no provider calls.
+
 Purpose: remove observable quality failures while keeping the selected model, budget path and call count intact. This work is on local Jake, on top of the smart-memory/analytics commit. It is not deployed.
 
 ## Implemented changes

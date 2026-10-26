@@ -8,9 +8,9 @@ const cases = JSON.parse(readFileSync("benchmarks/response-quality-cases.json", 
 const model = getModel("anthropic-default")!;
 
 describe("quality evaluation harness", () => {
-  it("has the 20 synthetic cases, 16 runnable by prompt", () => {
-    expect(cases).toHaveLength(20);
-    expect(cases.filter((c) => !NOT_PROMPT_CASES[c.id])).toHaveLength(16);
+  it("has 21 synthetic cases, 17 runnable by prompt", () => {
+    expect(cases).toHaveLength(21);
+    expect(cases.filter((c) => !NOT_PROMPT_CASES[c.id])).toHaveLength(17);
   });
 
   it("baseline is the same prompt without the response contract", () => {

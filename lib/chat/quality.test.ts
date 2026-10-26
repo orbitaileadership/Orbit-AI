@@ -47,8 +47,17 @@ describe('source selection regressions',()=>{
 describe('shared student response contract',()=>{
  it('includes units/checks, corrections and untrusted-source boundaries while preserving explicit study modes',()=>{
   const p=systemPrompt({modelLabel:'Synthetic model',mode:'hints',summary:'old fact',courseOnly:true,material:'[S1] sample notes'});
-  expect(p).toContain('assumptions, and units; check the result');expect(p).toContain('latest user corrections');expect(p).toContain('reference material');
+  expect(p).toContain('assumptions and units; check the result');expect(p).toContain('latest user corrections');expect(p).toContain('reference material');
   expect(p).toContain('HINTS ONLY');expect(p).toContain('answer ONLY from these passages');
+ });
+ it('suggests useful visuals without an explicit request and omits widget schemas from speech',()=>{
+  const ordinary=systemPrompt({modelLabel:'Synthetic model'});
+  const voice=systemPrompt({modelLabel:'Synthetic model',voice:true});
+  expect(ordinary).toContain('even when the student did not ask for one');
+  expect(ordinary).toContain('orbit-widget');
+  expect(voice).toContain('spoken conversation');
+  expect(voice).not.toContain('orbit-widget');
+  expect(voice.length).toBeLessThan(ordinary.length);
  });
 });
 
