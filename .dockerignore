@@ -1,0 +1,6 @@
+**
+!package.json
+!package-lock.json
+!scripts/
+!scripts/document-worker.Dockerfile
+!scripts/document-worker.mjs

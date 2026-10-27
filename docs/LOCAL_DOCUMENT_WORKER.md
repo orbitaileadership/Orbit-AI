@@ -1,55 +1,75 @@
-# Run the document worker locally on Windows
+# Validate large documents with local Supabase and Docker
 
-This guide is for **staging only**. The worker processes every queued file in the Supabase project it points to and uses that project's service-role key. Never point a local validation run at the production project.
+This is isolated **local staging** with disposable synthetic data. The worker processes every queued file in the Supabase project named by its service-role key. Never point it at production.
 
-## Prerequisites
+## Prerequisites and isolation
 
-1. Install [WSL 2 and Docker Desktop's WSL 2 backend](https://docs.docker.com/desktop/setup/install/windows-install/). Docker's current Windows requirements include WSL 2.1.5+, 8 GB of system RAM and hardware virtualization. Enabling WSL for the first time requires Windows administrator access and can require a restart. Docker Desktop does not need a separate Ubuntu distribution. On Noah's Windows machine, Docker Desktop 4.97.0 is installed and its installer enabled the required Windows features; **restart Windows before trying to start Docker Desktop**.
-2. Create an [isolated Supabase staging/preview branch](https://supabase.com/docs/guides/deployment/branching) without production data. It needs its own URL and service-role key, migration `0026_large_files_previews.sql`, and a **global Storage file-size limit of at least 512 MiB**. The `uploads` bucket limit is set by the migration. [Supabase Free projects](https://supabase.com/docs/guides/storage/uploads/file-limits) cannot raise the global limit above 50 MB.
-3. Point a Vercel preview deployment at that same staging branch for browser upload tests. Keep production environment variables separate.
+Install WSL 2 and Docker Desktop with Linux containers. On Noah's Windows machine, WSL 2.7.14 and Docker Desktop 4.97.0 were verified October 27, 2026. Start Docker Desktop first.
 
-## Verify Docker
-
-From a fresh PowerShell window after Docker Desktop starts:
+Docker Desktop published local Supabase's API, database and mail ports on all interfaces despite the network's localhost binding option. Windows firewall rule **`Orbit AI local Supabase staging ports`** must remain enabled: inbound TCP 54321, 54322 and 54324, all profiles, **Block**. Check before starting:
 
 ```powershell
-wsl --version
-docker version
-docker compose version
+netsh advfirewall firewall show rule name="Orbit AI local Supabase staging ports"
 ```
 
-Docker Desktop must use **Linux containers**. If `docker version` shows only a client, start Docker Desktop and wait for its engine.
+The network and firewall together form the local isolation boundary. This was verified locally, but not from a second computer. If the rule is absent, restore it from an administrator PowerShell before starting Supabase: `New-NetFirewallRule -DisplayName "Orbit AI local Supabase staging ports" -Direction Inbound -Action Block -Profile Any -Protocol TCP -LocalPort 54321,54322,54324`. Do not disable the host firewall or use real student data.
 
-## Build and validate one queued job
+## Prepare and start the stack
 
-From the repository root:
+Run from the repository root:
+
+```powershell
+npm ci
+node scripts/prepare-local-supabase.mjs
+docker network create --driver bridge --opt com.docker.network.bridge.host_binding_ipv4=127.0.0.1 orbit-local-only
+npx supabase --workdir .local-supabase start --network-id orbit-local-only -x realtime,imgproxy,studio,edge-runtime,logflare,vector,supavisor,postgres-meta --yes
+```
+
+Create the network only once. If it already exists, verify its binding with `docker network inspect orbit-local-only`. The preparation script makes **ignored copies** of historical migrations with unique local versions. Old version prefixes `0013` and `0024` repeat, so starting Supabase directly from the tracked `supabase/` directory fails on its migration-version primary key. The script changes no tracked migration and no shared database. The generated project ID is `orbit-ai-large-file-local`.
+
+`supabase/config.toml` sets the local global Storage limit to **512 MiB**; migration 0026 sets the `uploads` bucket to the same size. CLI start/status output contains local keys. Keep it out of screenshots, logs and commits. `.local-supabase/` and `.env.local` are ignored.
+
+Confirm all migrations and Storage health:
+
+```powershell
+docker ps --format '{{.Names}} {{.Status}}'
+docker exec supabase_db_orbit-ai-large-file-local psql -U postgres -d postgres -tAc 'select count(*) from supabase_migrations.schema_migrations'
+```
+
+The October 27 local run applied **28** migrations and verified the `uploads` bucket limit at **536870912 bytes**. Never apply the renumbered copies to a shared project.
+
+## Run one worker job
 
 ```powershell
 docker compose -f compose.document-worker.yml -f compose.document-worker.local.yml config --quiet
 docker compose -f compose.document-worker.yml -f compose.document-worker.local.yml build document-worker
-```
-
-Use the **staging** branch URL. Enter its service-role key into the current PowerShell process without writing it to a repo file or terminal history:
-
-```powershell
-$env:SUPABASE_URL = Read-Host 'Staging Supabase URL'
-$keyInput = Read-Host 'Staging service-role key' -AsSecureString
-$env:SUPABASE_SERVICE_ROLE_KEY = [System.Net.NetworkCredential]::new('', $keyInput).Password
-Remove-Variable keyInput
+$localStatus = npx supabase --workdir .local-supabase status -o json 2>$null | ConvertFrom-Json
+$env:SUPABASE_URL = 'http://supabase_kong_orbit-ai-large-file-local:8000'
+$env:SUPABASE_SERVICE_ROLE_KEY = $localStatus.SERVICE_ROLE_KEY
 docker compose -f compose.document-worker.yml -f compose.document-worker.local.yml run --rm document-worker
 Remove-Item Env:SUPABASE_SERVICE_ROLE_KEY
+Remove-Item Env:SUPABASE_URL
+Remove-Variable localStatus
 ```
 
-The local override runs **one queue check**, then exits. Queue a synthetic PDF or Office file through the staging app before running it. A real large-file validation should check that the file moves from queued to ready, the Office preview opens within Orbit, and chat cites only relevant indexed passages. Run the command again for another job. The worker uses at most 4 GiB memory and a 2 GiB temporary filesystem through Compose; test with adequate free memory and disk.
+Do not print `$localStatus` or run `docker compose config` without `--quiet` after setting the key. The local override processes **one queue check** then exits. Queue a synthetic file through the local app, then rerun it. The worker joins `orbit-local-only` and uses Supabase's internal Docker hostname. The browser app uses `http://127.0.0.1:54321`. The image is non-root with LibreOffice and Poppler; Compose limits memory to 4 GiB, temporary space to 2 GiB, CPU to two cores and process count to 128.
 
-Do not run `docker compose config` without `--quiet` after loading the key: it prints resolved environment values. The worker refuses to start without both staging values, but `build` and `config --quiet` work without secrets.
+For local Next, put the local API URL and publishable key in `.env.local`; put the local service-role key there **only for server-side code**. Never copy these keys into Vercel or production settings. For synthetic signup, set `SCHOOL_EMAILS_ONLY=off`, `WAITLIST_MODE=off`, and `LIVE_MODELS=off`. No paid provider calls are needed.
 
-## Troubleshooting
+## Checks performed and limits
 
-- `wsl --status` says WSL is missing: install/enable WSL 2 from an **administrator** PowerShell and restart if Windows requests it.
-- Docker reports that the daemon is unavailable: open Docker Desktop, select the WSL 2/Linux engine and wait for startup.
-- Upload fails above 50 MB: check the staging project's plan and **global** Storage limit, then the `uploads` bucket limit.
-- File stays queued: confirm the migration was applied to this staging branch, the correct branch URL/key were supplied, and run the one-job command again.
-- Preview fails: inspect worker status without logging document contents. LibreOffice conversion can fail or change proprietary Office layout; the original remains downloadable.
+On October 27, this stack passed synthetic DOCX conversion to a private PDF and page indexing; a **20,971,521-byte** resumable text upload and indexing (**14,980** chunks); and an **exact 536,870,912-byte** resumable upload accepted by Storage. The worker's internal API connection returned 200. Synthetic users, file rows and objects were deleted after testing. Signed-in desktop/phone preview, interrupted TUS resume, large Office conversion load, cross-user denial and live-provider retrieval still need validation before release.
 
-See [the implementation plan](LARGE_FILE_PREVIEW_PLAN.md) and [handoff](handoffs/2026-10-26-large-file-preview.md) for the processing bounds and release gates.
+## Stop and troubleshoot
+
+```powershell
+npx supabase --workdir .local-supabase stop
+```
+
+- Docker engine unavailable: start Docker Desktop and wait for Linux engine health.
+- Migration collision: rerun the preparation script and use `--workdir .local-supabase` on every Supabase CLI command.
+- Upload rejected near 512 MiB: check the global Storage and `uploads` bucket limits.
+- File stays queued: run another worker check; inspect status and attempts without logging document contents.
+- Office preview differs from original: LibreOffice may alter proprietary effects or fonts. Keep the original downloadable.
+
+See [the implementation plan](LARGE_FILE_PREVIEW_PLAN.md) and [local validation handoff](handoffs/2026-10-27-local-supabase-document-worker.md) for release gates and extraction bounds.

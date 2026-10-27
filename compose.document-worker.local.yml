@@ -3,3 +3,9 @@ services:
   document-worker:
     restart: "no"
     command: ["node", "scripts/document-worker.mjs", "--once"]
+    networks:
+      - orbit-local-only
+
+networks:
+  orbit-local-only:
+    external: true
