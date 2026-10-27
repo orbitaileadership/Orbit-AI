@@ -1,0 +1,16 @@
+# Task handoff — in-app PDF preview rendering
+
+- Date / owner: October 27, 2026 / Noah's engineering session
+- Status: local rendering fix implemented and visually verified in the in-app browser; standard Chrome/Edge, phone viewport and production release await validation.
+- Task and acceptance: fix the blank/black PDF preview frame while keeping private owner-checked links and layout-preserving Office PDF renditions. Students should see PDF pages in Orbit and navigate between them.
+- Repository / branch: `orbitaileadership/Orbit-AI`, `codex/large-file-preview`.
+- Working tree: pre-existing untracked `.claude/` was not touched. Check the final commit for this task's tracked files.
+- What changed: replaced browser PDF iframe with a client-side Mozilla PDF.js canvas renderer. Its locally bundled worker and 128 KiB range requests avoid depending on browser PDF plug-ins and avoid downloading an entire 512 MiB PDF up front. One page is rendered at a time with a 16-megapixel canvas cap. Added page controls, loading and error states; kept the original download control and existing owner-checked signed-URL route.
+- Important decisions: the existing iframe visibly failed in the in-app browser; the new renderer uses a pinned `pdfjs-dist` dependency and sends PDF requests only to the owner's signed Supabase Storage URL. It does not send files to a third-party viewer.
+- Checks: synthetic signed-in chat showed the converted DOCX PDF page and both pages of a native two-page PDF. Next/Previous changed the visible page; Close removed the dialog. The preview API returned 200, and private signed Storage served HTTP 206 ranges with CORS. Focused preview API tests: 4 passed. Full lint and TypeScript passed. `npx next build --webpack` and the repository's `npm run build` both passed with network access. The first sandboxed build attempt could not resolve Google Fonts; an unrestricted retry passed. PDF.js was absent from the production `npm audit` vulnerability list; existing unrelated packages were reported.
+- Database state: no new migration; all browser checks used disposable local Supabase with migration 0026. The synthetic user, chat, two file rows and three Storage objects were deleted. The local stack was stopped.
+- Release state: not deployed or merged; no paid provider call or shared setting change.
+- Known risks: standard Chrome/Edge and phone-sized viewport were not exercised because the available browser automation could not safely control the user's Chrome window or set a phone viewport. A local synthetic PDF is not evidence that every 512 MiB PDF renders; PDF.js may fail on malformed, encrypted or huge visual documents and shows an explicit error with download available. Browser CORS/range behavior must be verified in the eventual staging environment.
+- Rollback/recovery: revert the viewer and dependency commit to restore iframe behavior; keep originals and PDF renditions unchanged.
+- Next action: run a signed-in synthetic DOCX/PDF/PPTX preview in a standard desktop browser and 375px phone viewport in an approved staging environment; verify large-page performance and owner denial before release.
+- Authorization still needed: production merge/deployment, shared migration and Storage limit, worker hosting and paid provider tests. Local synthetic validation was already approved.

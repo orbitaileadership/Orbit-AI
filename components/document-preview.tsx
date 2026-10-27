@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { PdfDocumentPreview } from "./pdf-document-preview";
 
 type Preview = { name: string; status: "ready" | "processing" | "failed"; mime?: string; url?: string; message?: string };
 
@@ -60,7 +61,7 @@ function PreviewContent({ fileId, onClose }: { fileId: string; onClose: () => vo
         // Private signed images must load directly from Storage; an image proxy would duplicate the full file.
         // eslint-disable-next-line @next/next/no-img-element
         ? <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-4"><img src={preview.url} alt={preview.name} className="max-h-full max-w-full object-contain" /></div>
-        : <iframe title={preview.name} src={preview.url} sandbox="" referrerPolicy="no-referrer" className="min-h-0 w-full flex-1 bg-white" />
+        : <PdfDocumentPreview url={preview.url} name={preview.name} />
       : <div role={preview?.status === "failed" ? "alert" : "status"} className="m-auto max-w-md rounded-2xl border border-line bg-surface-100 p-6 text-center">
         {preview?.status !== "failed" && <span className="mx-auto mb-4 block h-7 w-7 animate-spin rounded-full border-2 border-brand border-t-transparent" />}
         <p>{preview?.message ?? "Opening document…"}</p>

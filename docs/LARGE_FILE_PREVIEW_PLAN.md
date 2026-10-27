@@ -16,7 +16,7 @@
 2. Add a queued-processing file state and private `preview_path` metadata. Small files use the current synchronous extraction. Large documents are recorded as queued without downloading them through Vercel.
 3. A separate non-root container worker claims queued rows, streams the original to disk, converts Office documents to PDF with LibreOffice, extracts PDF text with Poppler, and writes page-scoped passages in batches. It uploads the preview to private Storage and marks completion. Claims, retries and cleanup are bounded; failures are explicit. The worker never sends content to an AI provider.
    The provided Compose service caps native memory at 4 GiB and scratch space at 2 GiB. A heartbeat and attempt-fenced database functions prevent a stale worker from mixing chunks with a replacement attempt. Office previews use attempt-specific object paths. Existing ready Office files are queued by migration 0026.
-4. Owner-checked API returns a short-lived signed URL for the original/preview. The in-app viewer uses an iframe for PDF and native rendering for images. Text and other formats use a download action rather than framing potentially active HTML. Open controls are available on saved chat attachments and course/section/folder files.
+4. Owner-checked API returns a short-lived signed URL for the original/preview. The in-app viewer renders PDF pages with a bundled PDF.js worker and range requests, and uses native rendering for images. Text and other formats use a download action rather than framing potentially active HTML. Open controls are available on saved chat attachments and course/section/folder files.
 
 ## Risk review and deployment gates
 
