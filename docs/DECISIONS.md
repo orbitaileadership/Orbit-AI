@@ -1,5 +1,9 @@
 # Orbit AI — approved decisions register
 
+## October 27, 2026 — per-request cost priority
+
+The owner's API Cost Optimization request prioritizes financial safeguards and minimum functionality over response polish, with a 1% ceiling based on remaining daily usage at the start of a logical request. Implemented locally on `feat/request-cost-ceiling`; shared migration 0027 and deployment remain separate decisions. New chats visibly select cheaper models, while explicit saved/selected models and the current v5 response contract remain unchanged. See [API_COST_EFFICIENCY.md](API_COST_EFFICIENCY.md).
+
 Seeded from the conversation and existing engineering protocol on October 19, 2026. Jake/Noah should review before adopting. Add the exact issue/PR/chat reference as it becomes available. Proposed priorities belong in CURRENT_STATE until approved.
 
 | Decision | Owner/source | Date/status |

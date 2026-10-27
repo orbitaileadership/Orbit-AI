@@ -343,13 +343,18 @@ export const MENU_MAIN: Record<ProviderId, string[]> = {
 export const SUMMARY_MODEL: Record<ProviderId, string> = {
   openai: "openai-luna",
   anthropic: "anthropic-haiku-5-5",
-  google: "google-default",
-  xai: "xai-default",
+  google: "google-2-5-flash-lite",
+  xai: "xai-grok-4-3",
 };
 /** Models that cost far more per answer; the menu marks them so students know before choosing. */
 export const isPremium = (m: ModelOption) => m.outputPrice >= 40;
 
-export const DEFAULT_MODEL_ID = MODELS[0].id;
+// New chats show the economical model in the picker. Saved model choices remain explicit.
+export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderId, string> = {
+  openai: "openai-luna", anthropic: "anthropic-haiku-5-5",
+  google: "google-2-5-flash-lite", xai: "xai-grok-4-3",
+};
+export const DEFAULT_MODEL_ID = DEFAULT_MODEL_BY_PROVIDER.openai;
 export const PROVIDERS: ProviderId[] = ["openai", "anthropic", "google", "xai"];
 
 export function getModel(id: string | undefined): ModelOption | undefined {
@@ -361,7 +366,8 @@ export function modelsFor(provider: ProviderId): ModelOption[] {
 }
 
 export function defaultModelFor(provider: ProviderId): string {
-  return modelsFor(provider)[0]?.id ?? DEFAULT_MODEL_ID;
+  const selected = getModel(DEFAULT_MODEL_BY_PROVIDER[provider]);
+  return selected?.enabled ? selected.id : modelsFor(provider)[0]?.id ?? DEFAULT_MODEL_ID;
 }
 
 export function isProvider(v: unknown): v is ProviderId {

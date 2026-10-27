@@ -71,8 +71,8 @@ export async function POST(request: Request): Promise<Response> {
   const price = Math.ceil(imageModel.pricePerImage! * 1_000_000);
   const r = await reserve(user.id, requestId, imageModel.apiModel, "image", price, {provider,operation:"image",unitCostUsdMicros:price,conversationId:conversation.id,apiModel:imageModel.apiModel,unitType:"image",units:1,costBasis:"estimated"});
   if (!r.ok) {
-    const code = r.reason === "global_stop" ? "paused" : r.reason === "budget" ? "budget" : "reserve_failed";
-    return json({ ...base, error: code }, code === "budget" ? 402 : 503);
+    const code = r.reason === "global_stop" ? "paused" : r.reason === "budget" || r.reason === "request_limit" ? r.reason : "reserve_failed";
+    return json({ ...base, error: code }, code === "budget" || code === "request_limit" ? 402 : 503);
   }
 
   let generated: GeneratedImage;

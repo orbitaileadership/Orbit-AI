@@ -81,6 +81,18 @@ beforeEach(() => {
 });
 
 describe("POST /api/chat", () => {
+  it("rejects a repeated initial turn before reserving or calling the provider", async () => {
+    state.live = true;
+    const clientRequestId = crypto.randomUUID();
+    const first = await readEvents(await POST(req({provider:"anthropic",modelId:"anthropic-default",content:"One question",clientRequestId})));
+    const second = await POST(req({provider:"anthropic",modelId:"anthropic-default",content:"One question",clientRequestId}));
+    expect(second.status).toBe(409);
+    expect(await second.json()).toMatchObject({error:"duplicate_request"});
+    expect(state.fake!.db.messages.filter(m=>m.role==="user")).toHaveLength(1);
+    expect(state.fake!.db.conversations).toHaveLength(1);
+    expect(budget.reserve).toHaveBeenCalledOnce();
+  });
+
   it("accepts a large pasted prompt above the old input and character limits without shortening it", async () => {
     state.live = true;
     const content = "Synthetic study material. ".repeat(5000);
@@ -143,9 +155,11 @@ describe("POST /api/chat", () => {
     expect(captured).toMatchObject({version:1,phase:'initial',historyTokens:0,hasFiles:false,hasTools:false});
     expect(captured.promptTokens).toBeLessThan(100);
     expect(captured.userMessageId).toBe(state.fake!.db.messages[0].id);
+    expect(vi.mocked(budget.reserve).mock.calls[0][5]!.parentRequestId).toBe(captured.userMessageId);
     expect(JSON.stringify(captured)).not.toMatch(/PRIVATE|DO NOT STORE|content/);
     await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-default',conversationId:first[0].conversationId,retry:true})));
     expect(vi.mocked(budget.reserve).mock.calls[1][5]!.usageContext).toMatchObject({userMessageId:captured.userMessageId,phase:'retry'});
+    expect(vi.mocked(budget.reserve).mock.calls[1][5]!.parentRequestId).toBe(captured.userMessageId);
   });
 
   it('measures retained history for later questions without treating the latest question as history',async()=>{

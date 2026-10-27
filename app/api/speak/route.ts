@@ -2,7 +2,7 @@ import { failureState } from "@/lib/billing/outcome";
 import { errorForStatus } from "@/lib/providers/types";
 import { randomUUID } from "node:crypto";
 import { SPEECH } from "@/config/voice";
-import { json, requireAppUser } from "@/lib/api";
+import { isUuid, json, requireAppUser } from "@/lib/api";
 import { reserve, settle } from "@/lib/billing/budget";
 import { defaultVoice, listVoices, speechMicros, speechService, synthesize } from "@/lib/voice/tts";
 
@@ -24,15 +24,16 @@ export async function POST(request: Request) {
   if ("error" in auth) return auth.error;
   const s = speechService();
   if (!s) return json({ error: "speech_not_configured" }, 503);
-  const body = (await request.json().catch(() => ({}))) as { text?: unknown; voice?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { text?: unknown; voice?: unknown; parentRequestId?: unknown };
+  if (body.parentRequestId !== undefined && !isUuid(body.parentRequestId)) return json({error:"bad_request"},400);
   const text = typeof body.text === "string" ? body.text.replace(/\s+/g, " ").trim().slice(0, SPEECH.maxChars) : "";
   if (!text) return json({ error: "bad_request" }, 400);
   const voice = typeof body.voice === "string" && /^[\w-]{1,64}$/.test(body.voice) ? body.voice : defaultVoice(s);
 
   const id = randomUUID();
   const cost = speechMicros(s.kind, text.length);
-  const r = await reserve(auth.user.id, id, SPEECH.ledgerId, "text", cost, { provider: s.kind, operation: "speech", apiModel: SPEECH[s.kind].model, unitType: "1000_characters", units: text.length / 1000, unitCostUsdMicros: speechMicros(s.kind, 1000), costBasis: "estimated" });
-  if (!r.ok) return json({ error: ["budget", "trial_expired", "fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed" }, r.reason === "budget" ? 402 : 503);
+  const r = await reserve(auth.user.id, id, SPEECH.ledgerId, "text", cost, { provider: s.kind, operation: "speech", parentRequestId: body.parentRequestId as string | undefined, apiModel: SPEECH[s.kind].model, unitType: "1000_characters", units: text.length / 1000, unitCostUsdMicros: speechMicros(s.kind, 1000), costBasis: "estimated" });
+  if (!r.ok) return json({ error: ["budget", "request_limit", "trial_expired", "fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed" }, r.reason === "budget" || r.reason === "request_limit" ? 402 : 503);
   const res = await synthesize(s, text, voice, AbortSignal.timeout(30_000)).catch(() => null);
   if (!res?.ok || !res.body) {
     await settle(id, res ? failureState(errorForStatus(res.status)) : "uncertain", 0, undefined, `speak_${res?.status ?? "failed"}`);

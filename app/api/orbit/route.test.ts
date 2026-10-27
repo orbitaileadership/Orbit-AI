@@ -19,7 +19,7 @@ import { GET,POST } from "./route";
 import { updateSummary } from "@/lib/chat/summary";
 const req=(body:object)=>new Request("http://x/api/orbit",{method:"POST",body:JSON.stringify(body)});
 beforeEach(()=>{vi.clearAllMocks();ORBIT.voteRetryDelayMs=0;s.attach.mockResolvedValue({block:"",fileIds:[],names:[]});vi.stubEnv("ORBIT_MODE_ENABLED","on");s.fake=fakeSupabase();s.authError=null;s.live=true;s.disabled=false;s.key=true;s.claimed=true;
- s.rpc.mockImplementation(async(name:string)=>({data:name==="claim_orbit_turn"?s.claimed:null,error:null}));
+ s.rpc.mockImplementation(async(name:string)=>({data:name==="claim_orbit_turn"?s.claimed:name==="usage_windows"?{ok:true,windows:[{key:"daily",limit_micros:100000000,spent_micros:0,reserved_micros:0}]}:null,error:null}));
  s.call.mockImplementation(async o=>{
    if(o.operation==="orbit_vote"){const i=PROVIDERS.indexOf(o.model.provider);return {text:JSON.stringify({nominee:PROVIDERS[(i+1)%4],collaborate:false,specialist:null}),finish:"stop"};}
    o.delta?.("Synthetic final answer");return {text:"Synthetic final answer",finish:"stop"};
@@ -50,8 +50,16 @@ describe("Orbit endpoint",()=>{
  });
  it("makes exactly four votes and one answer for a solo turn, storing decision and author",async()=>{
    const res=await POST(req({content:"Explain a confidence interval"}));const text=await res.text();expect(text).toContain('"t":"done"');expect(s.call).toHaveBeenCalledTimes(5);
+   const parent=s.fake!.db.messages.find(m=>m.role==="user")!.id;
+   expect(s.call.mock.calls.every(([o])=>o.parentRequestId===parent)).toBe(true);
    const answer=s.fake!.db.messages.find(m=>m.role==="assistant")!;expect(answer).toMatchObject({status:"complete",content:"Synthetic final answer"});expect(answer.orbit_details).toHaveProperty("ballots");expect(answer.model_id).toBeTruthy();
    expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
+ it("rejects an unaffordable turn before spending on any voter",async()=>{
+   s.rpc.mockImplementation(async(name:string)=>({data:name==="claim_orbit_turn"?true:name==="usage_windows"?{ok:true,windows:[{key:"daily",limit_micros:533333,spent_micros:0,reserved_micros:0}]}:null,error:null}));
+   const text=await(await POST(req({content:"Explain a confidence interval"}))).text();
+   expect(text).toContain("request_limit");
+   expect(s.call).not.toHaveBeenCalled();
  });
  it("stops when a voter self-nominates; does not call an answer model",async()=>{
    s.call.mockImplementation(async o=>({text:JSON.stringify({nominee:o.model.provider,collaborate:false,specialist:null}),finish:"stop"}));

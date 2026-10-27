@@ -50,7 +50,7 @@ const VOICE_MAX_OUTPUT = 1_200; // spoken answers are short; a smaller cap also 
 type Body = {
   provider?: unknown; homeProvider?: unknown; modelId?: unknown; content?: unknown; conversationId?: unknown; projectId?: unknown; retry?: unknown;
   attachmentIds?: unknown; mode?: unknown; courseOnly?: unknown; folder?: unknown; run?: unknown; web?: unknown; code?: unknown; voice?: unknown;
-  plugins?: unknown; skills?: unknown; mentions?: unknown; startQuiz?: unknown;
+  plugins?: unknown; skills?: unknown; mentions?: unknown; startQuiz?: unknown; voiceRequestId?: unknown; clientRequestId?: unknown;
 };
 type Row = { id: string; seq: number; role: "user" | "assistant"; content: string; status: string; kind: string; attachment_ids: string[] | null; model_id: string | null };
 
@@ -72,6 +72,8 @@ export async function POST(request: Request): Promise<Response> {
   const model = getModel(typeof body.modelId === "string" ? body.modelId : undefined);
   if (!model || !model.enabled || model.provider !== provider) return json({ error: "unknown_model" }, 400);
   const retry = body.retry === true;
+  if (body.voiceRequestId !== undefined && !isUuid(body.voiceRequestId)) return json({error:"bad_request"},400);
+  if (body.clientRequestId !== undefined && !isUuid(body.clientRequestId)) return json({error:"bad_request"},400);
   const edit = retry && (body as { edit?: unknown }).edit === true; // retry with the last question rewritten (Edit message)
 
   // ---- folder tools + tool-run continuation
@@ -90,6 +92,11 @@ export async function POST(request: Request): Promise<Response> {
   const attachmentIds = Array.isArray(body.attachmentIds) ? body.attachmentIds.filter(isUuid).slice(0, MAX_ATTACHMENTS) : [];
   if (!run && !retry && !content && !attachmentIds.length) return json({ error: "empty_message" }, 400);
   if (content.length > CONTEXT.maximumMessageChars) return json({ error: "message_too_long" }, 400);
+  if (!run && !retry && body.clientRequestId) {
+    const {data:prior,error} = await supabase.from("messages").select("conversation_id").eq("id",body.clientRequestId).eq("user_id",user.id).maybeSingle();
+    if (error) return dbError(error,"load_failed");
+    if (prior) return json({error:"duplicate_request",conversationId:prior.conversation_id},409);
+  }
 
   // ---- conversation (RLS: only the user's own rows are visible or writable)
   let conversation: { id: string; title: string; provider: string; project_id: string | null; section_folder_id: string | null; section_unavailable: boolean; mode: string; study_config: unknown | null; course_only: boolean; summary: string | null; summary_upto: number | null };
@@ -169,11 +176,12 @@ export async function POST(request: Request): Promise<Response> {
     }
     userMessageId = lastUser.id;
   } else {
-    const { data, error } = await supabase
-      .from("messages")
-      .insert({ conversation_id: conversation.id, user_id: user.id, role: "user", content, attachment_ids: linked })
-      .select("id")
-      .single();
+    const message = { ...(body.clientRequestId ? {id:body.clientRequestId as string} : {}), conversation_id: conversation.id, user_id: user.id, role: "user", content, attachment_ids: linked };
+    const query = body.clientRequestId
+      ? supabase.from("messages").upsert(message,{onConflict:"id",ignoreDuplicates:true})
+      : supabase.from("messages").insert(message);
+    const { data, error } = await query.select("id").maybeSingle();
+    if (!error && !data && body.clientRequestId) return json({error:"duplicate_request",conversationId:conversation.id},409);
     if (error || !data) return dbError(error, "save_failed");
     userMessageId = data.id;
     await trackEvent(user.id,"message_sent",{modelId:model.id,provider,mode:conversation.mode,live:liveFor(provider)},conversation.id,`message:${data.id}`);
@@ -182,6 +190,7 @@ export async function POST(request: Request): Promise<Response> {
   // Profile + memories load in parallel with the rest (they don't depend on it).
   const personalP = loadPersonal(supabase);
   const voice = body.voice === true; // voice conversation: quick, short, no tools
+  const parentRequestId = voice && isUuid(body.voiceRequestId) ? body.voiceRequestId : userMessageId;
 
   // ---- history
   const { data: rawRows } = await supabase
@@ -275,8 +284,8 @@ export async function POST(request: Request): Promise<Response> {
       const searchHex = createHash("sha256").update(`web-search:${user.id}:${userMessageId}`).digest("hex").slice(0,32);
       const searchId = `${searchHex.slice(0,8)}-${searchHex.slice(8,12)}-${searchHex.slice(12,16)}-${searchHex.slice(16,20)}-${searchHex.slice(20)}`;
       const cost = Math.ceil(WEB_SEARCH.pricePerSearch * 1_000_000);
-      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
-      if (!r.ok) return json({ error: r.reason === "budget" ? "budget" : r.reason === "global_stop" ? "paused" : r.reason === "duplicate" ? "search_in_progress" : "reserve_failed", conversationId: conversation.id }, r.reason === "budget" ? 402 : r.reason === "duplicate" ? 409 : 503);
+      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,parentRequestId,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
+      if (!r.ok) return json({ error: r.reason === "budget" || r.reason === "request_limit" ? r.reason : r.reason === "global_stop" ? "paused" : r.reason === "duplicate" ? "search_in_progress" : "reserve_failed", conversationId: conversation.id }, r.reason === "budget" || r.reason === "request_limit" ? 402 : r.reason === "duplicate" ? 409 : 503);
       try {
         const results = await webSearch(query, key, AbortSignal.any([request.signal,AbortSignal.timeout(20_000)]));
         await settle(searchId, "settled", cost);
@@ -382,7 +391,7 @@ export async function POST(request: Request): Promise<Response> {
         for (const x of f ?? []) names.set(x.id as string, x.name as string);
       }
       summary = await updateSummary({
-        supabase, userId: user.id, conversationId: conversation.id, provider, apiKey,
+        supabase, userId: user.id, conversationId: conversation.id, parentRequestId, provider, apiKey,
         existing: conversation.summary, existingUpto: conversation.summary_upto,
         dropped: droppedRows.map((r) => ({ ...r, files: (r.attachment_ids ?? []).map((id) => names.get(id)).filter((n): n is string => Boolean(n)) })),
       });
@@ -390,7 +399,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const keptIds = new Set(rows.slice(rows.length-ctx.turns.length).map(r=>r.id));
-  const retrieval = live && (ctx.dropped || personal.memories.length>12) ? await retrieveRelevant({supabase,userId:user.id,conversationId:conversation.id,
+  const retrieval = live && (ctx.dropped || personal.memories.length>12) ? await retrieveRelevant({supabase,userId:user.id,conversationId:conversation.id,parentRequestId,
     enabled:Boolean(personal.profile?.memory_enabled),query:question,excluded:new Set([...keptIds,...selectedMemories.map(m=>m.id)]),memories:personal.memories,
     sources:[...(summary ? [{id:conversation.id,kind:"summary" as const,content:summary}] : []),
       ...rows.filter(r=>!keptIds.has(r.id)).reverse().map(r=>({id:r.id,kind:"message" as const,content:r.content}))]}) : {block:"",count:0};
@@ -440,7 +449,7 @@ export async function POST(request: Request): Promise<Response> {
   if (inputTokens > Math.min(model.contextTokens-model.maxOutputTokens,CONTEXT.maximumInputTokens)) {
     return json({error: videos.length ? "video_too_large" : "context_too_large",conversationId:conversation.id},413);
   }
-  const callMetadata = {conversationId:conversation.id,provider,operation:"chat" as const,inputEstimate:inputTokens,
+  const callMetadata = {conversationId:conversation.id,parentRequestId,provider,operation:"chat" as const,inputEstimate:inputTokens,
     contextTarget,historyDropped:ctx.dropped,retrievedCount:retrieval.count,
     usageContext:usageContext({userMessageId,question,turns:ctx.turns,system,
       toolTokens:runTokens+(tools?estimateTokens(JSON.stringify(tools))+400:0),
@@ -448,10 +457,11 @@ export async function POST(request: Request): Promise<Response> {
       hasFiles:material.hasFiles,hasTools:Boolean(tools?.length||run?.steps.length),retry:Boolean(retry),continuation:Boolean(run)})};
 
   // ---- reservation (live only)
-  let maxOutput = voice ? Math.min(model.maxOutputTokens, VOICE_MAX_OUTPUT) : model.maxOutputTokens;
+  const longAnswer = Boolean(tools || largeMaterialTask || /\b(detailed|comprehensive|essay|full solution|step.by.step|write code|implement)\b/i.test(question));
+  let maxOutput = Math.min(model.maxOutputTokens, voice ? VOICE_MAX_OUTPUT : longAnswer ? CONTEXT.complexOutputTokens : CONTEXT.ordinaryOutputTokens);
   if (live) {
     let r = await reserve(user.id, requestId, model.id, "text", reservationMicros(model, inputTokens, maxOutput),callMetadata);
-    if (!r.ok && r.reason === "budget" && r.remaining) {
+    if (!r.ok && (r.reason === "budget" || r.reason === "request_limit") && r.remaining) {
       // Shrink the reply to fit what's left, if that still allows a useful answer.
       const fit = Math.min(maxOutput, maxOutputFor(model, inputTokens, r.remaining));
       if (fit >= 500) {
@@ -460,9 +470,9 @@ export async function POST(request: Request): Promise<Response> {
       }
     }
     if (!r.ok) {
-      if(r.reason==="budget") await trackEvent(user.id,"allowance_exhausted",{modelId:model.id,provider,live},conversation.id);
-      const code = r.reason === "global_stop" ? "paused" : ["budget","trial_expired","fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed";
-      return json({ error: code, conversationId: conversation.id }, code === "budget" ? 402 : 503);
+      if(r.reason==="budget"||r.reason==="request_limit") await trackEvent(user.id,"allowance_exhausted",{modelId:model.id,provider,live},conversation.id);
+      const code = r.reason === "global_stop" ? "paused" : ["budget","request_limit","trial_expired","fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed";
+      return json({ error: code, conversationId: conversation.id }, code === "budget" || code === "request_limit" ? 402 : 503);
     }
   }
 

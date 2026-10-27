@@ -69,7 +69,7 @@ export function serverPluginsReady(): string[] {
 }
 
 // ---------------------------------------------------------------- the tools
-export async function runPublicTool(tool: PublicTool, a: Record<string, unknown>, userId?: string): Promise<string> {
+export async function runPublicTool(tool: PublicTool, a: Record<string, unknown>, userId?: string, parentRequestId?: string): Promise<string> {
   switch (tool) {
     case "wikipedia_search": {
       const q = str(a.query);
@@ -128,9 +128,9 @@ export async function runPublicTool(tool: PublicTool, a: Record<string, unknown>
       const requestId = crypto.randomUUID();
       const reservation = await reserve(userId, requestId, "wolfram-llm", "text", cost, {
         provider: "wolfram", operation: "wolfram", apiModel: "llm-api", unitType: "request", units: 1,
-        unitCostUsdMicros: cost, costBasis: "estimated",
+        unitCostUsdMicros: cost, costBasis: "estimated", parentRequestId,
       });
-      if (!reservation.ok) throw new PublicToolError("Wolfram|Alpha is paused or your allowance is unavailable.");
+      if (!reservation.ok) throw new PublicToolError(reservation.reason==="request_limit"?"Wolfram|Alpha would exceed this question's 1% daily spending limit.":"Wolfram|Alpha is paused or your allowance is unavailable.");
       try {
         const res = await fetch(`https://www.wolframalpha.com/api/v1/llm-api?input=${encodeURIComponent(q)}&appid=${encodeURIComponent(appid)}&maxchars=6000`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(20_000) });
         const text = await res.text();

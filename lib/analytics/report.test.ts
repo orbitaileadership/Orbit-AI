@@ -8,10 +8,11 @@ it('passes validated filters only to token reports and keeps existing operationa
  expect(await loadAnalyticsReport(7,'openai-luna',user)).toMatchObject({days:7,tokenUsage:{summary:{calls:3}}});
  expect(s.rpc).toHaveBeenCalledWith('orbit_token_usage_report',{p_days:7,p_model_id:'openai-luna',p_user_id:user});
  expect(s.rpc).toHaveBeenCalledWith('orbit_analytics_report',{p_days:7});
+ expect(s.rpc).toHaveBeenCalledWith('request_spend_report',{p_days:7});
 });
 it('degrades gracefully before the new report migration is available',async()=>{
  s.rpc.mockImplementation(async(name:string)=>name==='orbit_analytics_report'?{data:{days:30},error:null}:{data:null,error:{code:'42883'}});
- expect(await loadAnalyticsReport()).toMatchObject({days:30,tokenUsage:null});
+ expect(await loadAnalyticsReport()).toMatchObject({days:30,tokenUsage:null,requestSpend:null});
 });
 it('rejects invalid filters before accessing the database',async()=>{
  for(const value of [0,91,NaN,Infinity,1.5])expect(validAnalyticsFilters(value)).toBe(false);

@@ -90,6 +90,7 @@ const perProvider = <T,>(v: () => T) => Object.fromEntries(PROVIDERS.map((p) => 
 function errorText(code: string, label: string, appName: string): string {
   switch (code) {
     case "budget": return `You don't have enough budget left for a ${label} answer, so this reply was paused. Your chat is saved.`;
+    case "request_limit": return `This request would exceed the 1% daily spending limit. Try a shorter question or choose a less expensive model. Your chat is saved.`;
     case "paused": return "Orbit AI is paused by the team right now. Your chat is saved — try again later.";
     case "rate_limited": return "That's a lot of messages in a minute. Wait a moment, then try again.";
     case "not_configured": return `${label} isn't set up yet (missing API key or price).`;
@@ -110,6 +111,7 @@ function errorText(code: string, label: string, appName: string): string {
     case "auth": return `${appName} rejected the API key. It may have expired or been revoked.`;
     case "rate_limit": return `${appName} is rate-limiting us or the API account is out of credit. Try again shortly.`;
     case "search_in_progress": return "A search for this question is already running or was already attempted. Wait for it to finish; if the reply cannot continue, send a new message.";
+    case "duplicate_request": return "This question was already sent. Check the saved chat for its reply.";
     case "search_save_failed": return "The search finished, but its results could not be saved. Send a new message to try again.";
     case "reserve_failed": return "Couldn't check your budget. Make sure the database migrations have been run.";
     case "db_setup": return "The database isn't fully set up yet. Run every file in supabase/migrations in order in the Supabase SQL Editor.";
@@ -700,13 +702,13 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     busyRef.current = run !== null;
     sendRef.current = send;
   });
-  const sendByVoice = useCallback(async (text: string) => {
+  const sendByVoice = useCallback(async (text: string, parentRequestId: string) => {
     for (let i = 0; busyRef.current && i < 100; i++) await new Promise((r) => setTimeout(r, 100));
-    await sendRef.current(text, false, { voice: true });
+    await sendRef.current(text, false, { voice: true, voiceRequestId:parentRequestId });
   }, []);
 
   // ---------------------------------------------------------------- sending
-  async function send(text: string, retry = false, opts: { voice?: boolean; edit?: boolean } = {}) {
+  async function send(text: string, retry = false, opts: { voice?: boolean; edit?: boolean; voiceRequestId?: string } = {}) {
     // A ready quiz has no saved first user turn. Retry the optimistic question as
     // a fresh first turn; the normal regeneration path requires a saved turn.
     const readyQuizRetry = Boolean(retry && active?.id && quizReadyIds.has(active.id));
@@ -771,11 +773,12 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const skills = activeSkills(extensions.ext);
     const firstQuizTurn = Boolean(convId && quizReadyIds.has(convId) && (!retry || readyQuizRetry));
     const quizTurn = firstQuizTurn || chatSettings.mode === "quiz";
-    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: quizTurn || chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
+    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: quizTurn || chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, voiceRequestId:opts.voiceRequestId, folder: link ? { name: link.name } : undefined,
       plugins: !quizTurn && plugins.length ? plugins : undefined, skills: !quizTurn && skills.length ? skills : undefined,
       mentions: !quizTurn && mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
-    let body: object = { ...common, content, retry: retry && !readyQuizRetry, startQuiz: firstQuizTurn, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
+    let body: object = { ...common, content, clientRequestId:crypto.randomUUID(), retry: retry && !readyQuizRetry, startQuiz: firstQuizTurn, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
     const steps: Step[] = [];
+    let parentRequestId: string | undefined;
     const dataCache = new Map<string, RunFile>(); // data files downloaded once per reply
     try {
       // One request per model round. When the model asks for file actions, run them here (after Apply for changes),
@@ -812,6 +815,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             if (!line.trim()) continue;
             const ev = JSON.parse(line);
             if (ev.t === "meta") {
+              if (typeof ev.userMessageId === "string") parentRequestId = ev.userMessageId;
               if (!convId) {
                 adoptConversation(ev.conversationId, ev.title, key);
                 currentKey = convId = ev.conversationId;
@@ -843,7 +847,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           patchReply((m) => ({ ...m, status: "partial" }));
           break;
         }
-        const results = await runToolCalls(link, toolTurn.calls, patchReply, controller.signal, { files: dataFiles, cache: dataCache });
+        const results = await runToolCalls(link, toolTurn.calls, patchReply, controller.signal, { files: dataFiles, cache: dataCache }, parentRequestId);
         if (controller.signal.aborted) {
           patchReply((m) => ({ ...m, status: "partial" }));
           break;
@@ -874,7 +878,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   // first (dry run), then wait for the student's Apply / Skip.
   async function runToolCalls(
     link: FolderLink | null, calls: ToolCall[], patchReply: (fn: (m: Message) => Message) => void, signal: AbortSignal,
-    data: { files: Map<string, string>; cache: Map<string, RunFile> },
+    data: { files: Map<string, string>; cache: Map<string, RunFile> }, parentRequestId?: string,
   ): Promise<StepResult[]> {
     const results: StepResult[] = [];
     for (const c of calls) {
@@ -950,7 +954,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           if (edited) args = { ...c.args, ...edited };
           setAct({ status: "running", email: undefined, action: undefined, label: describeCall(c.name, args) });
         } else setAct({ status: "running" });
-        let r = await runPluginTool(c.name, args);
+        let r = await runPluginTool(c.name, args, parentRequestId);
         if (!r.ok && r.connect) {
           setAct({ status: "connect", connect: r.connect });
           const connected = await new Promise<boolean>((resolve) => {
@@ -965,7 +969,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             continue;
           }
           setAct({ status: "running", connect: undefined });
-          r = await runPluginTool(c.name, args);
+          r = await runPluginTool(c.name, args, parentRequestId);
         }
         if (r.ok) {
           setAct({ status: "ok", links: pluginLinks(c.name, r.output) });

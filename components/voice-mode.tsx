@@ -33,7 +33,7 @@ export function VoiceMode({ open, onClose, appName, modelLabel, reply, onSend, o
   appName: string;
   modelLabel?: string;
   reply: Reply; // the newest answer in this chat (updates while it streams)
-  onSend: (text: string) => Promise<void>; // sends a normal chat message (with voice: true) and resolves when the reply is done
+  onSend: (text: string, parentRequestId: string) => Promise<void>; // sends a normal chat message (with voice: true) and resolves when the reply is done
   onStop: () => void; // stop the reply being written
   hint?: string; // course name: helps transcription with technical words
 }) {
@@ -102,7 +102,9 @@ export function VoiceMode({ open, onClose, appName, modelLabel, reply, onSend, o
       turn.current = { baseline: replyRef.current?.id ?? null, spokenTo: 0, sendDone: false, interrupted: false };
       if (Math.random() < 0.85) sayFiller(QUICK_FILLERS); // most turns, like a person would
       go("transcribing");
-      const out = await transcribeAudio(got.audio, got.seconds, props.current.hint);
+      const parentRequestId=crypto.randomUUID();
+      if(speaker.current) speaker.current.parentRequestId=parentRequestId;
+      const out = await transcribeAudio(got.audio, got.seconds, props.current.hint, parentRequestId);
       if (stale()) return;
       if ("error" in out) {
         speaker.current?.stop();
@@ -121,7 +123,7 @@ export function VoiceMode({ open, onClose, appName, modelLabel, reply, onSend, o
       const slow = setTimeout(() => {
         if (!stale() && turn.current.spokenTo === 0 && !turn.current.interrupted && !speaker.current?.speaking) sayFiller(SLOW_FILLERS);
       }, SLOW_AFTER_MS);
-      await props.current.onSend(out.text);
+      await props.current.onSend(out.text,parentRequestId);
       clearTimeout(slow);
       // The final reply reaches this screen on the next render: wait for it so the last sentence isn't lost.
       for (let i = 0; i < 40; i++) {

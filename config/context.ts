@@ -13,6 +13,8 @@ export const CONTEXT = {
   largeTaskMaterialTokens: 12_000,
   summaryBatchChars: 16_000,
   summaryMaxPasses: 1,
+  ordinaryOutputTokens: 1_600,
+  complexOutputTokens: 3_000,
 };
 export const SEMANTIC_MEMORY = {
   model: "text-embedding-3-small", dimensions: 1536, inputPrice: 0.02,

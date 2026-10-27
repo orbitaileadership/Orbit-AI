@@ -31,6 +31,11 @@ export default async function AnalyticsPage({searchParams}:{searchParams?:Promis
     <details className="min-w-0 space-y-6"><summary className="cursor-pointer text-xl font-semibold">Financial, engagement & operational reports</summary>
     <p className="text-ink-muted">Last {report.days} days · Financial reports cover all users and models; the filters above apply only to standard-chat tokens. Costs remain pending external reconciliation. Unreported expense is additional to the recorded subtotal. Payments remain disabled.</p>
     {Number(f.accounting_version)!==2&&<p role="status">Accounting completeness unavailable. Apply reporting migration 0020 before relying on financial totals.</p>}
+    {report.requestSpend&&<Panel title="Request spending limit" items={[["Requests",number(report.requestSpend.requests)],
+      ["Mean charged per request",money(report.requestSpend.mean_charge_micros)],
+      ["Requests using at least 80% of their cap",number(report.requestSpend.near_limit_requests)],
+      ["Blocked attempts",number(report.requestSpend.limit_rejections)],
+      ["Requests over cap after settlement",number(report.requestSpend.over_limit_requests)]]}/>}
     <div className="grid gap-6 lg:grid-cols-3">
     <Panel title="Financial" items={[["Net revenue",money(f.revenue_cad_micros,"CAD")],["Recorded expense subtotal",money(f.api_usd_micros)],["API cost with known FX",money(f.api_cad_micros,"CAD")],
       ["Recorded contribution after API and payment fees",money(contribution,"CAD")],["Contribution %",contribution==null?"No data":percent(contribution/Number(f.revenue_cad_micros))],

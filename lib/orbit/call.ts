@@ -17,7 +17,7 @@ export function orbitInputTokens(system: string, history: ChatTurn[]): number {
 
 /** Every paid phase has its own priced ledger row. Never logs prompt or output text. */
 export async function orbitCall(o: {
-  userId: string; conversationId: string; model: ModelOption; operation: "orbit_vote" | "orbit_specialist" | "orbit_answer";
+  userId: string; conversationId: string; parentRequestId: string; model: ModelOption; operation: "orbit_vote" | "orbit_specialist" | "orbit_answer";
   thinkingLevel?: ThinkingLevel;
   system: string; history: ChatTurn[]; maxOutput: number; signal: AbortSignal; delta?: (text: string) => void;
 }): Promise<{ text: string; finish: FinishReason }> {
@@ -29,7 +29,7 @@ export async function orbitCall(o: {
   if (input > ORBIT.inputTokens) throw new OrbitError("context_too_large");
   const id = crypto.randomUUID();
   const r = await reserve(o.userId,id,o.model.id,"text",reservationMicros(o.model,input,o.maxOutput),{
-    conversationId:o.conversationId,provider:o.model.provider,operation:o.operation,inputEstimate:input,
+    conversationId:o.conversationId,parentRequestId:o.parentRequestId,provider:o.model.provider,operation:o.operation,inputEstimate:input,
   });
   if (!r.ok) throw new OrbitError(r.reason === "global_stop" ? "paused" : r.reason === "error" ? "reserve_failed" : r.reason);
   let text = "", usage: Usage | undefined, finish: FinishReason = "unknown";

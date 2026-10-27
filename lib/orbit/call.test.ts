@@ -6,7 +6,7 @@ vi.mock("@/lib/billing/budget",()=>({isProviderDisabled:async()=>state.disabled,
 vi.mock("@/lib/providers",()=>({apiKeyFor:()=>"synthetic-key",ADAPTERS:{openai:{stream:state.stream},anthropic:{stream:state.stream}}}));
 import { orbitCall, orbitInputTokens } from "./call";
 import { reservationMicros } from "@/lib/chat/context";
-const args=()=>({userId:"u",conversationId:"c",model:getModel("openai-luna")!,operation:"orbit_vote" as const,
+const args=()=>({userId:"u",conversationId:"c",parentRequestId:"question-1",model:getModel("openai-luna")!,operation:"orbit_vote" as const,
  system:"Vote",history:[{role:"user" as const,content:"Synthetic question"}],maxOutput:100,signal:new AbortController().signal});
 afterEach(()=>vi.restoreAllMocks());
 beforeEach(()=>{vi.clearAllMocks();vi.spyOn(console,"error").mockImplementation(()=>{});state.disabled=false;state.reserve.mockResolvedValue({ok:true});state.settle.mockResolvedValue(undefined);

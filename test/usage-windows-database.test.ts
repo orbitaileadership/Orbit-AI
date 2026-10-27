@@ -28,7 +28,11 @@ afterAll(async () => { await db?.close(); });
 
 type Result = { ok: boolean; reason?: string; limit_window?: string; remaining_micros?: number };
 async function reserve(id: string, bound: number, owner = user) {
-  return (await db.query<{ r: Result }>(`select reserve_budget_v3($1,$2,'model','text',$3,'{}','{}') r`, [owner, id, bound])).rows[0].r;
+  return (await db.query<{ r: Result }>(`select reserve_budget_v2($1,$2,'model','text',$3,'{}','{}') r`, [owner, id, bound])).rows[0].r;
+}
+async function limited(id: string, bound: number, parent = id, owner = user) {
+  return (await db.query<{ r: Result }>(`select reserve_budget_v3($1,$2,'model','text',$3,$4::jsonb,'{}') r`,
+    [owner,id,bound,JSON.stringify({parentRequestId:parent})])).rows[0].r;
 }
 async function usage() {
   return (await db.query<{ r: { ok: boolean; usd_cad_rate: number; windows: { key: string; limit_micros: number; spent_micros: number; reserved_micros: number; next_release_at: string | null }[] } }>('select usage_windows($1) r', [user])).rows[0].r;
@@ -119,4 +123,52 @@ it('retains over-bound actual charges and blocks subsequent calls', async () => 
   await db.exec(`select settle_budget_v2('over-bound','settled',600000);`);
   expect((await usage()).windows[0].spent_micros).toBe(600000);
   expect(await reserve('after-over-bound', 1)).toMatchObject({ ok: false, limit_window: 'daily' });
+});
+
+it('snapshots one percent of the daily remainder and shares it across calls and retries', async () => {
+  const parent=crypto.randomUUID();
+  const daily=(await usage()).windows[0];
+  const cap=Math.floor((daily.limit_micros-daily.spent_micros-daily.reserved_micros)/100);
+  expect(await limited('group-a',Math.floor(cap/2),parent)).toMatchObject({ok:true});
+  expect(await limited('group-a',1,parent)).toMatchObject({ok:false,reason:'duplicate'});
+  expect(await limited('group-b',cap,parent)).toMatchObject({ok:false,reason:'request_limit'});
+  await db.exec(`select settle_budget_v2('group-a','settled',1000)`);
+  expect(await limited('group-b',cap-1000,parent)).toMatchObject({ok:true});
+  expect(await limited('group-c',1,parent)).toMatchObject({ok:false,reason:'request_limit',remaining_micros:0});
+  const saved=(await db.query<{ceiling_micros:number;denied_attempts:number}>(`select ceiling_micros,denied_attempts from request_spend_limits where user_id=$1 and parent_request_id=$2`,[user,parent])).rows[0];
+  expect(Number(saved.ceiling_micros)).toBe(cap);
+  expect(Number(saved.denied_attempts)).toBe(2);
+  const report=(await db.query<{r:{requests:number;near_limit_requests:number;limit_rejections:number;over_limit_requests:number}}>(`select request_spend_report(30) r`)).rows[0].r;
+  expect(Number(report.near_limit_requests)).toBeGreaterThanOrEqual(1);
+  expect(Number(report.limit_rejections)).toBeGreaterThanOrEqual(2);
+  expect(Number(report.over_limit_requests)).toBe(0);
+});
+
+it('keeps groups isolated and denies all service-role bypasses', async () => {
+  const parent=crypto.randomUUID();
+  const other=crypto.randomUUID();
+  await db.query('insert into auth.users(id) values($1)',[other]);
+  expect((await limited('one',1,parent)).ok).toBe(true);
+  expect((await limited('two',1,parent,other)).ok).toBe(true);
+  await db.exec('set role service_role');
+  try {
+    expect((await limited('service-allowed',1,crypto.randomUUID())).ok).toBe(true);
+    await expect(db.query(`select reserve_budget_v2($1,'bypass','model','text',1)`,[user])).rejects.toThrow(/permission denied/);
+    await expect(db.query(`select reserve_budget($1,'bypass','model','text',1)`,[user])).rejects.toThrow(/permission denied/);
+  } finally { await db.exec('reset role'); }
+  await db.exec('set role authenticated');
+  try {
+    await expect(db.query('select * from request_spend_limits')).rejects.toThrow(/permission denied/);
+    await expect(db.query('select request_spend_report(30)')).rejects.toThrow(/permission denied/);
+  } finally { await db.exec('reset role'); }
+});
+
+it('reports provider cost overruns instead of hiding them in budget accounting', async () => {
+  const parent=crypto.randomUUID();
+  const cap=Math.floor((await usage()).windows[0].limit_micros/100);
+  expect((await limited('overrun',cap,parent)).ok).toBe(true);
+  await db.query(`select settle_budget_v2('overrun','settled',$1)`,[cap+1]);
+  const report=(await db.query<{r:{over_limit_requests:number}}>(`select request_spend_report(30) r`)).rows[0].r;
+  expect(Number(report.over_limit_requests)).toBeGreaterThanOrEqual(1);
+  expect(await limited('too-late',1,parent)).toMatchObject({ok:false,reason:'request_limit'});
 });

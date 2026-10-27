@@ -69,6 +69,7 @@ type Item = { text: string; audio: Promise<Blob | null>; ctrl: AbortController }
 export class Speaker {
   cloud = false; // use /api/speak
   cloudVoice: string | null = null;
+  parentRequestId: string | null = null;
   voice: SpeechSynthesisVoice | null = null; // browser voice (fallback)
   rate = 1.05;
   onIdle: () => void = () => {};
@@ -96,7 +97,7 @@ export class Speaker {
       const audio = fetch("/api/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chunk, voice: this.cloudVoice ?? undefined }),
+        body: JSON.stringify({ text: chunk, voice: this.cloudVoice ?? undefined, parentRequestId:this.parentRequestId ?? undefined }),
         signal: ctrl.signal,
       })
         .then((r) => (r.ok ? r.blob() : null))

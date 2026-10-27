@@ -1,7 +1,7 @@
 import { failureState } from "@/lib/billing/outcome";
 import { randomUUID } from "node:crypto";
 import { VOICE } from "@/config/voice";
-import { json, requireAppUser } from "@/lib/api";
+import { isUuid, json, requireAppUser } from "@/lib/api";
 import { overRateLimit, reserve, settle } from "@/lib/billing/budget";
 import { apiKeyFor, isLive } from "@/lib/providers";
 import { baseAudioType, billableSeconds, micros, transcribe } from "@/lib/voice/transcribe";
@@ -29,14 +29,16 @@ export async function POST(request: Request) {
   if (!type) return json({ error: "bad_audio" }, 415);
   const seconds = billableSeconds(Number(form?.get("seconds")), audio.size);
   const hint = typeof form?.get("hint") === "string" ? (form!.get("hint") as string) : undefined;
+  const parentRequestId = form?.get("parentRequestId");
+  if (parentRequestId !== null && parentRequestId !== undefined && !isUuid(parentRequestId)) return json({error:"bad_request"},400);
 
   const id = randomUUID();
   const r = await reserve(user.id, id, VOICE.ledgerId, "text", micros(seconds, VOICE.reservePerMinute), {
-    provider: "openai", operation: "transcription", unitCostUsdMicros: micros(60, VOICE.pricePerMinute), apiModel: VOICE.model, unitType: "minute", units: seconds / 60, costBasis: "estimated",
+    provider: "openai", operation: "transcription", parentRequestId: parentRequestId as string | undefined, unitCostUsdMicros: micros(60, VOICE.pricePerMinute), apiModel: VOICE.model, unitType: "minute", units: seconds / 60, costBasis: "estimated",
   });
   if (!r.ok) {
-    const code = r.reason === "global_stop" ? "paused" : ["budget", "trial_expired", "fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed";
-    return json({ error: code }, r.reason === "budget" ? 402 : 503);
+    const code = r.reason === "global_stop" ? "paused" : ["budget", "request_limit", "trial_expired", "fx_not_configured"].includes(r.reason) ? r.reason : "reserve_failed";
+    return json({ error: code }, r.reason === "budget" || r.reason === "request_limit" ? 402 : 503);
   }
   try {
     const text = await transcribe(audio, type, key, hint);

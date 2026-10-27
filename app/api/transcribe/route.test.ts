@@ -15,10 +15,11 @@ vi.mock("@/lib/billing/budget", () => ({
 import { POST } from "./route";
 import * as budget from "@/lib/billing/budget";
 
-const req = (audio: Blob | null, seconds = "10") => {
+const req = (audio: Blob | null, seconds = "10", parentRequestId?: string) => {
   const form = new FormData();
   if (audio) form.append("audio", audio, "q");
   form.append("seconds", seconds);
+  if(parentRequestId) form.append("parentRequestId",parentRequestId);
   return new Request("http://x/api/transcribe", { method: "POST", body: form });
 };
 const webm = () => new Blob([new Uint8Array(8000)], { type: "audio/webm;codecs=opus" });
@@ -31,9 +32,10 @@ beforeEach(() => {
 
 describe("POST /api/transcribe", () => {
   it("transcribes, reserving first and recording an estimated duration charge after", async () => {
-    const res = await POST(req(webm()));
+    const parent=crypto.randomUUID();
+    const res = await POST(req(webm(),"10",parent));
     expect(await res.json()).toEqual({ text: "What is a p-value?", seconds: 10 });
-    expect(budget.reserve).toHaveBeenCalledWith("u1", expect.any(String), "voice-transcribe", "text", 1000, expect.objectContaining({ operation: "transcription" }));
+    expect(budget.reserve).toHaveBeenCalledWith("u1", expect.any(String), "voice-transcribe", "text", 1000, expect.objectContaining({ operation: "transcription",parentRequestId:parent }));
     expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "settled", 500);
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe("https://api.openai.com/v1/audio/transcriptions");

@@ -1,4 +1,4 @@
-import { json, requireAppUser } from "@/lib/api";
+import { isUuid, json, requireAppUser } from "@/lib/api";
 import { isPublicTool, PublicToolError, runPublicTool, serverPluginsReady } from "@/lib/plugins/public";
 
 // GET → { ready: ["wolfram", …] } plugins whose server key is set (so the Plugins page can say "not set up").
@@ -14,10 +14,15 @@ export async function GET() {
 export async function POST(request: Request) {
   const auth = await requireAppUser();
   if ("error" in auth) return auth.error;
-  const body = (await request.json().catch(() => ({}))) as { tool?: unknown; args?: unknown };
+  const body = (await request.json().catch(() => ({}))) as { tool?: unknown; args?: unknown; parentRequestId?: unknown };
   if (!isPublicTool(body.tool) || !body.args || typeof body.args !== "object" || JSON.stringify(body.args).length > 2_000) return json({ error: "bad_request" }, 400);
+  if (body.parentRequestId !== undefined) {
+    if (!isUuid(body.parentRequestId)) return json({error:"bad_request"},400);
+    const {data:owned,error} = await auth.supabase.from("messages").select("id").eq("id",body.parentRequestId).eq("user_id",auth.user.id).eq("role","user").maybeSingle();
+    if (error || !owned) return json({error:"not_found"},404);
+  }
   try {
-    return json({ output: await runPublicTool(body.tool, body.args as Record<string, unknown>, auth.user.id) });
+    return json({ output: await runPublicTool(body.tool, body.args as Record<string, unknown>, auth.user.id, body.parentRequestId as string | undefined) });
   } catch (e) {
     return json({ error: e instanceof PublicToolError ? e.message : "The service didn't respond. Try again." }, 502);
   }

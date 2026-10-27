@@ -17,8 +17,8 @@ import { PLUGIN_BY_ID, pluginOfTool, type PluginId } from "./catalog";
 import { isPublicTool } from "./public-tools";
 
 /** Research plugins run on our server (some don't allow browser calls). */
-async function viaServer(tool: string, args: Record<string, unknown>): Promise<PluginResult> {
-  const res = await fetch("/api/plugins/public", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tool, args }) }).catch(() => null);
+async function viaServer(tool: string, args: Record<string, unknown>, parentRequestId?: string): Promise<PluginResult> {
+  const res = await fetch("/api/plugins/public", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tool, args, parentRequestId }) }).catch(() => null);
   const j = (await res?.json().catch(() => ({}))) as { output?: string; error?: string } | undefined;
   if (res?.ok && typeof j?.output === "string") return { ok: true, output: clip(j.output) };
   return { ok: false, error: j?.error ?? "The service didn't respond. Try again." };
@@ -49,7 +49,7 @@ const eventList = (e: CalEvent[], n: number) =>
     : `No events in the next ${n} days.`;
 
 /** Run one plugin tool call. Never throws. */
-export async function runPluginTool(name: string, args: Record<string, unknown>): Promise<PluginResult> {
+export async function runPluginTool(name: string, args: Record<string, unknown>, parentRequestId?: string): Promise<PluginResult> {
   const id = pluginOfTool(name);
   const plugin = id ? PLUGIN_BY_ID.get(id) : undefined;
   if (!id || !plugin) return { ok: false, error: `Unknown tool ${name}.` };
@@ -61,7 +61,7 @@ export async function runPluginTool(name: string, args: Record<string, unknown>)
     if (plugin.auth === "microsoft" && !plugin.tools.some((t) => t.name === name && t.write) && !(await msTokenSilent(plugin.scopes ?? []))) return notConnected();
     if (plugin.auth === "notion" && !notionSession()) return notConnected();
     if (plugin.auth === "zotero" && !zoteroAuth()) return notConnected();
-    if (isPublicTool(name)) return await viaServer(name, args);
+    if (isPublicTool(name)) return await viaServer(name, args, parentRequestId);
     return { ok: true, output: clip(await call(name, args)) };
   } catch (e) {
     const msg = e instanceof ConnectorError || e instanceof GitHubError ? e.message : "The app didn't respond. Try again.";

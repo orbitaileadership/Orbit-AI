@@ -38,6 +38,7 @@ const ERRORS: Record<string,string> = {
   orbit_call_failed:"A provider call failed. Any partial answer is saved. You can send a follow-up to try again.",
   orbit_incomplete_response:"The model did not finish. Any partial answer is saved; check it before using it.",
   budget:"Your remaining allowance could not cover the next step. Earlier routing or specialist calls may already have used allowance.",
+  request_limit:"This Orbit turn would exceed the 1% daily spending limit. Completed calls may have used part of that limit.",
   paused:"Orbit has been paused by the team.",trial_expired:"Your trial has ended.",fx_not_configured:"Usage billing needs configuration by the team.",
   rate_limited:"Please wait a minute before starting another turn.",context_too_large:"This request is too large for Orbit's context limit. Split it into smaller parts.",
   orbit_helper_limit:"This request exceeds Orbit's routing and collaboration allowance. Try a smaller task.",

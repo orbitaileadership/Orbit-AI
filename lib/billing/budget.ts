@@ -8,7 +8,7 @@ import type { UsageContext } from '@/lib/analytics/context';
 // v3 reservations add rolling windows; v2 settlement retains the existing accounting semantics.
 export type ReserveResult =
   | { ok: true; remaining: number }
-  | { ok: false; reason: "budget" | "global_stop" | "duplicate" | "trial_expired" | "fx_not_configured" | "error"; remaining?: number };
+  | { ok: false; reason: "budget" | "request_limit" | "global_stop" | "duplicate" | "trial_expired" | "fx_not_configured" | "error"; remaining?: number };
 
 export type CallMetadata = {
   usageContext?: UsageContext;
@@ -27,7 +27,7 @@ export async function reserve(userId: string, requestId: string, modelId: string
     p_model_id: modelId,
     p_kind: kind,
     p_bound_micros: Math.ceil(boundMicros),
-    p_metadata: { ...metadata, provider: metadata.provider ?? getModel(modelId)?.provider ?? null, operation: metadata.operation ?? (kind === "image" ? "image" : "chat") },
+    p_metadata: { ...metadata, parentRequestId: metadata.parentRequestId ?? requestId, provider: metadata.provider ?? getModel(modelId)?.provider ?? null, operation: metadata.operation ?? (kind === "image" ? "image" : "chat") },
     p_price_snapshot: { version: ECONOMICS.pricingVersion, currency: "USD", apiModel: metadata.apiModel ?? getModel(modelId)?.apiModel ?? modelId,
       unitType: metadata.unitType ?? "token", unitCostUsdMicros: metadata.unitCostUsdMicros ?? null, input: getModel(modelId)?.inputPrice ?? (modelId===SEMANTIC_MEMORY.model?SEMANTIC_MEMORY.inputPrice:null), output: getModel(modelId)?.outputPrice ?? null,
       read: getModel(modelId)?.cachedInputPrice ?? null, write: getModel(modelId)?.cacheWritePrice ?? null },
