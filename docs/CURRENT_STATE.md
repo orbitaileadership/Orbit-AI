@@ -1,5 +1,13 @@
 # Orbit AI — current state
 
+## Large-file uploads and in-app previews — local staging, October 27, 2026
+
+On `codex/large-file-preview`, private resumable uploads accept supported documents up to 512 MiB. A Docker worker converts Office files to private PDF renditions and indexes page-scoped text for bounded retrieval. The feature is **not deployed**. [Plan](LARGE_FILE_PREVIEW_PLAN.md), [local setup](LOCAL_DOCUMENT_WORKER.md), and [local validation handoff](handoffs/2026-10-27-local-supabase-document-worker.md) cover the release gates.
+
+Local Docker Desktop 4.97.0 / WSL 2.7.14 and an isolated Supabase stack applied all 28 historical migrations, including 0026, through uniquely numbered disposable copies. Global and bucket Storage limits were 536870912 bytes. Synthetic DOCX conversion/indexing, 20,971,521-byte resumable text upload/indexing (14,980 chunks), and exact 536,870,912-byte resumable upload passed. A synthetic account signed in and opened a chat attachment; its preview API returned a ready private PDF. The in-app browser did **not** visibly paint the embedded PDF (blank/black frame, including a temporary sandbox diagnostic that was reverted), so visual preview still needs verification in a standard browser on desktop and phone. Synthetic test account, chat, file row and both Storage objects were removed after validation. Docker published local ports on all interfaces; an enabled inbound Windows firewall block for 54321/54322/54324 is required and was verified locally, but not from a second machine.
+
+The worker is locally validated only. Production migration, Storage settings, worker deployment, shared keys, and paid provider checks remain untouched. Interrupted-upload resume, large Office load, cross-user preview denial, and signed-in standard-browser rendering are still release gates.
+
 ## Response prompt v5 — local branch, October 26, 2026
 
 `codex/chat-response-quality` shortens the shared student response contract and omits text-widget schemas from voice prompts. Text chat still supports multiple-choice and interactive visuals, with a more explicit invitation to add a useful visual without a direct request. All four provider chats and Orbit lead responses use the shared contract. Local validation and prompt-size measurements are in [the response-quality note](RESPONSE_QUALITY.md) and [handoff](handoffs/2026-10-26-response-quality-v5.md). Live provider quality, latency and billed token comparisons remain awaiting approval and validation. This branch has not been merged or deployed.

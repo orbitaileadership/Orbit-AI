@@ -10,6 +10,9 @@ export type SyllabusPdf = { documents: TurnDocument[]; sources: SourceChunk[]; p
 export async function prepareSyllabusPdf(db: SupabaseClient, file: {
   id: string; storage_path: string; status: string; visual_pages: number[] | null;
 }): Promise<SyllabusPdf> {
+  const { data: stored, error: infoError } = await db.storage.from('uploads').info(file.storage_path);
+  if (infoError || !stored) throw new Error('syllabus_pdf_unreadable');
+  if (Number(stored.size) > COURSES.maxPdfBytes) throw new Error('syllabus_pdf_too_large');
   const { data: blob, error } = await db.storage.from('uploads').download(file.storage_path);
   if (error || !blob) throw new Error('syllabus_pdf_unreadable');
   if (blob.size > COURSES.maxPdfBytes) throw new Error('syllabus_pdf_too_large');

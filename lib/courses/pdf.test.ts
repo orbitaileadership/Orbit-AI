@@ -40,7 +40,8 @@ describe('syllabus PDF preparation', () => {
     await expect(prepare()).rejects.toThrow('syllabus_pdf_unreadable');
   });
   it('bounds PDF bytes before parsing', async () => {
-    fake.storage[file.storage_path].bytes = new Uint8Array(COURSES.maxPdfBytes + 1);
+    fake.storage[file.storage_path].sizeOverride = COURSES.maxPdfBytes + 1;
     await expect(prepare()).rejects.toThrow('syllabus_pdf_too_large');
+    expect(fake.storageCalls.downloads).toBe(0);
   });
 });

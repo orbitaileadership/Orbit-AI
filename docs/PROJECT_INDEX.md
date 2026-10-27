@@ -28,6 +28,7 @@ Approved requirements describe intended behavior. Current code and tests establi
 | Response quality | `docs/RESPONSE_QUALITY.md`, `config/quality.ts`, `benchmarks/`, provider adapters and tests |
 | Branding / interface | `app/globals.css`, `components/brand.tsx`, `config/themes.ts`, `public/brand/`, `public/providers/`, `public/institutions/`, `docs/INSTITUTION_ASSETS.json` |
 | Deployment / schema | `docs/ACCESS_AND_ENVIRONMENTS.md`, actual deployment/schema records, `.env.example`, `package.json`, ALL `supabase/migrations/`; old `docs/SETUP.md` needs reconciliation |
+| Local large-document worker | `docs/LOCAL_DOCUMENT_WORKER.md`, `docs/LARGE_FILE_PREVIEW_PLAN.md`, `compose.document-worker.yml`, migration `0026` |
 | Repository history | `docs/REPOSITORY_MIGRATION.md`, `docs/JAKE_MERGE_FIXES.md`, Git history, linked issues/PRs; old repo is reference only |
 
 ## Workspace workflow

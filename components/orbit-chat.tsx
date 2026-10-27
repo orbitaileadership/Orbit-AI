@@ -13,6 +13,7 @@ import { SidebarSection } from "@/components/sidebar-section";
 import { CourseChatTree, type TreeFolder } from "@/components/course-chat-tree";
 import { OrbitVotePanel, OrbitAvailabilityNotice } from "@/components/orbit-vote-panel";
 import { FileChip } from "@/components/file-chip";
+import { DocumentPreview } from "@/components/document-preview";
 import { fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { Markdown } from "@/components/markdown";
 import { SpeakButton } from "@/components/speak-button";
@@ -20,7 +21,7 @@ import { UsageShortcut } from "@/components/usage-meter";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Decision } from "@/lib/orbit/voting";
 
-type Message = { id: string; role: "user" | "assistant"; content: string; status?: string; model_id?: string; orbit_details?: Decision };
+type Message = { id: string; role: "user" | "assistant"; content: string; status?: string; model_id?: string; orbit_details?: Decision; attachments?: UploadedFile[] };
 type Chat = { id: string; title: string; projectId: string | null; sectionFolderId?: string | null };
 const PHASES: Record<string,string> = {voting:"Checking availability and collecting votes…",voting_without_google:"Google is unavailable. Three AIs are voting without it…",retrying_google:"Google is temporarily unavailable. Retrying its vote once…",summarizing:"Updating conversation context…",collaborating:"A specialist is contributing…",answering:"The lead is answering…"};
 const ERRORS: Record<string,string> = {
@@ -101,6 +102,20 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   const [decision,setDecision]=useState<Decision|null>(null), [dropped,setDropped]=useState(false), [sidebar,setSidebar]=useState(false);
   const [firstName,setFirstName]=useState("");
   const [files,setFiles]=useState<UploadedFile[]>([]), [uploading,setUploading]=useState(false), picker=useRef<HTMLInputElement>(null);
+  const [previewFileId,setPreviewFileId]=useState<string|null>(null);
+  useEffect(()=>{
+    if(!files.some(f=>f.status==="queued"||f.status==="processing"))return;
+    let alive=true;
+    const refresh=async()=>{
+      const updates=await Promise.all(files.filter(f=>f.status==="queued"||f.status==="processing").map(async f=>{
+        try{const r=await fetch(`/api/files/${f.id}/preview`,{cache:"no-store"});const d=await r.json();return {id:f.id,status:d.indexStatus as UploadedFile["status"]|undefined};}
+        catch{return {id:f.id,status:undefined};}
+      }));
+      if(alive)setFiles(current=>current.map(f=>{const next=updates.find(u=>u.id===f.id)?.status;return next&&next!==f.status?{...f,status:next}:f;}));
+    };
+    const timer=window.setInterval(()=>{void refresh();},5_000);
+    return()=>{alive=false;window.clearInterval(timer);};
+  },[files]);
   const controller=useRef<AbortController|null>(null), bottom=useRef<HTMLDivElement>(null), view=useRef(0);
   const refresh=useCallback(async()=>{
     const [list,groups,folders]=await Promise.all([fetch("/api/conversations?provider=orbit"),fetch("/api/courses"),fetch("/api/projects")]);
@@ -168,16 +183,17 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     try{for(const file of Array.from(list).slice(0,Math.max(0,room))){
       const up=await uploadFile(file,userId);
       if(!("id" in up)){setError(up.error);continue;}
-      if(up.kind!=="document"||up.status!=="ready"){setError("Orbit can read text documents only for now. Images and scanned files work in the single-AI chats.");continue;}
+      if(up.kind!=="document"||up.status==="failed"){setError("Orbit can read indexed text documents. Images and scanned files work in the single-AI chats.");continue;}
       setFiles(prev=>[...prev,up]);
     }}finally{setUploading(false);if(picker.current)picker.current.value="";}
   }
   async function send() {
     const content=input.trim();if(!content||busy||loading)return;
+    if(files.some(f=>f.status==="queued"||f.status==="processing")){setError("A file is still being indexed. Wait until it is ready before sending it to Orbit.");return;}
     const attachmentIds=files.map(f=>f.id),sentFiles=files;
     setBusy(true);setError("");setInput("");setFiles([]);setDecision(null);setPhase("voting");
     const userId=crypto.randomUUID(),localReply=crypto.randomUUID();let terminal=false,accepted=false;
-    setMessages(prev=>[...prev,{id:userId,role:"user",content},{id:localReply,role:"assistant",content:"",status:"streaming"}]);
+    setMessages(prev=>[...prev,{id:userId,role:"user",content,attachments:sentFiles},{id:localReply,role:"assistant",content:"",status:"streaming"}]);
     const abort=new AbortController();controller.current=abort;
     const patch=(change:Partial<Message>)=>setMessages(prev=>prev.map(m=>m.id===localReply?{...m,...change}:m));
     const firstQuizTurn=Boolean(active&&quizReadyIds.has(active));
@@ -217,7 +233,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       {course&&<div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 px-2 text-xs text-ink-muted">{folderIcon}<span className="font-medium text-ink">{course.name}</span><span>· relevant course text goes to all four AIs</span></div>}
       <div className="orbit-composer chat-column relative mx-auto max-w-3xl rounded-[28px] border border-line bg-surface-100 p-2.5 pl-4 shadow-composer transition focus-within:border-line-strong">
         {(files.length>0||uploading)&&<div className="mb-2 flex flex-wrap gap-2 pt-1">
-          {files.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={[fileNote(f),"excerpts go to all four AIs"].filter(Boolean).join(" · ")} onRemove={busy?undefined:()=>setFiles(prev=>prev.filter(x=>x.id!==f.id))}/>)}
+          {files.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={[fileNote(f),"excerpts go to all four AIs"].filter(Boolean).join(" · ")} onOpen={()=>setPreviewFileId(f.id)} onRemove={busy?undefined:()=>setFiles(prev=>prev.filter(x=>x.id!==f.id))}/>)}
           {uploading&&<FileChip name="Uploading" state="uploading"/>}
         </div>}
         <textarea aria-label="Message Orbit" placeholder={empty?"Ask all four AIs anything":"Reply to Orbit…"} maxLength={24000} rows={empty?2:1} value={input} disabled={busy||loading}
@@ -316,7 +332,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
             {loading&&<p role="status" className="orbit-shimmer text-sm">Opening chat…</p>}
             {dropped&&<p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">Recent messages and any available summary are used. Older history may be left out or partly summarized. This view shows the latest {ORBIT.contextRows} saved messages.</p>}
             {messages.map((m,idx)=>m.role==="user"
-              ? <div key={m.id} className="group msg-in mb-8 flex flex-col items-end gap-1"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div><div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100"><CopyButton text={m.content}/></div></div>
+              ? <div key={m.id} className="group msg-in mb-8 flex flex-col items-end gap-1"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div>{m.attachments?.length ? <div className="flex max-w-[85%] flex-wrap justify-end gap-2">{m.attachments.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={fileNote(f)} onOpen={()=>setPreviewFileId(f.id)}/>)}</div> : null}<div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100"><CopyButton text={m.content}/></div></div>
               : <article key={m.id} className="msg-in mb-8">
                 {m.orbit_details&&<LeadChip decision={m.orbit_details}/>}
                 {m.status==="streaming"&&!m.content
@@ -332,5 +348,6 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         <div className="px-4 pb-3 pt-1">{composer}</div>
       </>}
     </main>
+    <DocumentPreview fileId={previewFileId} onClose={()=>setPreviewFileId(null)}/>
   </div>;
 }

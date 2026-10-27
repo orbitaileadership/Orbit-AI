@@ -1,0 +1,19 @@
+# Deploy one worker with enforced native-process memory and scratch-space quotas.
+# Supply the two environment values through the host secret store, never this file.
+services:
+  document-worker:
+    build:
+      context: .
+      dockerfile: scripts/document-worker.Dockerfile
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=2g,mode=1777
+    mem_limit: 4g
+    pids_limit: 128
+    cpus: 2
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
