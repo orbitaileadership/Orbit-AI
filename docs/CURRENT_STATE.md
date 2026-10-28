@@ -1,8 +1,10 @@
 # Orbit AI — current state
 
-## Live PDF chat preview fix — local branch, October 28, 2026
+## Live PDF chat preview fix — production, October 28, 2026
 
-Noah confirmed that clicking an uploaded PDF chip on `orbit-ai-sand.vercel.app` does nothing. The authorized production rollback at `6d049b1` has no chat attachment click handler or in-app viewer. Branch `codex/live-pdf-preview` starts from that exact rollback and adds a PDF-only, owner-checked signed preview route plus an in-app PDF.js viewer for provider-chat attachments. It does not use migration 0026 or enable 512 MiB uploads; the larger document release remains gated as recorded below. Focused route tests, targeted lint, TypeScript and a webpack production build passed locally. Live signed-in visual validation and production release remain pending. See [handoff](handoffs/2026-10-28-live-pdf-preview.md).
+Noah confirmed that clicking an uploaded PDF chip on `orbit-ai-sand.vercel.app` did nothing. The authorized production rollback at `6d049b1` had no chat attachment click handler or in-app viewer. Branch `codex/live-pdf-preview` starts from that exact rollback and adds a PDF-only, owner-checked signed preview route plus an in-app PDF.js viewer for provider-chat attachments. Vercel production deployment [D4YeXU7awtW7Tom8LcesUsPHf7V7](https://vercel.com/orbit-ai7/orbit-ai/D4YeXU7awtW7Tom8LcesUsPHf7V7) at commit `6f6b8e7` reported Ready and listed `orbit-ai-sand.vercel.app`; the live app rendered in an authenticated browser. The PDF page itself still needs signed-in user confirmation. This build does not use migration 0026 or enable 512 MiB uploads. GitHub `main` already contains the large-file code, so a new main deployment can displace this safe release before infrastructure is ready. Focused route tests, targeted lint, TypeScript and a webpack production build passed locally. See [handoff](handoffs/2026-10-28-live-pdf-preview.md).
+
+An October 28 read-only production audit found 33 file rows, zero storage-path violations, zero unexpected status values, one existing Office file eligible for preview backfill, zero large-file columns, and no bucket-specific file-size limit. Production Supabase organization still shows Free. The 512 MiB release remains gated on an eligible Storage plan, migration 0026, a hosted document worker, and signed-in checks. Automatic approval review rejected opening the Supabase Pro upgrade flow, citing the rule about Jake approving billing activation. No billing or database change was made.
 
 ## Response prompt v5 — local branch, October 26, 2026
 
