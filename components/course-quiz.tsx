@@ -10,6 +10,8 @@ import { downloadCourseFile } from './course-calendar';
 import { ProviderLogo } from './provider-logo';
 import { OrbitGlyph } from './app-rail';
 import { HubIcon } from './course-hub-icons';
+import { BudgetQuiz } from './budget-quiz';
+import { QUIZ } from '@/config/quiz';
 
 type Session = { id: string; title: string; provider: string; orbit_mode: boolean; study_config: StudyConfig };
 type SavedMessage = { role: string; status: string; study_cards?: StudyCard[] };
@@ -34,6 +36,7 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [budgetQuiz, setBudgetQuiz] = useState<{topic:string;projectId:string}|null>(null);
   const launchId = useRef(crypto.randomUUID());
   const locked = useRef(false);
   const base = `/api/courses/${course.id}/quiz`;
@@ -59,6 +62,11 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
     try {
       const workspace = await api(`/api/courses/${course.id}/assignments/${sectionId}`, {});
       if (workspace.course) onCourse(workspace.course);
+      if (format === 'mcq') {
+        const section = sections.find(item => item.id === sectionId);
+        setBudgetQuiz({topic: `${course.name}: ${section?.title ?? 'Course review'}. ${section?.details ?? ''}`.slice(0,1800), projectId: workspace.folder.id});
+        return;
+      }
       const saved = await api(base, { launchId: launchId.current, sectionId, format, count, provider: ai });
       launchId.current = crypto.randomUUID();
       onSessionSaved();
@@ -93,6 +101,7 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
   }
 
   return <section className="workspace-quiz workspace-quiz-v3">
+    {budgetQuiz && <BudgetQuiz topic={budgetQuiz.topic} projectId={budgetQuiz.projectId} count={count} modelId={isProvider(ai) ? QUIZ.defaults[ai] : QUIZ.defaults.openai} onClose={() => setBudgetQuiz(null)}/>}
     <div className="hub-section-heading"><h2>Quiz</h2></div>
     {error && <p className="workspace-alert" role="alert">{error}</p>}
     <div className="hub-panel workspace-quiz-setup">

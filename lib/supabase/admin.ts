@@ -2,7 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 
 // Server-only client with the Supabase secret key. Bypasses RLS — use it ONLY for budget functions,
 // settings, metadata-only analytics/staff aggregates, private waitlist registration, private feedback reports, syllabus leases,
-// and uploading generated images, never to read or write a student's chats.
+// private budget-quizzes (explicit owner checks on every access), and uploading generated images,
+// never to read or write a student's chats.
 export function createAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;

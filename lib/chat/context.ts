@@ -79,7 +79,7 @@ export const MODE_PROMPTS: Record<StudyMode, string> = {
     "build up one idea at a time, use a small worked example, and end with one short question that checks understanding.",
   quiz:
     "Study mode: QUIZ ME. Quiz the student on the topic (and on their course material if provided). Ask ONE question at a time " +
-    "(mix multiple choice and short answer), then wait. After each answer: say if it's right, explain why briefly (citing their " +
+    "(10 multiple-choice questions by default; honor an explicitly requested count or format), then wait. After each answer: say if it's right, explain why briefly (citing their " +
     "course material when it was used), then ask the next question. Never reveal an answer before the student tries. " +
     "Revisit concepts they missed, explained a different way. When they say stop, list the concepts to review.",
   hints:

@@ -17,6 +17,8 @@ import { FolderBrowser } from "@/components/folder-browser";
 import { ProjectDialog } from "@/components/project-dialog";
 import { FileChip } from "@/components/file-chip";
 import { DocumentPreview } from "@/components/document-preview";
+import { BudgetQuiz } from "@/components/budget-quiz";
+import { quizRequest as budgetQuizRequest } from "@/lib/quiz/schema";
 import { SourceList, type Source } from "@/components/answer-text";
 import { ACCEPT_ATTR, fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { FolderDialog } from "@/components/folder-dialog";
@@ -131,6 +133,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const router = useRouter();
   const [provider, setProvider] = useState<ProviderId>("openai");
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
+  const [budgetQuizTopic, setBudgetQuizTopic] = useState<string | null>(null);
   const [orbitMode, setOrbitMode] = useState(false);
   const [convs, setConvs] = useState<Record<ProviderId, ConvSummary[] | null>>(() => perProvider<ConvSummary[] | null>(() => null));
   const [projects, setProjects] = useState<Record<ProviderId, Project[]>>(() => perProvider<Project[]>(() => []));
@@ -704,6 +707,11 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
 
   // ---------------------------------------------------------------- sending
   async function send(text: string, retry = false, opts: { voice?: boolean; edit?: boolean } = {}) {
+    if (!retry && !opts.voice && budgetQuizRequest(text, chatSettings.mode)) {
+      if (!text.trim()) return;
+      setBudgetQuizTopic(text);
+      return;
+    }
     // A ready quiz has no saved first user turn. Retry the optimistic question as
     // a fresh first turn; the normal regeneration path requires a saved turn.
     const readyQuizRetry = Boolean(retry && active?.id && quizReadyIds.has(active.id));
@@ -1774,6 +1782,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         onOpenFile={(id) => setPreviewFileId(id)}
       />
       <DocumentPreview fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+      {budgetQuizTopic !== null && <BudgetQuiz topic={budgetQuizTopic} modelId={modelId} projectId={activeProject?.id} count={budgetQuizRequest(budgetQuizTopic, 'quiz')?.count} onClose={() => setBudgetQuizTopic(null)}/>}
       {notice && (
         <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-surface-000 shadow-menu">{notice}</div>
       )}

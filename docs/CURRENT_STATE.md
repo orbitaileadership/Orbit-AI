@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## Budgeted MCQ prefetch — local branch, October 27, 2026
+
+`codex/quiz-cost-prefetch` adds a dedicated 10-question-default MCQ runner with first-question generation followed by one background batch, private answer keys, server grading, and a combined reservation ceiling of 1% of the full daily allowance. The user explicitly clarified that the cap applies to the **entire quiz**. Local migration 0027 was tested only in disposable PGlite; it is not applied to shared/production data. Build, TypeScript and lint passed; the full synthetic suite had 870 passing tests and three failures reproduced unchanged in the original checkout. No paid API calls, browser validation, merge or deployment. This is not a global every-prompt cap; alternate formats/legacy paths remain unchanged. See [scope](QUIZ_BUDGET.md) and [handoff](handoffs/2026-10-27-budget-quizzes.md).
+
 ## Large-file uploads and in-app previews — local staging, October 27, 2026
 
 On `codex/large-file-preview`, private resumable uploads accept supported documents up to 512 MiB. A Docker worker converts Office files to private PDF renditions and indexes page-scoped text for bounded retrieval. The feature is **not deployed**. [Plan](LARGE_FILE_PREVIEW_PLAN.md), [local setup](LOCAL_DOCUMENT_WORKER.md), and [local validation handoff](handoffs/2026-10-27-local-supabase-document-worker.md) cover the release gates.
