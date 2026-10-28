@@ -1,0 +1,27 @@
+# Production rollout: 512 MiB documents
+
+**Owner request:** deploy the full large-document feature to the main website, October 28, 2026. This plan records release prerequisites; it does not authorize buying a plan, exposing a worker secret, or applying a production migration by itself.
+
+## Verified starting point
+
+- Live Vercel deployment `D4YeXU7awtW7Tom8LcesUsPHf7V7` is the PDF-only rollback-based build at `6f6b8e7`. GitHub `main` at `5aa89f0` contains the full document code but must not automatically replace the live build before infrastructure is ready.
+- Production Supabase project `rcfnptnaoncfsavxgybc` is in a **Free** organization. On October 28, an aggregate read-only query found 33 file rows, zero invalid owner/file paths, zero unexpected status values, one ready Office file to backfill, zero migration-0026 columns, and no bucket-specific upload limit. The Free global cap is 50 MB. These counts are a point-in-time observation; recheck before migration.
+- Staging Supabase project `bnuiajvlpnvnpvvbpfio` has migration 0026 with a 50 MB bucket limit. Signed-in cloud Preview verification and a hosted worker are pending. Local Docker has tested exact 512 MiB uploads and PDF rendering with synthetic data; that does not establish cloud or production behavior.
+
+## Release sequence
+
+1. **Funding and host:** Confirm the owner-approved infrastructure budget. Upgrade the Supabase organization to a plan permitting at least 512 MiB files. Keep the Supabase spend cap and inspect whether the second staging project adds a monthly project charge. Provision one always-on Linux document worker with a 4 GiB memory ceiling, two vCPU ceiling, at least 2 GiB temporary space, no public ingress, non-root execution, and restricted secret access. The existing Compose file enforces these locally; verify equivalent host controls rather than assuming a hosted service reads Compose directives. Railway Hobby is a candidate, subject to owner approval and its own metered usage cap.
+2. **Stage first:** Set staging's global and `uploads` bucket limits to 536870912 bytes. Configure a staging worker with only the staging project URL and service-role secret. Verify its logs/health without recording student content or secret values. Use synthetic accounts/files to test resumable upload, interrupted transfer, Office conversion, PDF page navigation, late-page retrieval, owner denial, and desktop/phone layouts. Do not point a worker with a production key at staging or vice versa.
+3. **Prepare production database:** Take a recoverable database backup. Re-run the aggregate legacy-path/status audit and inspect migration history. Set the production global Storage limit to at least 536870912 bytes, then apply the tracked `0026_large_files_previews.sql` exactly once. Confirm the four new columns, both worker functions and grants, private bucket's 536870912-byte limit, queued backfill count, and ownership constraints. Validate the `NOT VALID` path constraints only after the legacy audit remains clean. Do not drop rows or overwrite existing student files.
+4. **Start production worker:** Store `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` only in the worker host's secret store. Run one instance, bound by the chosen host's actual memory/CPU/scratch controls. Confirm it claims and finishes a synthetic queued file. Monitor failures and retry attempts; do not log file content.
+5. **Deploy app:** Release the exact reviewed `main` commit only after Storage, schema, and worker checks pass. Verify the live domain is assigned to that commit. Test a synthetic PDF and Office document in chat and course workspaces, including download, page navigation, AI-readiness labels, and cross-user denial. Paid AI retrieval tests require a separately approved bounded provider call. Keep customer payments disabled.
+6. **Observe and recover:** Monitor Storage growth, worker queue age, indexing failures, Vercel errors, and egress. If the app fails, stop the worker and re-promote the PDF-only deployment `D4YeXU7awtW7Tom8LcesUsPHf7V7`; preserve additive schema and stored originals for recovery. Do not remove migration-0026 columns or queued files as a rollback shortcut.
+
+## Current blockers
+
+- The production organization remains Free. Supabase's documented Free upload cap is 50 MB; Pro permits a larger global cap. The paid upgrade has not been performed.
+- No hosted worker exists, and no host-level resource/isolation controls have been validated.
+- Cloud signed-in staging verification is incomplete. The staging project still has a 50 MB limit.
+- Automatic approval review rejected opening the Supabase Pro upgrade flow, citing the repository's requirement for Jake to approve billing activation. That rule concerns Orbit customer payments, which remain disabled; record an explicit owner decision before retrying the infrastructure purchase.
+
+See [feature plan](LARGE_FILE_PREVIEW_PLAN.md), [local worker guide](LOCAL_DOCUMENT_WORKER.md), and [staging setup](STAGING_PREVIEW_SETUP.md).
