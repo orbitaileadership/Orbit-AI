@@ -13,3 +13,10 @@
 - Risks: real model JSON validity/latency, phone/desktop UX and live PostgreSQL contention remain unverified. The broader every-prompt cap and alternate/legacy quiz formats remain outside this implementation.
 - Recovery: application revert; retain private quiz state and ledger evidence. Unknown costs stay held.
 - Next: connect authenticated Supabase/Vercel, verify and apply only migration 0027 to `rcfnptnaoncfsavxgybc`, then complete the already-authorized release and verify exact SHA/deployment. Keep payment activation and paid provider tests disabled.
+
+## Publication outcome
+
+- Final application/review-fix commit `dc84ef8cea6d2efb0742e11f7596a749bf3a8e5e` pushed successfully to `origin/codex/quiz-cost-prefetch`. Independent review cleared the fixes; 32 quiz/context tests and integrated lint/build passed. Final exact-code production webpack build also passed after the last UI recovery fix.
+- GitHub's Vercel commit status for that exact SHA returned **success / Deployment has completed**, linking [branch deployment](https://vercel.com/orbit-ai7/orbit-ai/Cxrfm1HpYGM2tN5gfGgtgvvSnmBf). This verifies branch hosting deployment, not production promotion, installed schema, signed-in quiz functionality or live provider quality.
+- Production main remains unchanged. Supabase has no CLI session and no connected plugin in this task; migration 0027 is not applied. Supabase connection is the remaining release blocker. Vercel's Git integration works without the optional dashboard connection.
+- GitHub PR creation via the connector returned 403; no PR was created. Do not claim a merge or deployment to the production domain.
