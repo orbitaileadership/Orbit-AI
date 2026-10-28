@@ -16,6 +16,7 @@ import { ToolsMenu, type ConnectedApp, type StudyMode } from "@/components/tools
 import { FolderBrowser } from "@/components/folder-browser";
 import { ProjectDialog } from "@/components/project-dialog";
 import { FileChip } from "@/components/file-chip";
+import { DocumentPreview } from "@/components/document-preview";
 import { SourceList, type Source } from "@/components/answer-text";
 import { ACCEPT_ATTR, fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { FolderDialog } from "@/components/folder-dialog";
@@ -168,6 +169,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const [projectDialog, setProjectDialog] = useState<null | { editing?: Project }>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending[]>([]); // files attached to the next message
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [settings, setSettings] = useState<Record<string, ChatSettings>>({});
   const [courseFiles, setCourseFiles] = useState<Record<string, UploadedFile[]>>({});
   const [courseUploading, setCourseUploading] = useState<string[]>([]);
@@ -1248,6 +1250,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       {pending.map((p) => (
         <FileChip key={p.key} name={p.name} kind={p.file?.kind} state={p.uploading ? "uploading" : p.error ? "failed" : p.file!.status}
           detail={p.error ?? (p.file ? fileNote(p.file) : undefined)}
+            onOpen={p.file && /\.(pdf)$/i.test(p.file.name) ? () => setPreviewFileId(p.file!.id) : undefined}
           onRemove={() => setPending((prev) => prev.filter((x) => x.key !== p.key))} />
       ))}
     </div>
@@ -1568,7 +1571,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         <li key={m.id} className="group flex flex-col items-end gap-2">
                           {m.attachments && m.attachments.length > 0 && (
                             <div className="flex max-w-[80%] flex-wrap justify-end gap-2">
-                              {m.attachments.map((a) => <FileChip key={a.id} name={a.name} kind={a.kind} state={a.status} detail={a.error ?? undefined} />)}
+                              {m.attachments.map((a) => <FileChip key={a.id} name={a.name} kind={a.kind} state={a.status} detail={a.error ?? undefined} onOpen={/\.pdf$/i.test(a.name) ? () => setPreviewFileId(a.id) : undefined} />)}
                             </div>
                           )}
                           {activeProject && (() => {
@@ -1766,6 +1769,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         onUpload={projectDialog?.editing ? (list) => uploadCourseFiles(projectDialog.editing!.id, list) : undefined}
         onDeleteFile={projectDialog?.editing ? (fid) => deleteCourseFile(projectDialog.editing!.id, fid) : undefined}
       />
+      <DocumentPreview fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
       {notice && (
         <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-surface-000 shadow-menu">{notice}</div>
       )}

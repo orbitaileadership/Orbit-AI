@@ -84,6 +84,9 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
         download: async (path: string) => (storage[path] ? { data: new Blob([storage[path].bytes as BlobPart], { type: storage[path].type }), error: null } : { data: null, error: { message: "missing" } }),
         remove: async (paths: string[]) => { paths.forEach((p) => delete storage[p]); return { data: null, error: null }; },
         createSignedUrls: async () => ({ data: [], error: null }),
+        createSignedUrl: async (path: string) => storage[path]
+          ? { data: { signedUrl: `https://example.invalid/${encodeURIComponent(path)}` }, error: null }
+          : { data: null, error: { message: "missing" } },
       }),
     },
   };

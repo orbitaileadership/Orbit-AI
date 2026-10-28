@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## Live PDF chat preview fix — local branch, October 28, 2026
+
+Noah confirmed that clicking an uploaded PDF chip on `orbit-ai-sand.vercel.app` does nothing. The authorized production rollback at `6d049b1` has no chat attachment click handler or in-app viewer. Branch `codex/live-pdf-preview` starts from that exact rollback and adds a PDF-only, owner-checked signed preview route plus an in-app PDF.js viewer for provider-chat attachments. It does not use migration 0026 or enable 512 MiB uploads; the larger document release remains gated as recorded below. Focused route tests, targeted lint, TypeScript and a webpack production build passed locally. Live signed-in visual validation and production release remain pending. See [handoff](handoffs/2026-10-28-live-pdf-preview.md).
+
 ## Response prompt v5 — local branch, October 26, 2026
 
 `codex/chat-response-quality` shortens the shared student response contract and omits text-widget schemas from voice prompts. Text chat still supports multiple-choice and interactive visuals, with a more explicit invitation to add a useful visual without a direct request. All four provider chats and Orbit lead responses use the shared contract. Local validation and prompt-size measurements are in [the response-quality note](RESPONSE_QUALITY.md) and [handoff](handoffs/2026-10-26-response-quality-v5.md). Live provider quality, latency and billed token comparisons remain awaiting approval and validation. This branch has not been merged or deployed.
