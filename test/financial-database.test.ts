@@ -14,7 +14,8 @@ beforeAll(async()=>{
  create schema auth; create schema storage;
  create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
  create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('app.user_id',true),'')::uuid$$;
- create table storage.buckets(id text primary key,name text,public boolean);
+ create function auth.role() returns text language sql stable as $$select current_user::text$$;
+ create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint);
  create table storage.objects(bucket_id text,name text);
  alter table storage.objects enable row level security;
  create function storage.foldername(text) returns text[] language sql immutable as $$select string_to_array($1,'/')$$;`);
@@ -26,6 +27,31 @@ beforeAll(async()=>{
  insert into public.conversations(id,user_id,provider,model_id) values('${C}','${U}','openai','openai-default');`);
 },30_000);
 afterAll(async()=>{await db?.close();});
+describe('large-file worker database boundary',()=>{
+ it('binds object paths to owners and keeps processing fields server managed',async()=>{
+   const id='99999999-9999-4999-8999-999999999999';
+   await expect(db.exec(`insert into public.files(id,user_id,name,mime,size_bytes,storage_path,kind,status)
+     values('${id}','${U}','wrong.pdf','application/pdf',1024,'${V}/${id}/wrong.pdf','document','queued')`)).rejects.toThrow(/files_storage_path_owner_check/);
+   await db.exec(`insert into public.files(id,user_id,name,mime,size_bytes,storage_path,kind,status,preview_status)
+     values('${id}','${U}','own.pdf','application/pdf',1024,'${U}/${id}/own.pdf','document','queued','queued')`);
+   try {
+     await db.exec(`set role authenticated; select set_config('app.user_id','${U}',false);`);
+     await expect(db.exec(`update public.files set preview_status='ready' where id='${id}'`)).rejects.toThrow(/server managed/);
+     await expect(db.exec(`update public.files set storage_path='${U}/${id}/other.pdf' where id='${id}'`)).rejects.toThrow(/server managed/);
+   } finally { await db.exec('reset role'); }
+ });
+ it('rejects stale worker batches after a new attempt claims the file',async()=>{
+   const id='99999999-9999-4999-8999-999999999998';
+   await db.exec(`insert into public.files(id,user_id,name,mime,size_bytes,storage_path,kind,status,processing_attempts)
+     values('${id}','${U}','own.pdf','application/pdf',1024,'${U}/${id}/own.pdf','document','processing',1)`);
+   await db.exec(`select public.begin_document_index('${id}',1);
+     select public.append_document_chunks('${id}',1,'[{"page":1,"chunk_index":0,"content":"first attempt"}]'::jsonb);`);
+   await db.exec(`update public.files set processing_attempts=2 where id='${id}';
+     select public.begin_document_index('${id}',2);`);
+   await expect(db.exec(`select public.append_document_chunks('${id}',1,'[{"page":9,"chunk_index":1,"content":"stale"}]'::jsonb)`)).rejects.toThrow(/document_claim_lost/);
+   expect((await db.query<{content:string}>(`select content from public.file_chunks where file_id='${id}'`)).rows).toEqual([]);
+ });
+});
 async function reserve(id:string,bound:number=300000){
  return (await db.query<{r:{ok:boolean;reason?:string}}>(`select public.reserve_budget_v2($1,$2,'openai-default','text',$3,$4::jsonb,'{}') as r`,[U,id,bound,JSON.stringify({provider:'openai',operation:'chat',conversationId:C})])).rows[0].r;
 }

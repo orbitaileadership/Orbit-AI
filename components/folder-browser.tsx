@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { folderSections, type Folder } from '@/lib/folders/types';
 import { uploadFile, type UploadedFile } from '@/lib/files/upload-client';
 import { ProjectDialog } from './project-dialog';
+import { DocumentPreview } from './document-preview';
 import { FolderIcon, PlusIcon, SectionAction, SidebarSection } from './sidebar-section';
 
 type CourseOption = { id: string; name: string };
@@ -25,6 +26,7 @@ export function FolderBrowser({ userId, courseId, standaloneOnly = false, active
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const dialogVersion = useRef(0);
   useEffect(() => {
     const refresh = () => setRevision(v => v + 1);
@@ -75,7 +77,7 @@ export function FolderBrowser({ userId, courseId, standaloneOnly = false, active
       </button>
     </div>;
   };
-  return <SidebarSection title={courseId ? 'Course folders' : 'Folders'} storageKey={courseId ? 'course-folders' : 'folders'}
+  return <><SidebarSection title={courseId ? 'Course folders' : 'Folders'} storageKey={courseId ? 'course-folders' : 'folders'}
     action={<SectionAction label="New folder" onClick={create} disabled={busy || disabled}><PlusIcon /></SectionAction>}>
     <div aria-label={courseId ? 'Course folders' : 'Folders'} className="space-y-0.5">
       {error && <p role="alert" className="mx-3 my-1 text-xs text-danger">{error} <button className="underline" onClick={() => setRevision(v => v + 1)}>Retry</button></p>}
@@ -97,6 +99,7 @@ export function FolderBrowser({ userId, courseId, standaloneOnly = false, active
         try { for (const file of list) { const out = await uploadFile(file, userId, folder.id); if (!('id' in out)) throw new Error(out.error); setFiles(old => [out, ...old]); changed({ filesFor: folder.id }); } }
         finally { setUploading([]); }
       }); } : undefined}
-      onDeleteFile={editing ? id => { void act(async () => { await request(`/api/files/${id}`, {}, 'DELETE'); setFiles(old => old.filter(f => f.id !== id)); changed({ filesFor: editing.id }); }); } : undefined}/>
-  </SidebarSection>;
+      onDeleteFile={editing ? id => { void act(async () => { await request(`/api/files/${id}`, {}, 'DELETE'); setFiles(old => old.filter(f => f.id !== id)); changed({ filesFor: editing.id }); }); } : undefined}
+      onOpenFile={id => setPreviewFileId(id)}/>
+  </SidebarSection><DocumentPreview fileId={previewFileId} onClose={() => setPreviewFileId(null)} /></>;
 }

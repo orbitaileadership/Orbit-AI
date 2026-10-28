@@ -19,13 +19,11 @@ export function FileChip({ name, kind, state, detail, onOpen, onRemove, wide }: 
       {onOpen ? <button type="button" onClick={onOpen} aria-label={`Preview ${name}`} className="min-w-0 flex-1 text-left hover:underline">
         <span className="block truncate text-xs font-medium text-ink">{name}</span>
         <span className={`block truncate text-[11px] ${bad ? "text-danger" : "text-ink-subtle"}`}>
-          {state === "uploading" ? "Uploading…" : state === "needs_ocr" ? detail ?? "Scanned · read as page images" : state === "failed" ? detail ?? "Couldn't read this file" : detail ?? (kind === "image" ? "Image" : "Ready")}
+          {state === "uploading" ? detail ?? "Uploading…" : state === "queued" || state === "processing" ? detail ?? "Indexing…" : state === "needs_ocr" ? detail ?? "Scanned · read as page images" : state === "failed" ? detail ?? "Couldn't read this file" : detail ?? (kind === "image" ? "Image" : "Ready")}
         </span>
       </button> : <span className="min-w-0 flex-1">
         <span className="block truncate text-xs font-medium text-ink">{name}</span>
-        <span className={`block truncate text-[11px] ${bad ? "text-danger" : "text-ink-subtle"}`}>
-          {state === "uploading" ? "Uploading…" : state === "needs_ocr" ? detail ?? "Scanned · read as page images" : state === "failed" ? detail ?? "Couldn't read this file" : detail ?? (kind === "image" ? "Image" : "Ready")}
-        </span>
+        <span className={`block truncate text-[11px] ${bad ? "text-danger" : "text-ink-subtle"}`}>{state === "uploading" ? detail ?? "Uploading…" : state === "queued" || state === "processing" ? detail ?? "Indexing…" : state === "failed" ? detail ?? "Couldn't read this file" : detail ?? (kind === "image" ? "Image" : "Ready")}</span>
       </span>}
       {onRemove && (
         <button type="button" onClick={onRemove} aria-label={`Remove ${name}`} className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-ink-subtle hover:bg-surface-300 hover:text-ink">

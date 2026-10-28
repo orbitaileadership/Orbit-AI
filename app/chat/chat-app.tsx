@@ -53,6 +53,7 @@ import { loadApprovalMode, loadFolder, permission, runFolderTool, saveApprovalMo
 import { describeCall, isFolderTool, isWriteTool } from "@/lib/folder/tools";
 import { codeSupported, resultForModel, runPython, type RunFile, type RunResult } from "@/lib/code/runner";
 import { DATA_FILE, isCodeTool } from "@/lib/code/tools";
+import { INLINE_INDEX_BYTES } from "@/config/files";
 import type { Step, StepResult, ToolLogEntry } from "@/lib/folder/run";
 import type { ToolCall } from "@/lib/providers/types";
 
@@ -74,7 +75,7 @@ type Message = {
   toolLog?: ToolLogEntry[]; // saved file actions, as loaded from the server
   remembered?: string[]; // memories this answer saved (Settings → Memory)
 };
-type Pending = { key: string; file?: UploadedFile; name: string; uploading: boolean; error?: string };
+type Pending = { key: string; file?: UploadedFile; name: string; uploading: boolean; progress?: number; error?: string };
 type ChatSettings = { mode: StudyMode; courseOnly: boolean; web?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null };
 type ConvSummary = { id: string; title: string; modelId: string; projectId: string | null; sectionFolderId?: string | null; updatedAt: string };
 type Project = { id: string; name: string; instructions: string; parent_course_id?: string | null };
@@ -129,6 +130,7 @@ const STARTERS: { label: string; icon: string; text: string; mode?: StudyMode; u
 export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunch }: { email: string; isAdmin?: boolean; userId: string; onCourses?: () => void; courseLaunch?: (import("@/lib/courses/types").CourseLaunch & {key:number}) | null }) {
   const router = useRouter();
   const [provider, setProvider] = useState<ProviderId>("openai");
+  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [orbitMode, setOrbitMode] = useState(false);
   const [convs, setConvs] = useState<Record<ProviderId, ConvSummary[] | null>>(() => perProvider<ConvSummary[] | null>(() => null));
   const [projects, setProjects] = useState<Record<ProviderId, Project[]>>(() => perProvider<Project[]>(() => []));
@@ -169,7 +171,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const [projectDialog, setProjectDialog] = useState<null | { editing?: Project }>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending[]>([]); // files attached to the next message
-  const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const [settings, setSettings] = useState<Record<string, ChatSettings>>({});
   const [courseFiles, setCourseFiles] = useState<Record<string, UploadedFile[]>>({});
   const [courseUploading, setCourseUploading] = useState<string[]>([]);
@@ -612,7 +613,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     for (const f of list.slice(0, 10)) {
       const key = tmpId();
       setPending((prev) => [...prev, { key, name: f.name, uploading: true }]);
-      const out = await uploadFile(f, userId);
+      const out = await uploadFile(f, userId, undefined, fraction =>
+        setPending(prev => prev.map(x => x.key === key ? { ...x, progress: Math.round(fraction * 100) } : x)));
       setPending((prev) => prev.map((x) => (x.key !== key ? x : !("id" in out) ? { ...x, uploading: false, error: out.error } : { ...x, uploading: false, file: out })));
     }
   }
@@ -1033,7 +1035,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     try {
       const res = await fetch(`/api/files/${id}`, { signal });
       if (!res.ok) return null;
-      const { url } = (await res.json()) as { url: string };
+      const { url, size } = (await res.json()) as { url: string; size?: number };
+      if (size && size > INLINE_INDEX_BYTES) return null;
       const file = await fetch(url, { signal });
       return file.ok ? await file.arrayBuffer() : null;
     } catch {
@@ -1249,8 +1252,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     <div className="mb-2 flex flex-wrap gap-2">
       {pending.map((p) => (
         <FileChip key={p.key} name={p.name} kind={p.file?.kind} state={p.uploading ? "uploading" : p.error ? "failed" : p.file!.status}
-          detail={p.error ?? (p.file ? fileNote(p.file) : undefined)}
-            onOpen={p.file && /\.(pdf)$/i.test(p.file.name) ? () => setPreviewFileId(p.file!.id) : undefined}
+          detail={p.error ?? (p.uploading && p.progress != null ? `Uploading · ${p.progress}%` : p.file ? fileNote(p.file) : undefined)}
+          onOpen={p.file ? () => setPreviewFileId(p.file!.id) : undefined}
           onRemove={() => setPending((prev) => prev.filter((x) => x.key !== p.key))} />
       ))}
     </div>
@@ -1571,7 +1574,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         <li key={m.id} className="group flex flex-col items-end gap-2">
                           {m.attachments && m.attachments.length > 0 && (
                             <div className="flex max-w-[80%] flex-wrap justify-end gap-2">
-                              {m.attachments.map((a) => <FileChip key={a.id} name={a.name} kind={a.kind} state={a.status} detail={a.error ?? undefined} onOpen={/\.pdf$/i.test(a.name) ? () => setPreviewFileId(a.id) : undefined} />)}
+                              {m.attachments.map((a) => <FileChip key={a.id} name={a.name} kind={a.kind} state={a.status} detail={a.error ?? undefined} onOpen={() => setPreviewFileId(a.id)} />)}
                             </div>
                           )}
                           {activeProject && (() => {
@@ -1768,6 +1771,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         onDelete={projectDialog?.editing ? () => deleteProject(projectDialog.editing!.id) : undefined}
         onUpload={projectDialog?.editing ? (list) => uploadCourseFiles(projectDialog.editing!.id, list) : undefined}
         onDeleteFile={projectDialog?.editing ? (fid) => deleteCourseFile(projectDialog.editing!.id, fid) : undefined}
+        onOpenFile={(id) => setPreviewFileId(id)}
       />
       <DocumentPreview fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
       {notice && (

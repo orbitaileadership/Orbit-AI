@@ -34,6 +34,7 @@ export function materialType(file: Pick<MaterialFile, 'name' | 'kind'>): Exclude
 export function materialStatus(file: MaterialFile): string {
   if (file.status === 'failed') return 'Could not be read · try another copy';
   if (file.status === 'needs_ocr') return 'Scanned · limited text retrieval';
+  if (file.status === 'queued' || file.status === 'processing') return 'Indexing · AI can use it when ready';
   if (file.status !== 'ready') return 'Reading file…';
   const type = materialType(file);
   if (type === 'images') return 'Image · support varies by AI mode';

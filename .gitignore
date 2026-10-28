@@ -46,3 +46,6 @@ next-env.d.ts
 
 # live evaluation output (may contain model answers)
 /benchmarks/results/
+
+# Disposable local Supabase stack with uniquely numbered copies of legacy migrations.
+/.local-supabase/

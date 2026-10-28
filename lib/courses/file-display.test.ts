@@ -35,7 +35,8 @@ describe('material library display', () => {
   it('does not call failed, scanned, or unknown-status files ready', () => {
     expect(materialStatus({ ...files[0], status: 'failed' })).toContain('Could not be read');
     expect(materialStatus({ ...files[0], status: 'needs_ocr' })).toContain('limited text');
-    expect(materialStatus({ ...files[0], status: 'processing' })).toBe('Reading file…');
+    expect(materialStatus({ ...files[0], status: 'processing' })).toBe('Indexing · AI can use it when ready');
+    expect(materialStatus({ ...files[0], status: 'queued' })).toBe('Indexing · AI can use it when ready');
   });
 
   it('labels pages, slides, sheets, and image limitations accurately', () => {

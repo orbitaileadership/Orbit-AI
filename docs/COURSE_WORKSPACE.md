@@ -1,5 +1,9 @@
 # Course workspace V1 — October 17, 2026
 
+## October 26, 2026 — Local large-file and viewer work
+
+Course and graded-section resources now share the private in-app viewer used by chats. Original PDFs open directly; Word/PowerPoint and supported spreadsheet formats require a separately deployed worker to create private PDF renditions. Supported documents over 20 MiB queue for background indexing, while chat and Orbit can use only the bounded text passages that are ready. This work is local on `codex/large-file-preview`: migration 0026, the global Storage setting and the worker have not been deployed or tested with signed-in users. Syllabus **import** still has its own 20 MB extraction limit, even though saved course resources can use the larger upload path. See [the plan](LARGE_FILE_PREVIEW_PLAN.md).
+
 ## October 25, 2026 — Section chat navigation and quiz handoff (released)
 
 The provider and Orbit sidebars now show a nested Courses → graded-section folder → chat tree using the saved `section_folder_id`. Loose folders and chats remain reachable in their own sections. Graded sections show their own resources and chats without repeating the course syllabus. AI choices use provider marks; the status control is more prominent, and redundant headings/copy were removed.
