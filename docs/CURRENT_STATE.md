@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## October 28, 2026 — production large-file rollout preparation
+
+Noah requested the full 512 MiB document release, then chose to keep Supabase Free for now and revisit the paid Storage/hosted-worker setup in one week. Vercel's PDF-only production deployment at `6f6b8e7` reported Ready on `orbit-ai-sand.vercel.app`; the full feature in `main` remains undeployed. A read-only production audit found 33 files, zero invalid owner/file paths, zero unexpected statuses, one Office preview backfill candidate, and zero migration-0026 columns. Production Supabase is Free, with no hosted document worker. Automatic approval review rejected opening its paid Pro upgrade flow, citing the Jake billing-activation rule; no billing or database change occurred. [Production rollout plan](PRODUCTION_LARGE_FILE_ROLLOUT.md) records the ordered release gates and rollback. A live authenticated ChatGPT tab that had remained open across deployment showed an inert PDF chip; after reload it exposed the Preview button, and a private 18-page PDF visibly rendered inside Orbit. This confirms one live browser journey, not every provider or device. See [live PDF verification handoff](handoffs/2026-10-28-live-pdf-preview-verification.md).
+
 ## Isolated Vercel Preview database — October 27, 2026
 
 Supabase project `orbit-ai-staging` (`bnuiajvlpnvnpvvbpfio`, West US/Oregon, Free) was created separately from the live `orbit-ai` project. All 28 repository migrations were applied there through the SQL Editor; the final bucket limit was adjusted only in the staging execution to 50 MB. Read-only checks confirmed the course/file schema, private uploads bucket, and file RLS. Vercel's `codex/large-file-preview` branch alone now has the staging Supabase URL, publishable key, and server-only secret key. Production variables were untouched. Redeployment and signed-in app validation are pending; [setup record](STAGING_PREVIEW_SETUP.md).
