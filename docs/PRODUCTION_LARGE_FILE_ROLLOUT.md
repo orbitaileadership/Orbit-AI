@@ -4,7 +4,7 @@
 
 ## Verified starting point
 
-- Live Vercel deployment `D4YeXU7awtW7Tom8LcesUsPHf7V7` is the PDF-only rollback-based build at `6f6b8e7`. GitHub `main` at `5aa89f0` contains the full document code but must not automatically replace the live build before infrastructure is ready.
+- Live Vercel deployment `D4YeXU7awtW7Tom8LcesUsPHf7V7` is the PDF-only rollback-based build at `6f6b8e7`. GitHub `main` at `2651848` contains the full document code. Its automatic Production deployment on October 28 produced a file-action `db_setup` report because production lacks migration 0026; the live domain was re-aliased to the PDF-only deployment. Vercel's Production environment still tracks `main`, so another merge can repeat this until a safe release branch is configured or the full release gates pass.
 - Production Supabase project `rcfnptnaoncfsavxgybc` is in a **Free** organization. On October 28, an aggregate read-only query found 33 file rows, zero invalid owner/file paths, zero unexpected status values, one ready Office file to backfill, zero migration-0026 columns, and no bucket-specific upload limit. The Free global cap is 50 MB. These counts are a point-in-time observation; recheck before migration.
 - Staging Supabase project `bnuiajvlpnvnpvvbpfio` has migration 0026 with a 50 MB bucket limit. Signed-in cloud Preview verification and a hosted worker are pending. Local Docker has tested exact 512 MiB uploads and PDF rendering with synthetic data; that does not establish cloud or production behavior.
 
