@@ -7,6 +7,7 @@ Non-secret service map. Fill missing fields with the owner; do not add API keys,
 | GitHub | https://github.com/orbitaileadership/Orbit-AI | Jake/Noah: confirm each person's access; use their own account |
 | Vercel | Team `orbit-ai7`, project `orbit-ai` in the recorded deployment links | Noah: verify current production domain, production/preview branches, environment variables and rollback access |
 | Supabase | Project ref `rcfnptnaoncfsavxgybc`, project `orbit-ai`, recorded region Canada Central | Noah: confirm dashboard access, backup/recovery approach and applied schema state; old/new app use same database |
+| Supabase staging | Project ref `bnuiajvlpnvnpvvbpfio`, project `orbit-ai-staging`, West US (Oregon), Free plan | Isolated synthetic-data project for `codex/large-file-preview`; [setup and schema evidence](STAGING_PREVIEW_SETUP.md). Free Storage is limited to 50 MB. |
 | OpenAI / Anthropic / Google / xAI | Names/configuration in `.env.example` and `config/models.ts` | Noah: provision authorized access and spending controls; never share keys through chats/email |
 | GitHub / Google / Microsoft and other OAuth integrations | `docs/INTEGRATIONS.md`, relevant auth/connector configuration | Noah: verify app ownership, redirect URLs and least-privilege settings for each environment |
 | Admin analytics | `/admin/analytics`, server `ANALYTICS_ADMIN_EMAILS` allowlist | Noah: verify authorized staff identity and test access; do not put staff credentials here |
