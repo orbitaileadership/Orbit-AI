@@ -20,6 +20,8 @@ Vercel variables `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABL
 
 A branch push created Ready Preview deployment `HoRxABjXbWtLAb2zt1A3pv49Tovx` at commit `7959b539542768c1cca9631cab93b05e72cfcd2b`. The [branch Preview login](https://orbit-ai-git-codex-large-file-preview-orbit-ai7.vercel.app/login) rendered successfully, and an unauthenticated `/api/conversations` request returned `not_signed_in`. Supabase staging Auth Site URL is the exact branch Preview origin, and its only additional redirect URL is that origin's `/auth/callback`. A signed-in account, course/chat read, small PDF upload and phone-sized view remain to be checked.
 
+Staging Supabase sends its default **confirmation link** email. Orbit's sign-up screen asks for a numeric code, so a staging tester must open the email link, then return to `/login` and sign in. The default email template cannot be edited in this project without configuring custom SMTP. This is a staging onboarding mismatch and does not establish the production email-template behavior.
+
 ## Release boundary
 
 This setup is for a Vercel Preview and synthetic data. The 512 MiB upload and Office conversion path still depends on the local Docker worker and local Supabase limit. Production schema, production environment variables, payments, and provider credentials were not changed. The production Vercel deployment was separately rolled back to the pre–large-file commit `6d049b1` after Noah approved it.
