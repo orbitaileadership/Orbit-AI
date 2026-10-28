@@ -16,6 +16,10 @@ Seeded from the conversation and existing engineering protocol on October 19, 20
 
 New entry format: decision; owner; date; source/link; affected behavior; what it supersedes. Preserve changed decisions as superseded rather than keeping contradictory active instructions.
 
+## October 28, 2026 — Pause paid large-document infrastructure
+
+Noah chose to keep Supabase on its Free plan for now and revisit the paid Storage plan and hosted document worker in one week. This defers the full 512 MiB production release approved earlier; it does not change the approved feature design or activate billing. The live PDF-only preview remains the production path while the full release gates in [PRODUCTION_LARGE_FILE_ROLLOUT.md](PRODUCTION_LARGE_FILE_ROLLOUT.md) are unmet.
+
 ## October 26, 2026 — Large private documents and layout previews
 
 Noah requested uploads up to 512 MB in chats and courses, explicitly chose AI reading of large files, and chose layout-preserving Word/PowerPoint previews. The approved implementation uses direct resumable private Storage uploads, a separate indexing/conversion worker, bounded cited passages for AI context, and an in-app PDF viewer for original PDFs and private Office renditions. It supersedes the general 20 MB upload limit for supported documents, while provider image limits, finite AI context, and the separate syllabus-import extraction path remain explicit. See [LARGE_FILE_PREVIEW_PLAN.md](LARGE_FILE_PREVIEW_PLAN.md). Shared migration, Storage configuration, worker deployment, and production release require their normal authorization and staging validation.
