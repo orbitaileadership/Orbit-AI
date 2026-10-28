@@ -58,7 +58,7 @@ For local Next, put the local API URL and publishable key in `.env.local`; put t
 
 ## Checks performed and limits
 
-On October 27, this stack passed synthetic DOCX conversion to a private PDF and page indexing; a **20,971,521-byte** resumable text upload and indexing (**14,980** chunks); and an **exact 536,870,912-byte** resumable upload accepted by Storage. The worker's internal API connection returned 200. Synthetic users, file rows and objects were deleted after testing. Signed-in desktop/phone preview, interrupted TUS resume, large Office conversion load, cross-user denial and live-provider retrieval still need validation before release.
+On October 27, this stack passed synthetic DOCX conversion to a private PDF and page indexing; a **20,971,521-byte** resumable text upload and indexing (**14,980** chunks); and an **exact 536,870,912-byte** resumable upload accepted by Storage. The worker's internal API connection returned 200. Synthetic users, file rows and objects were deleted after testing. A signed-in synthetic chat displayed the converted DOCX and a native two-page PDF in the in-app browser with working page navigation and Close after the PDF.js viewer change. Standard Chrome/Edge and phone-sized preview, interrupted TUS resume, large Office conversion load, cross-user denial and live-provider retrieval still need validation before release.
 
 ## Stop and troubleshoot
 
