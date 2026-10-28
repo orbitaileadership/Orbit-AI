@@ -18,7 +18,7 @@ import { ProjectDialog } from "@/components/project-dialog";
 import { FileChip } from "@/components/file-chip";
 import { DocumentPreview } from "@/components/document-preview";
 import { BudgetQuiz } from "@/components/budget-quiz";
-import { quizRequest as budgetQuizRequest } from "@/lib/quiz/schema";
+import { quizRequest as budgetQuizRequest, quizProjectId } from "@/lib/quiz/schema";
 import { SourceList, type Source } from "@/components/answer-text";
 import { ACCEPT_ATTR, fileNote, uploadFile, type UploadedFile } from "@/lib/files/upload-client";
 import { FolderDialog } from "@/components/folder-dialog";
@@ -707,7 +707,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
 
   // ---------------------------------------------------------------- sending
   async function send(text: string, retry = false, opts: { voice?: boolean; edit?: boolean } = {}) {
-    if (!retry && !opts.voice && budgetQuizRequest(text, chatSettings.mode)) {
+    if (!retry && !opts.voice && budgetQuizRequest(text, chatSettings.mode, thread.length > 0)) {
       if (!text.trim()) return;
       setBudgetQuizTopic(text);
       return;
@@ -1782,7 +1782,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
         onOpenFile={(id) => setPreviewFileId(id)}
       />
       <DocumentPreview fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
-      {budgetQuizTopic !== null && <BudgetQuiz topic={budgetQuizTopic} modelId={modelId} projectId={activeProject?.id} count={budgetQuizRequest(budgetQuizTopic, 'quiz')?.count} onClose={() => setBudgetQuizTopic(null)}/>}
+      {budgetQuizTopic !== null && <BudgetQuiz topic={budgetQuizTopic} modelId={modelId} projectId={quizProjectId(active?.sectionFolderId, activeProject?.id)} count={budgetQuizRequest(budgetQuizTopic, 'quiz')?.count} onClose={() => setBudgetQuizTopic(null)}/>}
       {notice && (
         <div role="status" className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-ink px-4 py-2 text-sm text-surface-000 shadow-menu">{notice}</div>
       )}

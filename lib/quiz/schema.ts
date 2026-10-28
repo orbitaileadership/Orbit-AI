@@ -49,11 +49,13 @@ export function publicQuiz(s: QuizSession) {
   };
 }
 
-export function quizRequest(text: string, mode: string): { count: number } | null {
+export function quizRequest(text: string, mode: string, hasHistory = false): { count: number } | null {
   if (/\b(short[ -]answer|flashcards?|open[ -]ended)\b/i.test(text)) return null;
-  if (mode !== 'quiz' && !/\bquiz me\b|\b(?:generate|create|make|give me)\b.{0,60}\b(?:quiz|multiple[ -]choice|mcqs?)\b/i.test(text)) return null;
+  if ((mode !== 'quiz' || hasHistory) && !/\bquiz me\b|\b(?:generate|create|make|give me)\b.{0,60}\b(?:quiz|multiple[ -]choice|mcqs?)\b/i.test(text)) return null;
   const numeric = text.match(/\b(\d+)[ -]*(?:multiple[ -]choice[ -]*)?(?:questions?|mcqs?)\b/i)?.[1];
   const words: Record<string, number> = {one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,fifteen:15,twenty:20,thirty:30};
   const word = text.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|fifteen|twenty|thirty)[ -]*(?:multiple[ -]choice[ -]*)?questions?\b/i)?.[1].toLowerCase();
   return { count: numeric ? Number(numeric) : word ? words[word] : QUIZ.defaultCount };
 }
+
+export const quizProjectId = (sectionId: string | null | undefined, projectId: string | null | undefined) => sectionId ?? projectId ?? undefined;

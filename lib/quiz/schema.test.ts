@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { getModel } from '@/config/models';
-import { parseQuestions, publicQuiz, quizBound, quizCount, quizRequest, type QuizSession } from './schema';
+import { parseQuestions, publicQuiz, quizBound, quizCount, quizRequest, quizProjectId, type QuizSession } from './schema';
 const question = { question: 'What is 2 + 2?', options: ['1','2','3','4'], answer: 3, explanation: 'Adding two and two gives four.' };
 const session = (): QuizSession => ({ id: 'q', user_id: 'u', project_id: null, topic: 'Arithmetic', context: '',
   model_id: 'openai-luna', count: 10, cap_micros: 4000, phase: 'first_ready', questions: [question], answers: [], error: null, updated_at: new Date().toISOString() });
 describe('budget quiz contract', () => {
+  it('continues existing quizzes unless the student explicitly requests a new quiz', () => {
+    expect(quizRequest('mitochondria', 'quiz', true)).toBeNull();
+    expect(quizRequest('show reverse', 'quiz', true)).toBeNull();
+    expect(quizRequest('Quiz me on cells', 'quiz', true)).toEqual({count:10});
+    expect(quizRequest('Cells', 'quiz', false)).toEqual({count:10});
+  });
+  it('keeps section resources ahead of the parent course', () => {
+    expect(quizProjectId('section', 'course')).toBe('section');
+    expect(quizProjectId(null, 'course')).toBe('course');
+    expect(quizProjectId(undefined, undefined)).toBeUndefined();
+  });
   it('defaults to ten MCQs while respecting explicit counts and alternate formats', () => {
     expect(quizCount()).toBe(10); expect(quizRequest('Quiz me on cells', 'chat')).toEqual({count:10});
     expect(quizRequest('Generate 5 multiple choice questions about cells', 'chat')).toEqual({count:5});

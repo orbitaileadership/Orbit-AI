@@ -28,6 +28,8 @@ export function BudgetQuiz({ topic: initialTopic, modelId: initialModel, count: 
   const [quiz, setQuiz] = useState<QuizView | null>(null), [choice, setChoice] = useState<number | null>(null);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [feedback, setFeedback] = useState(false);
   const [sessions, setSessions] = useState<Saved[]>([]);
+  const [prepareRetry, setPrepareRetry] = useState(0);
+  const [prepareError, setPrepareError] = useState('');
   const alive = useRef(true), activeId = useRef<string | null>(null), lock = useRef(false);
   const listing = `/api/quiz${projectId ? `?projectId=${projectId}` : ''}`;
   useEffect(() => {
@@ -43,9 +45,9 @@ export function BudgetQuiz({ topic: initialTopic, modelId: initialModel, count: 
     if (!quiz || quiz.done || !['new', 'first_ready'].includes(quiz.phase) || preparing.current === `${quiz.id}:${quiz.phase}`) return;
     preparing.current = `${quiz.id}:${quiz.phase}`;
     // Two bounded generation calls, rather than resending sources after every answer.
-    void api('/api/quiz', { action: 'prepare', id: quiz.id }).then(d => accept(d.quiz))
-      .catch(e => { if (alive.current) setError(e.message); });
-  }, [quiz, accept]);
+    void api('/api/quiz', { action: 'prepare', id: quiz.id }).then(d => { accept(d.quiz); if (alive.current) setPrepareError(''); })
+      .catch(e => { if (alive.current) setPrepareError(e.message); });
+  }, [quiz, accept, prepareRetry]);
   useEffect(() => {
     if (!quiz || quiz.done || !['first_running', 'rest_running', 'first_ready'].includes(quiz.phase)) return;
     const timer = window.setInterval(() => {
@@ -78,6 +80,7 @@ export function BudgetQuiz({ topic: initialTopic, modelId: initialModel, count: 
     </div> : <div className="space-y-4">
       <p className="text-sm text-ink-muted">{MODELS.find(m => m.id === quiz.modelId)?.label} · {quiz.index}/{quiz.count} answered · {quiz.score} correct</p>
       {quiz.error && <p role="alert">{errors[quiz.error] ?? 'This quiz could not finish.'}</p>}
+      {prepareError && ['new', 'first_ready'].includes(quiz.phase) && <div><p role="alert">{prepareError}</p><button type="button" disabled={busy} className="min-h-11 rounded-xl border border-line px-4" onClick={() => { preparing.current = null; setPrepareError(''); setPrepareRetry(n => n + 1); }}>Retry question preparation</button></div>}
       {feedback && quiz.feedback ? <section aria-live="polite"><h3 className="font-semibold">{quiz.feedback.correct ? 'Correct' : 'Not quite'}</h3><p>Answer: {quiz.feedback.answer}</p><p className="mt-2">{quiz.feedback.explanation}</p><button type="button" className="mt-4 min-h-11 rounded-xl border border-line px-5" onClick={() => setFeedback(false)}>{quiz.done ? 'See result' : 'Next question'}</button></section>
         : quiz.done ? <p role="status" className="text-lg font-medium">Quiz complete: {quiz.score}/{quiz.count}</p>
         : quiz.question ? <form onSubmit={e => { e.preventDefault(); if (choice !== null) void act({ action: 'answer', id: quiz.id, index: quiz.index, choice }, true); }}><fieldset disabled={busy}><legend className="mb-4 text-lg font-medium">Question {quiz.index + 1}: {quiz.question.question}</legend>{quiz.question.options.map((option, i) => <label key={i} className="mb-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border border-line p-3"><input type="radio" name="quiz-choice" className="mt-1" checked={choice === i} onChange={() => setChoice(i)}/><span>{String.fromCharCode(65 + i)}. {option}</span></label>)}</fieldset><button disabled={busy || choice === null} type="submit" className="mt-3 min-h-11 rounded-xl bg-ink px-5 text-surface-000 disabled:opacity-50">{busy ? 'Saving answer…' : 'Submit answer'}</button></form>
