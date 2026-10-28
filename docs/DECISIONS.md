@@ -16,6 +16,10 @@ Seeded from the conversation and existing engineering protocol on October 19, 20
 
 New entry format: decision; owner; date; source/link; affected behavior; what it supersedes. Preserve changed decisions as superseded rather than keeping contradictory active instructions.
 
+## October 27, 2026 — Large-file release boundary
+
+Noah approved a separate Supabase Free staging project for the `codex/large-file-preview` Vercel Preview and explicitly approved passing that project's publishable and server-only secret keys to the Preview branch. Synthetic data stays isolated from production. After a read-only check showed production lacks migration 0026 and Supabase Free cannot provide a 512 MiB file cap, Noah chose to **wait for the full 512 MiB production setup** rather than ship a temporary 50 MB live limit. That requires an eligible Storage plan, an appropriately configured private bucket, a hosted document worker, migration review and explicit production release authorization. The 50 MB cap is staging-only and does not supersede the approved 512 MiB product requirement. See [setup record](STAGING_PREVIEW_SETUP.md).
+
 ## October 26, 2026 — Large private documents and layout previews
 
 Noah requested uploads up to 512 MB in chats and courses, explicitly chose AI reading of large files, and chose layout-preserving Word/PowerPoint previews. The approved implementation uses direct resumable private Storage uploads, a separate indexing/conversion worker, bounded cited passages for AI context, and an in-app PDF viewer for original PDFs and private Office renditions. It supersedes the general 20 MB upload limit for supported documents, while provider image limits, finite AI context, and the separate syllabus-import extraction path remain explicit. See [LARGE_FILE_PREVIEW_PLAN.md](LARGE_FILE_PREVIEW_PLAN.md). Shared migration, Storage configuration, worker deployment, and production release require their normal authorization and staging validation.
