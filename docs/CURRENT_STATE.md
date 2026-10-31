@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## October 31, 2026 — interactive multiple-choice quizzes prepared
+
+On `codex/interactive-mcq`, new multi-question MCQ requests and graded-section MCQ sessions ask the chosen model for one bounded quiz set. The saved answer renders one question at a time with instant local feedback, progress, results, review and retry; clicking choices makes no model call. Progress is stored on the current device for a saved provider chat, not synchronized into server quiz statistics. Existing one-question widgets remain in their prior chat format. Focused tests, typecheck, lint and production build passed. Desktop click-through validation was unavailable because the in-app browser could not reach localhost and desktop browser control stopped before opening the test page. No production deployment or database change. See [handoff](handoffs/2026-10-31-interactive-mcq.md).
+
 ## October 31, 2026 — continuous PDF scrolling live
 
 Noah requested vertical scrolling instead of Next/Prev in the centered PDF window. The pinned PDF-only Production branch commit `7a9ff4f` renders PDF pages in one scroll area and lazily draws pages near the viewport. Vercel deployment `8k7eWBCLPzVdsCx9E1vBnMLPEX4B` reported Ready for `orbit-ai-sand.vercel.app`. A signed-in desktop check opened an existing 145-page PDF and scrolled to rendered pages 2 and 3. The same code is on review branch `codex/record-production-rollback` for PR #41. Phone layout and fresh uploads were not checked. Production remains on the PDF-only branch until the separate 512 MiB infrastructure is approved. See [handoff](handoffs/2026-10-31-continuous-pdf-scroll.md).

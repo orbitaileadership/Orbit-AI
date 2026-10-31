@@ -16,6 +16,10 @@ Seeded from the conversation and existing engineering protocol on October 19, 20
 
 New entry format: decision; owner; date; source/link; affected behavior; what it supersedes. Preserve changed decisions as superseded rather than keeping contradictory active instructions.
 
+## October 31, 2026 — Multiple-choice study flow
+
+Noah requested that students click through multiple-choice questions without waiting for a new AI response after each choice. New MCQ quiz sessions should generate the requested set in one model response, then grade and navigate locally with immediate feedback. This supersedes the one-question-per-model-turn MCQ behavior for newly generated quizzes; short-answer practice and already saved single-question widgets retain their existing chat flow. Implemented on `codex/interactive-mcq`; release remains separate.
+
 ## October 28, 2026 — Pause paid large-document infrastructure
 
 Noah chose to keep Supabase on its Free plan for now and revisit the paid Storage plan and hosted document worker in one week. This defers the full 512 MiB production release approved earlier; it does not change the approved feature design or activate billing. The live PDF-only preview remains the production path while the full release gates in [PRODUCTION_LARGE_FILE_ROLLOUT.md](PRODUCTION_LARGE_FILE_ROLLOUT.md) are unmet.
