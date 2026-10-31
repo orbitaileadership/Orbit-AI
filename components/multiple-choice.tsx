@@ -7,6 +7,7 @@ export type MultipleChoiceInteraction = {
   onAnswer: (answer: string) => void;
   answers: string[];
   disabledReason?: string;
+  storageScope?: string;
 };
 export const MultipleChoiceContext = createContext<MultipleChoiceInteraction | undefined>(undefined);
 

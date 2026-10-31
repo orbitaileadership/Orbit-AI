@@ -23,7 +23,9 @@ export type DiagramWidget = {
   steps: { label: string; detail?: string }[]; links?: string[]; note?: string;
 };
 export type MultipleChoiceWidget = { type: "multiple_choice"; question: string; options: string[] };
-export type Widget = CalculatorWidget | ChartWidget | DiagramWidget | MultipleChoiceWidget;
+export type QuizQuestion = { question: string; options: string[]; correct: number; explanation: string };
+export type QuizWidget = { type: "quiz"; title?: string; questions: QuizQuestion[] };
+export type Widget = CalculatorWidget | ChartWidget | DiagramWidget | MultipleChoiceWidget | QuizWidget;
 
 function multipleChoice(o: Record<string, unknown>): MultipleChoiceWidget {
   const question = str(o.question, 1000);
@@ -31,6 +33,22 @@ function multipleChoice(o: Record<string, unknown>): MultipleChoiceWidget {
   const options = o.options.map((v) => str(v, 500));
   if (options.some((v) => !v) || new Set(options).size !== options.length) throw new Error("widget_invalid");
   return { type: "multiple_choice", question, options: options as string[] };
+}
+
+function quiz(o: Record<string, unknown>): QuizWidget {
+  if (!Array.isArray(o.questions) || o.questions.length < 1 || o.questions.length > 30) throw new Error("widget_invalid");
+  const questions = o.questions.map((raw): QuizQuestion => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("widget_invalid");
+    const q = raw as Record<string, unknown>;
+    const question = str(q.question, 1000);
+    const explanation = str(q.explanation, 1200);
+    if (!question || !explanation || !Array.isArray(q.options) || q.options.length < 2 || q.options.length > 6) throw new Error("widget_invalid");
+    const options = q.options.map(value => str(value, 500));
+    if (options.some(value => !value) || new Set(options.map(value => value?.toLowerCase())).size !== options.length) throw new Error("widget_invalid");
+    if (!Number.isInteger(q.correct) || (q.correct as number) < 0 || (q.correct as number) >= options.length) throw new Error("widget_invalid");
+    return { question, options: options as string[], correct: q.correct as number, explanation };
+  });
+  return { type: "quiz", ...(str(o.title, 100) ? { title: str(o.title, 100) } : {}), questions };
 }
 
 /** A readable ordinary user turn, retained in history across reloads and model switches. */
@@ -131,11 +149,12 @@ function diagram(o: Record<string, unknown>): DiagramWidget {
 
 /** JSON text from an ```orbit-widget block → a validated widget, or null if it can't be shown safely. */
 export function parseWidget(text: string): Widget | null {
-  if (text.length > 20_000) return null;
+  if (text.length > 60_000) return null;
   try {
     const o = JSON.parse(text) as Record<string, unknown>;
     if (!o || typeof o !== "object") return null;
     if (o.type === "multiple_choice") return multipleChoice(o);
+    if (o.type === "quiz") return quiz(o);
     if (o.type === "calculator") return calculator(o);
     if (o.type === "chart") return chart(o);
     if (o.type === "diagram") return diagram(o);

@@ -65,7 +65,7 @@ function makeComponents(sources: Source[] | undefined, final: boolean): Componen
       // Interactive widget (calculator, chart, diagram) described as JSON by the AI; shown as code only if invalid.
       if (lang === "orbit-widget") {
         const widget = parseWidget(textOf(children));
-        if (widget?.type === "multiple_choice" && !final) return <WidgetPending />;
+        if ((widget?.type === "multiple_choice" || widget?.type === "quiz") && !final) return <WidgetPending />;
         if (widget) return <ChatWidget widget={widget} />;
         if (!final) return <WidgetPending />;
       }
