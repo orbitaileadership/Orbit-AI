@@ -7,7 +7,7 @@ export type StudyMode = "chat" | "explain" | "quiz" | "hints";
 export const MODE_LABELS: Record<StudyMode, { label: string; hint: string }> = {
   chat: { label: "Chat", hint: "Normal answers" },
   explain: { label: "Explain", hint: "Step by step, then a check question" },
-  quiz: { label: "Quiz me", hint: "One question at a time, with a score" },
+  quiz: { label: "Quiz me", hint: "Click through multiple choice, or practise short answers" },
   hints: { label: "Hints only", hint: "Nudges, never the full answer" },
 };
 

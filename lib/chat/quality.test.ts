@@ -59,6 +59,12 @@ describe('shared student response contract',()=>{
   expect(voice).not.toContain('orbit-widget');
   expect(voice.length).toBeLessThan(ordinary.length);
  });
+ it('requests a complete click-through MCQ set in quiz mode',()=>{
+  const prompt=systemPrompt({modelLabel:'Synthetic model',mode:'quiz'});
+  expect(prompt).toContain('five-question multiple-choice quiz');
+  expect(prompt).toContain('without another model call');
+  expect(prompt).toContain('"type":"quiz"');
+ });
 });
 
 

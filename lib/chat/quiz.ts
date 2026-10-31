@@ -1,8 +1,8 @@
 import { hideStudyCards } from "@/lib/courses/quiz";
-// "Quiz me" progress. After grading each answer, the model adds a hidden line like
+// Written-answer quiz progress. After grading a chat answer, the model adds a hidden line like
 //   [[quiz: wrong | Sampling variance]]
 // The server reads these, keeps the score itself (the model never sets it), saves it on the chat, and removes
-// the lines from what students see. Missed concepts come back in later questions and across the course's chats.
+// the lines from what students see. Click-through MCQs keep their own local score instead.
 
 export type ConceptTally = { right: number; wrong: number };
 export type QuizState = { asked: number; correct: number; concepts: Record<string, ConceptTally> };
@@ -80,8 +80,8 @@ export function mergeQuiz(states: (QuizState | null | undefined)[]): QuizState {
 /** Added to the quiz prompt each turn: the score so far and what to come back to. */
 export function quizContext(chat: QuizState | null | undefined, course: QuizState | null | undefined): string {
   const lines = [
-    "After you grade each answer, add one line on its own, exactly like: [[quiz: right | Concept name]] or [[quiz: wrong | Concept name]] " +
-      "(the concept the question tested, 1–5 words). The app keeps the score from these lines and hides them; don't write a running score yourself.",
+    "For written answers you grade in chat, add one line on its own, exactly like: [[quiz: right | Concept name]] or [[quiz: wrong | Concept name]] " +
+      "(the concept tested, 1–5 words). Do not add quiz markers for interactive multiple-choice sets; the app grades those clicks locally.",
   ];
   if (chat?.asked) lines.push(`Score so far in this chat: ${chat.correct}/${chat.asked}.`);
   const missed = missedConcepts(chat).slice(0, 8);
