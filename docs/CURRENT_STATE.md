@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## October 31, 2026 — continuous PDF scrolling live
+
+Noah requested vertical scrolling instead of Next/Prev in the centered PDF window. The pinned PDF-only Production branch commit `7a9ff4f` renders PDF pages in one scroll area and lazily draws pages near the viewport. Vercel deployment `8k7eWBCLPzVdsCx9E1vBnMLPEX4B` reported Ready for `orbit-ai-sand.vercel.app`. A signed-in desktop check opened an existing 145-page PDF and scrolled to rendered pages 2 and 3. The same code is on review branch `codex/record-production-rollback` for PR #41. Phone layout and fresh uploads were not checked. Production remains on the PDF-only branch until the separate 512 MiB infrastructure is approved. See [handoff](handoffs/2026-10-31-continuous-pdf-scroll.md).
+
 ## October 28, 2026 — windowed PDF preview live
 
 Noah requested the original PDF appearance inside a window within Orbit. On the pinned PDF-only Production branch, `d798f52` changed the full-screen viewer to a centered, focus-contained document dialog without changing file access or rendering. Vercel Production deployment `2h7rndg4JfGEcBdjpDwr8NAk2DYM` reported Ready and assigned `orbit-ai-sand.vercel.app`. A fresh signed-in desktop browser showed the original PDF page in the window, advanced to page 2, and closed with Escape; phone-sized layout and a fresh upload remain unverified. The same UI commit was copied onto the main review branch. Supabase Free, the missing production migration 0026, and the hosted-worker gate are unchanged. See [viewer handoff](handoffs/2026-10-28-windowed-pdf-preview.md).
