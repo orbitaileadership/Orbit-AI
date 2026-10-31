@@ -4,6 +4,7 @@ import {PDFDocument} from "pdf-lib";
 import {fakeSupabase} from "@/test/fake-supabase";
 import {gatherMaterial,namedFiles,pickVisualPages} from "./material";
 import {systemPrompt} from "./context";
+import {parseWidget} from "@/lib/widgets/schema";
 const CHAT='synthetic-chat';
 type FileRow=Parameters<typeof pickVisualPages>[0][number];
 const file=(id:string,name:string,over:Record<string,unknown>={})=>({id,name,user_id:'synthetic',kind:'document',status:'ready',char_count:20000,page_count:30,project_id:null,conversation_id:CHAT,storage_path:'synthetic/'+name,mime:'application/pdf',visual_pages:[],...over});
@@ -64,6 +65,8 @@ describe('shared student response contract',()=>{
   expect(prompt).toContain('five-question multiple-choice quiz');
   expect(prompt).toContain('without another model call');
   expect(prompt).toContain('"type":"quiz"');
+  const example=prompt.split('ONE fenced orbit-widget JSON block: ')[1]?.split('. Add question objects')[0];
+  expect(parseWidget(example??'')).toMatchObject({type:'quiz',questions:[{},{}]});
  });
 });
 
