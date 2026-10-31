@@ -16,6 +16,10 @@ Seeded from the conversation and existing engineering protocol on October 19, 20
 
 New entry format: decision; owner; date; source/link; affected behavior; what it supersedes. Preserve changed decisions as superseded rather than keeping contradictory active instructions.
 
+## October 31, 2026 — Multiple-choice study flow
+
+Noah requested click-through multiple-choice questions without a new AI response after each choice. New MCQ quiz sessions generate the requested set in one model response, then grade and navigate locally. This supersedes one-question-per-model-turn MCQs for newly generated quizzes; short-answer practice and saved single-question widgets retain their existing flow. Noah merged [PR #43](https://github.com/orbitaileadership/Orbit-AI/pull/43), then reported the live site still used the old flow. The validated code was backported to the pinned Production branch rather than changing its schema-dependent branch tracking.
+
 ## October 23, 2026 — Rolling usage allowances
 
 Noah requested a C$20 API allowance within the planned C$30 subscription price, converted to USD using the configured account exchange rate, shared across providers and models. He explicitly chose rolling **24 hours / 7 days / 30 days**: daily = monthly / 30; weekly = monthly × 7 / 30. Students see percentage remaining and colored bars in Settings → Usage; only authorized admins see monetary usage details. This supersedes the October 22 single-meter/no-weekly-limit presentation and student-facing allowance dollars. See [USAGE_WINDOWS_PLAN.md](USAGE_WINDOWS_PLAN.md).
