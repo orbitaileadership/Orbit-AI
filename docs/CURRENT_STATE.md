@@ -2,7 +2,7 @@
 
 ## October 31, 2026 — interactive multiple-choice release
 
-Noah merged [PR #43](https://github.com/orbitaileadership/Orbit-AI/pull/43), then reported that multiple choice still did not work on the live site. Vercel Production remained pinned to `codex/pdf-only-production`, so the merged `main` code was not live. The quiz code was backported without migration 0026; pinned branch commit `ae881e0` deployed as Vercel `HUg9DTk2nL6E6xhYdWsc2EpKUzoM`, reported Ready with `orbit-ai-sand.vercel.app` as a current domain. A signed-in live page loaded. The new quiz's provider-generated answer and click-through behavior still need a user or approved synthetic live test; existing saved one-question quizzes keep their old behavior. See [handoff](handoffs/2026-10-31-interactive-mcq.md).
+Noah merged [PR #43](https://github.com/orbitaileadership/Orbit-AI/pull/43), then reported that multiple choice still did not work on the live site. Vercel Production remained pinned to `codex/pdf-only-production`, so the merged `main` code was not live. The quiz code was backported without migration 0026; pinned branch commit `ae881e0` deployed as Vercel `HUg9DTk2nL6E6xhYdWsc2EpKUzoM`, reported Ready with `orbit-ai-sand.vercel.app` as a current domain. A signed-in live page loaded. An isolated public Preview with synthetic quiz content verified immediate correct and incorrect feedback, Next navigation and a 1/2 results score without model calls; its temporary branch was deleted. The new quiz's provider-generated answer still needs user verification on a fresh session. Existing saved one-question quizzes keep their old behavior. See [handoff](handoffs/2026-10-31-interactive-mcq.md).
 
 ## Live PDF chat preview fix — local branch, October 28, 2026
 
