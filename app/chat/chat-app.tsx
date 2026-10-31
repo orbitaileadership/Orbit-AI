@@ -1644,10 +1644,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         ) : (
                           <div className={`${theme.replyClass} ${m.status === "streaming" ? "md-streaming" : ""}`} aria-busy={m.status === "streaming"}>
                             {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
-                              onAnswer: (answer) => { void send(answer); },
-                              answers: thread.slice(idx + 1).filter((turn) => turn.role === "user").map((turn) => turn.content),
                               storageScope: `${activeId ?? "draft"}:${idx}`,
-                              disabledReason: m.status !== "complete" ? "Wait for the question to finish." : run !== null ? "Wait for the current reply." : imageMode ? "Switch to text chat to answer." : input.trim() || pending.length ? "Send or clear your draft and attachments first." : undefined,
                             }} /> : m.status === "streaming" && <PendingIndicator provider={provider} />}
                             {m.status === "partial" && <span className="ml-1 text-xs text-ink-subtle">{m.finishReason==="length"?"[Reply reached its output limit]":"[Incomplete reply]"}</span>}
                           </div>

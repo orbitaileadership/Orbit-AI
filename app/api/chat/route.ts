@@ -1,5 +1,6 @@
 import { claimStudyStart,checkStudyContinuation } from "@/lib/courses/study-start";
 import { parseStudyCards } from "@/lib/courses/quiz";
+import { normalizeQuizOutput } from "@/lib/courses/quiz-output";
 import { failureState } from "@/lib/billing/outcome";
 import { conversationScope } from "@/lib/courses/conversation-scope";
 import { courseContext } from "@/lib/courses/context";
@@ -528,7 +529,8 @@ export async function POST(request: Request): Promise<Response> {
       const study = conversation.mode === "quiz" ? parseStudyCards(finalText) : null;
       const remember = parseRemember(study?.clean ?? finalText);
       const quiz = conversation.mode === "quiz" ? parseQuiz(remember.clean) : null;
-      const savedText = stripInventedCitations(quiz ? quiz.clean : remember.clean, allSources);
+      const cleanedReply = quiz ? quiz.clean : remember.clean;
+      const savedText = stripInventedCitations(status === "complete" ? normalizeQuizOutput(cleanedReply) : cleanedReply, allSources);
       const sources = citedSources(savedText, allSources);
       const ground = grounding(allSources, sources);
       await supabase.from("messages").update({ content: savedText, status, ...(study?.cards.length && status==="complete" ? {study_cards:study.cards}:{}), sources: ground === "none" ? null : sources }).eq("id", replyId);
