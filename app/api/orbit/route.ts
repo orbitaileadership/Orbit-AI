@@ -1,6 +1,7 @@
 import { isThinkingLevel, supportsThinkingLevel } from '@/config/thinking';
 import { claimStudyStart,checkStudyContinuation } from "@/lib/courses/study-start";
 import { parseStudyCards } from "@/lib/courses/quiz";
+import { normalizeQuizOutput } from "@/lib/courses/quiz-output";
 import { applyResults, parseQuiz, quizContext } from "@/lib/chat/quiz";
 import { setTimeout as delay } from "node:timers/promises";
 import { attachmentContext, AttachmentError } from "@/lib/orbit/attachments";
@@ -14,7 +15,7 @@ import { apiKeyFor, isLive } from "@/lib/providers";
 import { isProviderDisabled, overRateLimit } from "@/lib/billing/budget";
 import { buildEconomicContext, estimateTokens, reservationMicros } from "@/lib/chat/context";
 import { updateSummary } from "@/lib/chat/summary";
-import { RESPONSE_QUALITY_PROMPT } from "@/config/quality";
+import { RESPONSE_QUALITY_PROMPT, RESPONSE_QUALITY_QUIZ_PROMPT } from "@/config/quality";
 import { loadPersonal, personalPrompt, relevantMemories, parseRemember, saveMemories } from "@/lib/profile/personal";
 import { orbitCall, orbitInputTokens, OrbitError } from "@/lib/orbit/call";
 import { ballotSystem, decide, parseBallot, type Decision, type Ballot } from "@/lib/orbit/voting";
@@ -188,7 +189,7 @@ export async function POST(request: Request) {
         }
         const contextNotice=ctx.dropped||(previous?.length??0)>=ORBIT.contextRows ? "Earlier messages may be omitted or only partially summarized. Do not claim complete recall." : "";
         const quizInstructions=conversation.mode==="quiz"?quizContext(conversation.quiz_state,null):"";
-        const system=`${quizInstructions}\nYou are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. ${decision.unavailableProviders?.includes("google") ? "Google was unavailable and did not participate in this turn; only three providers voted." : "All four providers participated in this vote."} Do not claim voting proves correctness. Only supplied course and attached-file excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
+        const system=`${quizInstructions}\nYou are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. ${decision.unavailableProviders?.includes("google") ? "Google was unavailable and did not participate in this turn; only three providers voted." : "All four providers participated in this vote."} Do not claim voting proves correctness. Only supplied course and attached-file excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${conversation.mode === "quiz" ? RESPONSE_QUALITY_QUIZ_PROMPT : RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
         let contribution="";
         if(decision.specialist) {
           emitStage("collaborating");
@@ -211,6 +212,7 @@ export async function POST(request: Request) {
         const study=conversation.mode==="quiz"?parseStudyCards(answer):null;
         const quiz=conversation.mode==="quiz"?parseQuiz(study?.clean??answer):null;
         const remembered=parseRemember(quiz?.clean??study?.clean??answer);
+        remembered.clean=normalizeQuizOutput(remembered.clean);
         const final=await supabase.from("messages").update({content:remembered.clean,status:"complete",...(study?.cards.length?{study_cards:study.cards}:{})}).eq("id",replyId);
         if(final.error) throw new OrbitError("save_failed");
         await supabase.from("conversations").update({model_id:lead.id,updated_at:new Date().toISOString()}).eq("id",conversation.id);

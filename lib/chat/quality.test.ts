@@ -65,7 +65,7 @@ describe('shared student response contract',()=>{
   expect(prompt).toContain('five-question multiple-choice quiz');
   expect(prompt).toContain('without another model call');
   expect(prompt).toContain('"type":"quiz"');
-  const example=prompt.split('ONE fenced orbit-widget JSON block: ')[1]?.split('. Add question objects')[0];
+  const example=prompt.match(/```orbit-widget\n([^`]+)\n```/)?.[1];
   expect(parseWidget(example??'')).toMatchObject({type:'quiz',questions:[{},{}]});
  });
 });

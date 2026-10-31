@@ -1,0 +1,9 @@
+# Task handoff — live multiple-choice failure
+
+- Date / owner: October 31, 2026 / Orbit engineering
+- Problem and outcome: Noah reported that choosing an answer in a new live multiple-choice quiz starts another AI reply, and identified the entry point as regular chat's **Quiz me** mode. Answer choices should be graded and advanced locally without a call for every question.
+- Branch: `codex/interactive-mcq-production`, based on pinned `codex/pdf-only-production`; production remains pinned because the full large-file migration is not installed there.
+- Changes: retired the answer button on legacy `multiple_choice` widgets, which have no key to grade locally. Ordinary chat and quiz-mode prompts now ask for one complete `quiz` widget, with a precise JSON fence example; valid bare JSON and `json`-fenced quiz output is normalized into a renderable widget. No database, ownership, budget, or payment change.
+- Checks: 70 focused tests across four files passed; TypeScript, targeted ESLint, and webpack production build passed. The default Turbopack build could not download Google Fonts inside the network sandbox; the webpack build succeeded with network access.
+- Limitations: no engineering live-provider call was run because it incurs cost and lacks explicit test authorization. Provider compliance with the quiz JSON contract is still unverified. If a provider emits the old keyless widget, the UI explains why it cannot grade it and offers no answer button. That response requires a fresh quiz request.
+- Next: release to the pinned production branch, then verify a newly generated quiz in a signed-in browser with the user; confirm first click gives feedback and Next, and no per-answer chat request occurs. If a provider still fails the contract, inspect only a synthetic reproduction of its output before extending normalization.

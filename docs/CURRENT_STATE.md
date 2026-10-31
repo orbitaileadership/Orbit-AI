@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## October 31, 2026 — quiz follow-up after live failure
+
+Noah verified that answering a newly generated multiple-choice question on the live site still started an AI reply. The previous synthetic check only exercised a valid `quiz` widget; it did not establish that live providers produced one. The pinned production branch now has a follow-up fix under validation: legacy `multiple_choice` widgets display without a submit control, all text-chat and Orbit quiz prompts request the complete `quiz` widget, and validated bare/fenced JSON quiz responses are normalized for rendering. Focused tests, typecheck, lint and a webpack production build passed locally. A live provider-generated quiz and phone journey still need verification. See [handoff](handoffs/2026-10-31-mcq-live-follow-up.md).
+
 ## October 31, 2026 — interactive multiple-choice release
 
 Noah merged [PR #43](https://github.com/orbitaileadership/Orbit-AI/pull/43), then reported that multiple choice still did not work on the live site. Vercel Production remained pinned to `codex/pdf-only-production`, so the merged `main` code was not live. The quiz code was backported without migration 0026; pinned branch commit `ae881e0` deployed as Vercel `HUg9DTk2nL6E6xhYdWsc2EpKUzoM`, reported Ready with `orbit-ai-sand.vercel.app` as a current domain. A signed-in live page loaded. An isolated public Preview with synthetic quiz content verified immediate correct and incorrect feedback, Next navigation and a 1/2 results score without model calls; its temporary branch was deleted. The new quiz's provider-generated answer still needs user verification on a fresh session. Existing saved one-question quizzes keep their old behavior. See [handoff](handoffs/2026-10-31-interactive-mcq.md).
