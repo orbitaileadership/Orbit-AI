@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 1, 2026 — course flashcard launch fix prepared
+
+PR #46's flip deck is on `main`, while the live site remains pinned to `codex/pdf-only-production` and can still show the old text-only quiz. Branch `codex/quiz-launch-card-reliability` keeps long generation instructions server-side, shows a concise launch request, and rejects missing or short interactive sets with a recoverable error. [Handoff](handoffs/2026-11-01-quiz-launch-cards.md). The branch and the deck need a separate PDF-only-compatible Production release and signed-in visual validation; this status is not evidence of a live fix.
+
 ## November 1, 2026 — flashcard deck refinement prepared
 
 The flashcard widget on `codex/flashcard-deck` is now a horizontally scrollable deck with card faces that flip on click/tap, previous/next controls, keyboard arrows and self-checks that do not block browsing. Existing per-card progress remains local. Focused validation and release status are in [the handoff](handoffs/2026-11-01-flashcard-deck.md). A temporary local preview page was removed after browser control could not verify Chrome's URL; desktop and phone visual behavior still need signed-in Preview validation.
