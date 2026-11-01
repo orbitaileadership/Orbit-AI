@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 1, 2026 — PDF-only flashcard release candidate
+
+`codex/pdf-only-flashcard-release` backports the interactive study widgets, flip deck, and short server-instructed quiz launch onto the pinned PDF-only Production line. It omits migration 0026 and the unfinished 512 MiB worker. Local checks and release gates are recorded in [the handoff](handoffs/2026-11-01-pdf-only-flashcard-release.md). Production remains on `codex/pdf-only-production` until a separate release decision and signed-in visual validation.
+
 ## November 1, 2026 — course flashcard launch fix prepared
 
 PR #46's flip deck is on `main`, while the live site remains pinned to `codex/pdf-only-production` and can still show the old text-only quiz. Branch `codex/quiz-launch-card-reliability` keeps long generation instructions server-side, shows a concise launch request, and rejects missing or short interactive sets with a recoverable error. [Handoff](handoffs/2026-11-01-quiz-launch-cards.md). The branch and the deck need a separate PDF-only-compatible Production release and signed-in visual validation; this status is not evidence of a live fix.
