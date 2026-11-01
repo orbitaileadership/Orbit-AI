@@ -223,10 +223,10 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       const reader=res.body.getReader(),decoder=new TextDecoder();let buffer="",text="";
       const event=(line:string)=>{
         const ev=JSON.parse(line);
-        if(ev.t==="meta"){accepted=true;serverReply=ev.replyId;patch({id:ev.replyId});setActive(ev.conversationId);setDropped(ev.dropped);}
+        if(ev.t==="meta"){accepted=true;setActive(ev.conversationId);setDropped(ev.dropped);}
         else if(ev.t==="stage")setPhase(ev.stage);
         else if(ev.t==="decision"){setDecision(ev.decision);patch({orbit_details:ev.decision});}
-        else if(ev.t==="reply")patch({model_id:ev.modelId});
+        else if(ev.t==="reply"){serverReply=ev.replyId;patch({id:ev.replyId,model_id:ev.modelId});}
         else if(ev.t==="delta"){text+=ev.v;patch({content:text});}
         else if(ev.t==="done"){terminal=true;patch({content:ev.content,status:"complete"});}
         else if(ev.t==="error"){terminal=true;patch({status:ev.code==="study_widget_invalid"?"error":"partial",...(ev.code==="study_widget_invalid"?{content:STUDY_WIDGET_ERROR_TEXT}:{})});if(ev.code==="study_widget_invalid")setInput("Regenerate the interactive study set.");setFiles(sentFiles);setError(orbitErrorText(ev.code,"finish"));}
