@@ -95,6 +95,9 @@ function errorText(code: string, label: string, appName: string): string {
     case "trial_expired": return "Your free trial has ended. Contact the Orbit team for next steps.";
     case "fx_not_configured": return "Usage billing is not configured yet. Contact the Orbit team.";
     case "incomplete_stream": return "The connection ended before the model finished. Your partial reply is saved.";
+    case "timeout": return `${label} took too long to respond. Your chat is saved; try again shortly.`;
+    case "unavailable": return `${appName} is temporarily unavailable. Your chat is saved; try again shortly.`;
+    case "unknown": return `${appName} returned an unexpected error. Your chat is saved; try again shortly.`;
     case "video_too_large": return "This video is too large for the chat input limit. Use a shorter video or paste the relevant transcript excerpt.";
     case "video_check_failed": return "Couldn’t check this video’s input size, so no video answer was started. Try again or paste a transcript excerpt.";
     case "context_too_large": return "This request is too large for the chat context limit. Try fewer files or split the question into smaller parts.";
@@ -532,6 +535,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   async function deleteChat(id: string) {
     const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) return;
+    try { for (const key of Object.keys(localStorage)) if (key.startsWith(`orbit.quiz.v1.${userId}:${id}:`) || key.startsWith(`orbit.study.v1.${userId}:${id}:`) || key.startsWith(`orbit.quiz.v1.${id}:`)) localStorage.removeItem(key); } catch { /* Browser storage may be unavailable. */ }
     setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).filter((c) => c.id !== id) }));
     if (activeId === id) setActive(null);
   }
@@ -1641,7 +1645,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         ) : (
                           <div className={`${theme.replyClass} ${m.status === "streaming" ? "md-streaming" : ""}`} aria-busy={m.status === "streaming"}>
                             {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
-                              storageScope: `${activeId ?? "draft"}:${idx}`,
+                              storageScope: `${userId}:${activeId ?? "draft"}:${m.id}`,
+                              legacyStorageScope: `${activeId ?? "draft"}:${idx}`,
                             }} /> : m.status === "streaming" && <PendingIndicator provider={provider} />}
                             {m.status === "partial" && <span className="ml-1 text-xs text-ink-subtle">{m.finishReason==="length"?"[Reply reached its output limit]":"[Incomplete reply]"}</span>}
                           </div>

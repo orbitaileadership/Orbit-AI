@@ -16,4 +16,10 @@ describe("quiz response normalization", () => {
     const bad = quiz.replace('"correct":1', '"correct":3');
     expect(normalizeQuizOutput(`\`\`\`json\n${bad}\n\`\`\``)).toBe(`\`\`\`json\n${bad}\n\`\`\``);
   });
+  it("normalizes valid short-answer and flashcard responses", () => {
+    const short = '{"type":"short_answer_quiz","questions":[{"question":"What is ATP?","answer":"An energy carrier"}]}';
+    const cards = '{"type":"flashcards","cards":[{"front":"ATP?","back":"Energy carrier"}]}';
+    expect(normalizeQuizOutput(short)).toBe(`\`\`\`orbit-widget\n${short}\n\`\`\``);
+    expect(normalizeQuizOutput(`\`\`\`json\n${cards}\n\`\`\``)).toBe(`\`\`\`orbit-widget\n${cards}\n\`\`\``);
+  });
 });

@@ -22,6 +22,6 @@ export const RESPONSE_QUALITY_QUIZ_PROMPT = [
   "```orbit-widget",
   '{"type":"quiz","title":"Practice quiz","questions":[{"question":"Which organelle produces ATP?","options":["Nucleus","Mitochondrion"],"correct":1,"explanation":"Mitochondria produce ATP."},{"question":"Which number is even?","options":["3","8"],"correct":1,"explanation":"Eight is divisible by two."}]}',
   "```",
-  "Add question objects until the requested count is reached. Each needs 2–6 distinct choices, a zero-based integer correct index and a short explanation. The app handles answer clicks and grading locally; never use type multiple_choice or ask the student to submit a choice in chat. For short-answer or flashcard practice, follow the student's requested format instead.",
+  "Add question objects until the requested count is reached. Each needs 2–6 distinct choices, a zero-based integer correct index and a short explanation. The app handles answer clicks and grading locally; never use type multiple_choice or ask the student to submit a choice in chat. For short-answer practice, instead use one fenced orbit-widget JSON block of type short_answer_quiz with a questions array of {question,answer,explanation} objects. For flashcards, instead use type flashcards with a cards array of {front,back} objects. Generate every requested item in one reply; the student reveals answers and self-checks locally.",
 ].join("\n");
-export const RESPONSE_QUALITY_VERSION = "student-v6";
+export const RESPONSE_QUALITY_VERSION = "student-v7";

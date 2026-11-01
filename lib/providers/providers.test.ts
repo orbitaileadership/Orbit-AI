@@ -125,6 +125,14 @@ describe("adapters", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("no", { status: 429 })));
     await expect(collect(anthropic.stream(args()))).rejects.toMatchObject({ code: "rate_limit", started: false });
   });
+  it("maps Anthropic stream errors without exposing provider messages", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => sseResponse([
+      `event: error\ndata: ${JSON.stringify({ type: "error", error: { type: "rate_limit_error", message: "private provider detail" } })}`,
+    ])));
+    await expect(collect(anthropic.stream(args()))).rejects.toMatchObject({ code: "rate_limit", started: true });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ error: { type: "not_found_error", message: "private provider detail" } }), { status: 400 })));
+    await expect(collect(anthropic.stream(args()))).rejects.toMatchObject({ code: "model_unavailable", started: false });
+  });
 });
 
 describe("live switch and keys", () => {

@@ -4,7 +4,7 @@ import { createContext } from "react";
 import type { MultipleChoiceWidget } from "@/lib/widgets/schema";
 
 // QuizWidgetView uses this scope to keep local progress across reloads.
-export type MultipleChoiceInteraction = { storageScope?: string };
+export type MultipleChoiceInteraction = { storageScope?: string; legacyStorageScope?: string };
 export const MultipleChoiceContext = createContext<MultipleChoiceInteraction | undefined>(undefined);
 
 /** Legacy single-question replies have no answer key. Display them without an

@@ -530,6 +530,10 @@ a.md-cite:hover { color: var(--ink); }
 }
 @keyframes landing-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
+.study-card-enter { animation: study-card-enter .24s ease-out both; }
+@keyframes study-card-enter { from { opacity: 0; transform: translateY(7px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .study-card-enter { animation: none; } }
+
 /* Settings → General (lib/appearance.ts): chat width, transcript text size, reduced motion. */
 :root[data-width="narrow"] .chat-column { max-width: 40rem; }
 :root[data-width="wide"] .chat-column { max-width: 60rem; }
