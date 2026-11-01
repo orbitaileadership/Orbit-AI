@@ -534,6 +534,20 @@ a.md-cite:hover { color: var(--ink); }
 @keyframes study-card-enter { from { opacity: 0; transform: translateY(7px) scale(.99); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .study-card-enter { animation: none; } }
 
+.study-deck-track { scrollbar-width: none; scroll-padding-inline: .5rem; overscroll-behavior-inline: contain; }
+.study-deck-track:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 1rem; }
+.study-deck-track::-webkit-scrollbar { display: none; }
+.study-deck-slide { width: calc(100% - 1.5rem); }
+.study-flashcard { height: clamp(15rem, 46vw, 21rem); perspective: 1200px; border-radius: 1.25rem; }
+.study-flashcard:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.study-flashcard-inner { position: relative; transform-style: preserve-3d; transition: transform .55s cubic-bezier(.2,.7,.2,1); }
+.study-flashcard[data-flipped="true"] .study-flashcard-inner { transform: rotateY(180deg); }
+.study-flashcard-face { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; overflow-y: auto; padding: clamp(1.25rem, 4vw, 2rem); border: 1px solid var(--line-strong); border-radius: 1.25rem; backface-visibility: hidden; box-shadow: var(--elev-card); }
+.study-flashcard-front { background: radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--brand) 16%, transparent), transparent 55%), var(--surface-100); }
+.study-flashcard-back { transform: rotateY(180deg); background: radial-gradient(circle at 10% 100%, color-mix(in srgb, var(--ice) 20%, transparent), transparent 55%), var(--surface-200); }
+.study-flashcard-copy { display: block; max-width: 44rem; align-self: center; overflow-wrap: anywhere; font-size: clamp(1.125rem, 2.7vw, 1.5rem); font-weight: 600; line-height: 1.45; color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .study-flashcard-inner { transition: none; } .study-deck-track { scroll-behavior: auto; } }
+
 /* Settings → General (lib/appearance.ts): chat width, transcript text size, reduced motion. */
 :root[data-width="narrow"] .chat-column { max-width: 40rem; }
 :root[data-width="wide"] .chat-column { max-width: 60rem; }

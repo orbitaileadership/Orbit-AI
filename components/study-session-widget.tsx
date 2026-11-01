@@ -1,6 +1,6 @@
 "use client";
 
-import { useContext, useEffect, useId, useState } from "react";
+import { useContext, useEffect, useId, useRef, useState } from "react";
 import type { FlashcardsWidget, ShortAnswerQuizWidget } from "@/lib/widgets/schema";
 import { MultipleChoiceContext } from "./multiple-choice";
 
@@ -33,17 +33,36 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
   const count = flashcards ? widget.cards.length : widget.questions.length;
   const storageKey = interaction?.storageScope ? `orbit.study.v1.${interaction.storageScope}.${fingerprint(JSON.stringify(widget))}` : null;
   const [progress, setProgress] = useState<Progress>(() => empty(count));
+  const progressRef = useRef(progress);
+  const deckRef = useRef<HTMLDivElement>(null);
+
+  const scrollToCard = (index: number, behavior: ScrollBehavior = "auto") => {
+    const track = deckRef.current;
+    const card = track?.querySelector<HTMLElement>("[data-study-slide]");
+    if (!track || !card) return;
+    const gap = Number.parseFloat(getComputedStyle(track).columnGap) || 0;
+    track.scrollTo({ left: index * (card.offsetWidth + gap), behavior });
+  };
 
   useEffect(() => {
     if (!storageKey) return;
     const frame = requestAnimationFrame(() => {
-      try { setProgress(saved(localStorage.getItem(storageKey), count) ?? empty(count)); }
+      try {
+        const restored = saved(localStorage.getItem(storageKey), count) ?? empty(count);
+        // The previous flashcard UI used count as its results screen. The deck
+        // always stays browsable, including when opening an older completed set.
+        if (flashcards) restored.current = Math.min(restored.current, count - 1);
+        progressRef.current = restored;
+        setProgress(restored);
+        if (flashcards) requestAnimationFrame(() => scrollToCard(restored.current));
+      }
       catch { /* The session still works without browser storage. */ }
     });
     return () => cancelAnimationFrame(frame);
-  }, [storageKey, count]);
+  }, [storageKey, count, flashcards]);
 
   const update = (next: Progress) => {
+    progressRef.current = next;
     setProgress(next);
     // Persist navigation and self-checks, never the student's written answer.
     if (storageKey) try { localStorage.setItem(storageKey, JSON.stringify({ ...next, responses: Array(count).fill("") })); } catch { /* Keep in-memory progress. */ }
@@ -58,14 +77,94 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
   const explanation = item && !flashcards ? (item as ShortAnswerQuizWidget["questions"][number]).explanation : undefined;
 
   const mark = (value: boolean) => {
-    const marks = [...progress.marks]; marks[index] = value;
-    update({ ...progress, marks });
+    const current = progressRef.current;
+    const marks = [...current.marks]; marks[Math.min(current.current, count - 1)] = value;
+    update({ ...current, marks });
   };
   const reveal = () => {
     const revealed = [...progress.revealed]; revealed[index] = true;
     update({ ...progress, revealed });
   };
   const response = progress.responses[index] ?? "";
+
+  if (flashcards) {
+    const go = (next: number) => {
+      const target = Math.max(0, Math.min(count - 1, next));
+      update({ ...progressRef.current, current: target });
+      scrollToCard(target, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+    };
+    const flip = (cardIndex: number) => {
+      const revealed = [...progressRef.current.revealed];
+      revealed[cardIndex] = !revealed[cardIndex];
+      update({ ...progressRef.current, current: cardIndex, revealed });
+      scrollToCard(cardIndex, window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth");
+    };
+    const syncScroll = (track: HTMLDivElement) => {
+      const card = track.querySelector<HTMLElement>("[data-study-slide]");
+      if (!card) return;
+      const gap = Number.parseFloat(getComputedStyle(track).columnGap) || 0;
+      const next = Math.max(0, Math.min(count - 1, Math.round(track.scrollLeft / (card.offsetWidth + gap))));
+      if (next !== progressRef.current.current) update({ ...progressRef.current, current: next });
+    };
+    const current = Math.min(index, count - 1);
+    return <section className="p-4 sm:p-5" aria-label={widget.title ?? "Flashcards"}>
+      <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">
+        <span>{widget.title ?? "Flashcards"}</span>
+        <span className="tabular-nums" aria-live="polite">Card {current + 1} of {count}</span>
+      </div>
+      <div role="progressbar" aria-label="Cards reviewed" aria-valuenow={marked} aria-valuemin={0} aria-valuemax={count}
+        className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-300">
+        <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${marked / count * 100}%` }} />
+      </div>
+      <div ref={deckRef} className="study-deck-track mt-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-2 pb-3"
+        role="region" aria-label="Flashcard deck" tabIndex={0} onScroll={event => syncScroll(event.currentTarget)}
+        onKeyDown={event => {
+          if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+            event.preventDefault();
+            go(current + (event.key === "ArrowRight" ? 1 : -1));
+          }
+        }}>
+        {widget.cards.map((card, cardIndex) => {
+          const flipped = progress.revealed[cardIndex];
+          return <div key={cardIndex} data-study-slide className="study-deck-slide shrink-0 snap-start" role="group" aria-label={`Flashcard ${cardIndex + 1} of ${count}`}>
+            <button type="button" className="study-flashcard block w-full text-left" data-flipped={flipped} aria-pressed={flipped}
+              onClick={() => flip(cardIndex)}>
+              <span className="study-flashcard-inner block h-full w-full">
+                <span className="study-flashcard-face study-flashcard-front" aria-hidden={flipped}>
+                  <span className="text-xs font-semibold uppercase tracking-[.18em] text-ink-muted">Question</span>
+                  <span className="study-flashcard-copy">{card.front}</span>
+                  <span className="text-xs font-medium text-ink-muted">Click or tap to reveal answer</span>
+                </span>
+                <span className="study-flashcard-face study-flashcard-back" aria-hidden={!flipped}>
+                  <span className="text-xs font-semibold uppercase tracking-[.18em] text-ink-muted">Answer</span>
+                  <span className="study-flashcard-copy">{card.back}</span>
+                  <span className="text-xs font-medium text-ink-muted">Click or tap to see question</span>
+                </span>
+              </span>
+            </button>
+          </div>;
+        })}
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <button type="button" onClick={() => go(current - 1)} disabled={current === 0} aria-label="Previous flashcard"
+          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-line bg-surface-100 text-lg text-ink transition-colors hover:bg-surface-200 disabled:cursor-default disabled:opacity-40">←</button>
+        <span className="text-center text-xs text-ink-muted">Swipe, scroll, or use arrows</span>
+        <button type="button" onClick={() => go(current + 1)} disabled={current === count - 1} aria-label="Next flashcard"
+          className="grid min-h-11 min-w-11 place-items-center rounded-full border border-line bg-surface-100 text-lg text-ink transition-colors hover:bg-surface-200 disabled:cursor-default disabled:opacity-40">→</button>
+      </div>
+      {progress.revealed[current] && <div className="study-card-enter mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Self-check result">
+        <span className="mr-auto text-sm text-ink-muted">Did you know it?</span>
+        <button type="button" onClick={() => mark(false)} aria-pressed={progress.marks[current] === false}
+          className={`min-h-11 rounded-xl border px-4 text-sm font-medium transition-colors ${progress.marks[current] === false ? "border-warning bg-warning/10 text-ink" : "border-line hover:bg-surface-200"}`}>Review again</button>
+        <button type="button" onClick={() => mark(true)} aria-pressed={progress.marks[current] === true}
+          className={`min-h-11 rounded-xl border px-4 text-sm font-medium transition-colors ${progress.marks[current] === true ? "border-success bg-success/10 text-ink" : "border-line hover:bg-surface-200"}`}>Got it</button>
+      </div>}
+      <div className="mt-4 flex items-center justify-between gap-3 text-xs text-ink-muted">
+        <span>{marked} of {count} reviewed · {understood} known</span>
+        <button type="button" onClick={() => { update(empty(count)); scrollToCard(0); }} className="font-medium text-ink underline underline-offset-4">Restart deck</button>
+      </div>
+    </section>;
+  }
 
   return <section className="p-4 sm:p-5" aria-label={widget.title ?? (flashcards ? "Flashcards" : "Short-answer quiz")}>
     <div className="flex items-center justify-between gap-3 text-xs font-semibold uppercase tracking-wide text-ink-muted">
