@@ -2,7 +2,7 @@
 
 ## November 1, 2026 — flashcard deck refinement prepared
 
-The flashcard widget on `codex/flashcard-deck` is now a horizontally scrollable deck with card faces that flip on click/tap, previous/next controls, keyboard arrows and self-checks that do not block browsing. Existing per-card progress remains local. Focused validation and release status are in [the handoff](handoffs/2026-11-01-flashcard-deck.md). A temporary local preview page was removed after browser control could not verify Chrome's URL; desktop and phone visual behavior still need signed-in Preview validation.
+The flashcard widget on `codex/flashcard-deck` is now a horizontally scrollable deck with card faces that flip on click/tap, previous/next controls, keyboard arrows and self-checks that do not block browsing. Existing per-card progress remains local. PR #45 was merged into `codex/quiz-me-reliability` after PR #44 had already merged to `main`, so this new branch also carries the missing PR #45 widget and Orbit recovery implementation. Focused validation and release status are in [the handoff](handoffs/2026-11-01-flashcard-deck.md). A temporary local preview page was removed after browser control could not verify Chrome's URL; desktop and phone visual behavior still need signed-in Preview validation.
 
 ## November 1, 2026 — Orbit turn recovery and self-paced quiz polish prepared
 
