@@ -2,7 +2,7 @@
 
 ## November 1, 2026 — PDF-only flashcard release candidate
 
-`codex/pdf-only-flashcard-release` backports the interactive study widgets, flip deck, and short server-instructed quiz launch onto the pinned PDF-only Production line. It omits migration 0026 and the unfinished 512 MiB worker. Its isolated staging Preview now renders `/login` and rejects unauthenticated conversation requests as expected. Signed-in flashcard validation and a Production decision remain pending. Local checks and release gates are recorded in [the handoff](handoffs/2026-11-01-pdf-only-flashcard-release.md). Production remains on `codex/pdf-only-production`.
+PR #48 backported the interactive study widgets, flip deck, and short server-instructed quiz launch onto the pinned PDF-only Production line. The owner approved its release; Vercel reports merge commit `4f329d4` Ready on `orbit-ai-sand.vercel.app`, and the live app shell loaded. It omits migration 0026 and the unfinished 512 MiB worker. Signed-in flashcard output and phone interactions remain unverified. Local checks and release details are recorded in [the handoff](handoffs/2026-11-01-pdf-only-flashcard-release.md).
 
 ## November 1, 2026 — course flashcard launch fix prepared
 
