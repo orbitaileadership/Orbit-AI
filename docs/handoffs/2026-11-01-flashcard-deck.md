@@ -3,7 +3,7 @@
 - Date / owner: November 1, 2026 / Codex for Noah
 - Status: implemented, awaiting visual validation
 - Task and acceptance criteria: A student can scroll or swipe sideways through previous/new flashcards and click/tap a card to flip between question and answer, without an AI call or mandatory self-check between cards.
-- Repository / branch: `orbitaileadership/Orbit-AI`, `codex/flashcard-deck`, based on `main` after PR #44 merged; also carries PR #45's implementation because PR #45 merged into the old #44 branch after that branch reached `main`.
+- Repository / branch / exact commits: `orbitaileadership/Orbit-AI`, `codex/flashcard-deck`, deck commit `8e39ced`, prerequisite commit `a7a13bf`. Based on `main` after PR #44 merged; also carries PR #45's implementation because PR #45 merged into the old #44 branch after that branch reached `main`.
 - Working tree: preserve the unrelated untracked `.claude/` directory.
 - What changed and why: Brought the missing PR #45 widget/Orbit recovery code to a current-main branch, then replaced the flashcard question panel with a horizontal snap deck, visible adjacent card edge, flip animation, arrow controls, keyboard navigation, and optional self-check per card. The deck remains browsable after the final card. Existing local progress and answer-side state survive reload; reduced-motion users get an instant flip.
 - Important decisions and their approval source: Noah requested real flipping cards and left/right browsing in this chat. No server, model, database or billing behavior changed.
