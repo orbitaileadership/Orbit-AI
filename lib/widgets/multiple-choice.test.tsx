@@ -82,7 +82,18 @@ describe("self-paced study widgets", () => {
     expect(parseWidget(JSON.stringify({ ...widget, cards: [{ front: "ATP?", back: "" }] }))).toBeNull();
     const html = renderToStaticMarkup(<Markdown text={`\`\`\`orbit-widget\n${JSON.stringify(widget)}\n\`\`\``} />);
     expect(html).toContain("Card 1 of 1");
-    expect(html).toContain("Flip card");
-    expect(html).not.toContain("Energy carrier");
+    expect(html).toContain('aria-label="Flashcard deck"');
+    expect(html).toContain('data-flipped="false"');
+    expect(html).toContain('study-flashcard-back" aria-hidden="true"');
+    expect(html).toContain('aria-label="Previous flashcard"');
+    expect(html).toContain('aria-label="Next flashcard"');
+  });
+  it("lets a student browse a deck before marking a card", () => {
+    const widget = { type: "flashcards", cards: [{ front: "ATP?", back: "Energy carrier" }, { front: "DNA?", back: "Genetic material" }] };
+    const html = renderToStaticMarkup(<Markdown text={`\`\`\`orbit-widget\n${JSON.stringify(widget)}\n\`\`\``} />);
+    expect(html).toContain('aria-label="Flashcard 2 of 2"');
+    expect(html).toMatch(/<button type="button" aria-label="Next flashcard"[^>]*>/);
+    expect(html).not.toMatch(/<button type="button" disabled="" aria-label="Next flashcard"/);
+    expect(html).toContain("Swipe, scroll, or use arrows");
   });
 });
