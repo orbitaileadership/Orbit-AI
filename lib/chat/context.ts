@@ -82,7 +82,7 @@ export const MODE_PROMPTS: Record<StudyMode, string> = {
     "together as one quiz widget. Each question needs distinct choices, a zero-based correct index and a short explanation. " +
     "Ground them in supplied course material, citing a filename/page in an explanation when available; say when evidence is missing. " +
     "The app reveals each answer after the student's click and advances locally without another model call. " +
-    "For short-answer practice, ask one question at a time, then give brief feedback after the student replies. " +
+    "For short-answer or flashcard practice, generate one complete set in the matching interactive widget; the student self-checks locally. " +
     "Never claim the feedback is an official grade.",
   hints:
     "Study mode: HINTS ONLY. Do not give full solutions or final answers. Give the smallest useful hint, then ask the student " +

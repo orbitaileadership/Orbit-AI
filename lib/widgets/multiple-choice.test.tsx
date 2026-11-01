@@ -64,3 +64,25 @@ describe("click-through quiz", () => {
     expect(renderToStaticMarkup(<Markdown text={text} final={false} />)).toContain("Building interactive view");
   });
 });
+
+describe("self-paced study widgets", () => {
+  it("validates short-answer sets and hides the sample answer until reveal", () => {
+    const widget = { type: "short_answer_quiz", questions: [{ question: "Define ATP", answer: "Cellular energy carrier", explanation: "ATP stores energy in phosphate bonds." }] };
+    expect(parseWidget(JSON.stringify(widget))).toEqual(widget);
+    expect(parseWidget(JSON.stringify({ ...widget, questions: [{ question: "Define ATP", answer: "" }] }))).toBeNull();
+    const html = renderToStaticMarkup(<Markdown text={`\`\`\`orbit-widget\n${JSON.stringify(widget)}\n\`\`\``} />);
+    expect(html).toContain("Question 1 of 1");
+    expect(html).toContain("Reveal sample answer");
+    expect(html).not.toContain("Cellular energy carrier");
+    expect(html).not.toContain("Submit answer");
+  });
+  it("validates flashcards and starts on the front", () => {
+    const widget = { type: "flashcards", cards: [{ front: "ATP?", back: "Energy carrier" }] };
+    expect(parseWidget(JSON.stringify(widget))).toEqual(widget);
+    expect(parseWidget(JSON.stringify({ ...widget, cards: [{ front: "ATP?", back: "" }] }))).toBeNull();
+    const html = renderToStaticMarkup(<Markdown text={`\`\`\`orbit-widget\n${JSON.stringify(widget)}\n\`\`\``} />);
+    expect(html).toContain("Card 1 of 1");
+    expect(html).toContain("Flip card");
+    expect(html).not.toContain("Energy carrier");
+  });
+});

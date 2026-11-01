@@ -91,18 +91,20 @@ export async function POST(request: Request) {
       if(r.error||!r.data) {await release();return dbError(r.error,"save_failed");}
       conversation=r.data;
     }
-    if(body.startQuiz===true||conversation.mode==="quiz"){const error=await (body.startQuiz===true?claimStudyStart:checkStudyContinuation)(supabase,user.id,conversation.id);if(error){await release();return json({error},409);}}
+    if(body.startQuiz===true||conversation.mode==="quiz"){const error=body.startQuiz===true?await claimStudyStart(supabase,user.id,conversation.id):await checkStudyContinuation(supabase,user.id,conversation.id,{exclusiveTurn:true});if(error){await release();return json({error},409);}}
     let scopeId: string | null;
     try { scopeId=await conversationScope(supabase,user.id,conversation); }
     catch { await release(); return json({error:"section_unavailable"},409); }
     const course=scopeId?await courseContext(supabase,user.id,scopeId,content):null;
     const courseBlock=[course?.block??"",attached.block].filter(Boolean).join("\n\n");
-    const {data:previous,error:historyError}=await supabase.from("messages").select("id,seq,role,content,model_id")
-      .eq("conversation_id",conversation.id).eq("status","complete").eq("kind","text").order("seq",{ascending:false}).limit(ORBIT.contextRows);
+    const {data:previous,error:historyError}=await supabase.from("messages").select("id,seq,role,content,model_id,status")
+      .eq("conversation_id",conversation.id).in("status",["complete","partial"]).eq("kind","text").order("seq",{ascending:false}).limit(ORBIT.contextRows);
     if(historyError) {await release();return dbError(historyError,"load_failed");}
     const saved=await supabase.from("messages").insert({conversation_id:conversation.id,user_id:user.id,role:"user",content,...(attached.fileIds.length?{attachment_ids:attached.fileIds}:{})}).select("id,seq").single();
     if(saved.error||!saved.data) {await release();return dbError(saved.error,"save_failed");}
-    const rows:Row[]=[...(previous??[]).reverse() as Row[],{id:saved.data.id,seq:saved.data.seq,role:"user",content,model_id:null}];
+    const rows:Row[]=[...(previous??[]).reverse().map(row=>row.role==="assistant"&&row.status==="partial"?{
+      ...row,content:`[Incomplete earlier assistant response; do not treat this as a finished answer]\n${row.content??""}`
+    }:row) as Row[],{id:saved.data.id,seq:saved.data.seq,role:"user",content,model_id:null}];
     const personal=await loadPersonal(supabase);
     const preferences=personalPrompt(personal.profile,relevantMemories(personal.memories,content));
     const ctx=buildEconomicContext(rows,Math.max(0,ORBIT.inputTokens-estimateTokens(preferences)-estimateTokens(courseBlock)-2_800));
@@ -233,7 +235,8 @@ export async function POST(request: Request) {
       } finally {await release();try{controller.close();}catch{} }
     }});
     return new Response(stream,{headers:{"Content-Type":"application/x-ndjson; charset=utf-8","Cache-Control":"no-store"}});
-  } catch {
+  } catch (error) {
+    console.error("[orbit] turn setup failed", { requestId:turnId, code:error instanceof OrbitError?error.code:"unknown", name:error instanceof Error?error.name:"unknown" });
     await release();return json({error:"orbit_failed"},500);
   }
 }
