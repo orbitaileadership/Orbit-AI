@@ -3,6 +3,7 @@
 import katex from "katex";
 import { MultipleChoice } from "./multiple-choice";
 import { QuizWidgetView } from "./quiz-widget";
+import { StudySessionWidget } from "./study-session-widget";
 import { useId, useMemo, useRef, useState } from "react";
 import { evaluate } from "@/lib/widgets/expr";
 import { formatValue, type CalcOutput, type CalculatorWidget, type ChartWidget, type DiagramWidget, type Widget } from "@/lib/widgets/schema";
@@ -15,7 +16,7 @@ const SERIES = Array.from({ length: 8 }, (_, i) => `var(--viz-${i + 1})`);
 export function ChatWidget({ widget }: { widget: Widget }) {
   return (
     <div className="chat-widget not-prose my-4 overflow-hidden rounded-2xl border border-line bg-surface-100">
-      {widget.type === "multiple_choice" ? <MultipleChoice key={JSON.stringify(widget)} widget={widget} /> : widget.type === "quiz" ? <QuizWidgetView key={JSON.stringify(widget)} widget={widget} /> : widget.type === "calculator" ? <Calculator w={widget} /> : widget.type === "chart" ? <Chart w={widget} /> : <Diagram w={widget} />}
+      {widget.type === "multiple_choice" ? <MultipleChoice key={JSON.stringify(widget)} widget={widget} /> : widget.type === "quiz" ? <QuizWidgetView key={JSON.stringify(widget)} widget={widget} /> : widget.type === "short_answer_quiz" || widget.type === "flashcards" ? <StudySessionWidget key={JSON.stringify(widget)} widget={widget} /> : widget.type === "calculator" ? <Calculator w={widget} /> : widget.type === "chart" ? <Chart w={widget} /> : <Diagram w={widget} />}
     </div>
   );
 }
