@@ -28,16 +28,24 @@ function fingerprint(value: string) {
 export function QuizWidgetView({ widget }: { widget: QuizWidget }) {
   const interaction = useContext(MultipleChoiceContext);
   const storageKey = interaction?.storageScope ? `orbit.quiz.v1.${interaction.storageScope}.${fingerprint(JSON.stringify(widget))}` : null;
+  const legacyKey = interaction?.legacyStorageScope ? `orbit.quiz.v1.${interaction.legacyStorageScope}.${fingerprint(JSON.stringify(widget))}` : null;
   const [progress, setProgress] = useState<Progress>(() => empty(widget.questions.length));
 
   useEffect(() => {
     if (!storageKey) return;
     const frame = requestAnimationFrame(() => {
-      try { setProgress(savedProgress(localStorage.getItem(storageKey), widget) ?? empty(widget.questions.length)); }
+      try {
+        let progress = savedProgress(localStorage.getItem(storageKey), widget);
+        if (!progress && legacyKey) {
+          progress = savedProgress(localStorage.getItem(legacyKey), widget);
+          if (progress) try { localStorage.setItem(storageKey, JSON.stringify(progress)); localStorage.removeItem(legacyKey); } catch { /* Keep the restored progress in memory. */ }
+        }
+        setProgress(progress ?? empty(widget.questions.length));
+      }
       catch { /* Storage can be unavailable in private browsing. The quiz still works in memory. */ }
     });
     return () => cancelAnimationFrame(frame);
-  }, [storageKey, widget]);
+  }, [storageKey, legacyKey, widget]);
 
   const update = (next: Progress) => {
     setProgress(next);

@@ -307,6 +307,22 @@ describe('saved Orbit quiz sessions',()=>{
  it('requires the initial study claim before any paid voting call',async()=>{prepare();const r=await POST(req({conversationId:id,content:'start'}));expect(r.status).toBe(409);expect(s.call).not.toHaveBeenCalled();});
  it('saves export cards and grades only a completed final answer',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);const text='ATP. [[quiz: right | Cells]]\n[[card: {"front":"ATP source?","back":"Mitochondrion"}]]';o.delta?.(text);return {text,finish:'stop'};});const text=await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();expect(text).toContain('"t":"done"');const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toEqual([{front:'ATP source?',back:'Mitochondrion'}]);expect(reply.content).not.toContain('[[card:');expect(s.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});});
  it('does not advance quiz state when the final model fails after partial output',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);o.delta?.('Partial [[quiz: right | Cells]] [[card: {"front":"A","back":"B"}]]');throw new OrbitError('orbit_incomplete_response');});await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.status).toBe('partial');expect(reply.study_cards).toBeUndefined();expect(s.fake!.db.conversations[0].quiz_state).toBeNull();});
+ it('can continue a saved incomplete quiz after acquiring the exclusive turn lease',async()=>{
+  prepare();(s.fake!.db.conversations[0].study_config as {start_state:string}).start_state='started';
+  s.fake!.db.messages.push({id:'q1',user_id:'u',conversation_id:id,role:'user',status:'complete',kind:'text',seq:1,content:'First question'},
+    {id:'a1',user_id:'u',conversation_id:id,role:'assistant',status:'partial',kind:'text',seq:2,content:'Unfinished answer'});
+  const response=await POST(req({conversationId:id,content:'Please continue'}));
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain('"t":"done"');
+  const lead=s.call.mock.calls.find(([o])=>o.operation==='orbit_answer')![0];
+  expect(lead.history.some((turn:{content:string})=>turn.content.includes('Incomplete earlier assistant response')&&turn.content.includes('Unfinished answer'))).toBe(true);
+ });
+ it('can retry a started quiz with no saved messages after the turn lease is released',async()=>{
+  prepare();(s.fake!.db.conversations[0].study_config as {start_state:string}).start_state='started';
+  const response=await POST(req({conversationId:id,content:'Try the quiz again'}));
+  expect(response.status).toBe(200);
+  expect(await response.text()).toContain('"t":"done"');
+ });
 });
 
 

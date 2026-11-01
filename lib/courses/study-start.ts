@@ -11,11 +11,16 @@ export async function claimStudyStart(db:SupabaseClient,userId:string,id:string)
 }
 
 /** Launched study chats cannot bypass their initial claim through the ordinary sidebar/API. */
-export async function checkStudyContinuation(db:SupabaseClient,userId:string,id:string){
+export async function checkStudyContinuation(db:SupabaseClient,userId:string,id:string,options:{exclusiveTurn?:boolean}={}){
  const c=await db.from('conversations').select('study_config').eq('id',id).eq('user_id',userId).maybeSingle();
  if(c.error)return 'load_failed';if(!c.data)return 'not_found';if(c.data.study_config==null)return null; // legacy quiz chat
  let config;try{config=studyConfig(c.data.study_config);}catch{return 'invalid_quiz';}
  if(config.start_state==='ready')return 'quiz_start_required';
  const last=await db.from('messages').select('role,status').eq('conversation_id',id).eq('user_id',userId).order('seq',{ascending:false}).limit(1).maybeSingle();
- if(last.error)return 'load_failed';if(!last.data||last.data.role!=='assistant'||last.data.status==='partial')return 'quiz_turn_pending';return null;
+ if(last.error)return 'load_failed';
+ // Orbit already holds an exclusive per-student turn lease. A prior failed/partial
+ // answer is durable, not still running; the next turn may continue with it labeled.
+ if(options.exclusiveTurn)return null;
+ if(!last.data)return 'quiz_turn_pending';
+ if(last.data.role!=='assistant'||last.data.status==='partial')return 'quiz_turn_pending';return null;
 }
