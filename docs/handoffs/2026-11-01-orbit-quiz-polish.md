@@ -3,7 +3,7 @@
 - Date / owner: November 1, 2026 / Codex for Noah
 - Status: implemented, awaiting review and live validation
 - Task and acceptance criteria: Recover saved Orbit quiz chats after failed turns; show actionable provider/Orbit errors; let short-answer and flashcard students reveal, self-check and advance locally without a model call for each item.
-- Repository / branch: `orbitaileadership/Orbit-AI`, `codex/orbit-quiz-polish` (stacked on `codex/quiz-me-reliability`, PR #44).
+- Repository / branch / PR: `orbitaileadership/Orbit-AI`, `codex/orbit-quiz-polish`, implementation commit `4ea4605`, [PR #45](https://github.com/orbitaileadership/Orbit-AI/pull/45) stacked on [PR #44](https://github.com/orbitaileadership/Orbit-AI/pull/44).
 - Working tree: see Git status at handoff; preserve the unrelated untracked `.claude/` directory.
 - What changed and why: Lease-protected Orbit continuation accepts prior partial/empty quiz history, labels partial assistant content for all models, and reports safe error codes. Claude errors map provider error types without exposing response bodies. New bounded short-answer/flashcard widgets generate one set, then run locally with reveal, self-check, results and reduced-motion-safe transitions. Progress keys use user/conversation/message IDs; written responses are not persisted; deletion clears local quiz progress.
 - Important decisions and approval source: Noah requested polished interactive formats and reliability fixes in this chat. No provider substitution or automatic billable retry was added.
