@@ -2,7 +2,7 @@
 
 ## October 31, 2026 — Quiz me follow-up after live failure
 
-Noah reported that selecting the first answer in a new regular-chat **Quiz me** session on the live site started another AI reply. The earlier synthetic check proved only that a valid `quiz` widget works; it did not prove that live providers return one. The fix on the pinned PDF-only Production branch removes the answer action from legacy keyless `multiple_choice` widgets, gives Quiz me a dedicated complete-set prompt, and accepts validated bare or `json`-fenced quiz output. Focused tests, typecheck, lint and a webpack build passed locally. Live provider-generated output and phone behavior still need verification. See [handoff](handoffs/2026-10-31-mcq-live-follow-up.md).
+Noah reported that selecting the first answer in a new regular-chat **Quiz me** session on the live site started another AI reply. The earlier synthetic check proved only that a valid `quiz` widget works; it did not prove that live providers return one. The fix on the pinned PDF-only Production branch removes the answer action from legacy keyless `multiple_choice` widgets, gives Quiz me a dedicated complete-set prompt, and accepts validated bare or `json`-fenced quiz output. Focused tests, typecheck, lint and a webpack build passed locally; GitHub reports the pinned-branch Vercel deployment completed. Live provider-generated output and phone behavior still need verification. See [handoff](handoffs/2026-10-31-mcq-live-follow-up.md).
 
 ## October 31, 2026 — interactive multiple-choice quizzes prepared
 
