@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FOLDER_ACCESS, IMAGE_MODELS, MENU_MAIN, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
 import { THEMES } from "@/config/themes";
 import { missedConcepts, type QuizState } from "@/lib/chat/quiz";
+import { STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
 import { answersLeft, answersText, isLow, timesCheaper, typicalAnswerMicros } from "@/lib/billing/estimate";
 import { signOut } from "../login/actions";
 import { ProviderLogo } from "@/components/provider-logo";
@@ -95,6 +96,9 @@ function errorText(code: string, label: string, appName: string): string {
     case "trial_expired": return "Your free trial has ended. Contact the Orbit team for next steps.";
     case "fx_not_configured": return "Usage billing is not configured yet. Contact the Orbit team.";
     case "incomplete_stream": return "The connection ended before the model finished. Your partial reply is saved.";
+    case "timeout": return `${label} took too long to respond. Your chat is saved; try again shortly.`;
+    case "unavailable": return `${appName} is temporarily unavailable. Your chat is saved; try again shortly.`;
+    case "unknown": return `${appName} returned an unexpected error. Your chat is saved; try again shortly.`;
     case "video_too_large": return "This video is too large for the chat input limit. Use a shorter video or paste the relevant transcript excerpt.";
     case "video_check_failed": return "Couldn’t check this video’s input size, so no video answer was started. Try again or paste a transcript excerpt.";
     case "context_too_large": return "This request is too large for the chat context limit. Try fewer files or split the question into smaller parts.";
@@ -532,6 +536,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   async function deleteChat(id: string) {
     const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) return;
+    try { for (const key of Object.keys(localStorage)) if (key.startsWith(`orbit.quiz.v1.${userId}:${id}:`) || key.startsWith(`orbit.study.v1.${userId}:${id}:`) || key.startsWith(`orbit.quiz.v1.${id}:`)) localStorage.removeItem(key); } catch { /* Browser storage may be unavailable. */ }
     setConvs((prev) => ({ ...prev, [provider]: (prev[provider] ?? []).filter((c) => c.id !== id) }));
     if (activeId === id) setActive(null);
   }
@@ -819,7 +824,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             else if (ev.t === "done") {
               // Same shape as a reloaded message: [] = files were searched but none used, undefined = no files involved.
               patchReply((m) => ({
-                ...m, status: ev.status === "partial" ? "partial" : "complete", finishReason:ev.finishReason, sources: ev.grounding === "none" ? undefined : ev.sources,
+                ...m, status: ev.status === "error" ? "error" : ev.status === "partial" ? "partial" : "complete", error:ev.status === "error" ? ev.error : undefined, finishReason:ev.finishReason, sources: ev.grounding === "none" ? undefined : ev.sources,
                 ...(typeof ev.content === "string" ? { content: ev.content } : {}), // the saved text (quiz/memory lines removed)
                 ...(Array.isArray(ev.remembered) && ev.remembered.length ? { remembered: ev.remembered.map((r: { content: string }) => r.content) } : {}),
               }));
@@ -1640,8 +1645,9 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                           )
                         ) : (
                           <div className={`${theme.replyClass} ${m.status === "streaming" ? "md-streaming" : ""}`} aria-busy={m.status === "streaming"}>
-                            {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
-                              storageScope: `${activeId ?? "draft"}:${idx}`,
+                            {m.content && !(m.status === "error" && m.content === STUDY_WIDGET_ERROR_TEXT) ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
+                              storageScope: `${userId}:${activeId ?? "draft"}:${m.id}`,
+                              legacyStorageScope: `${activeId ?? "draft"}:${idx}`,
                             }} /> : m.status === "streaming" && <PendingIndicator provider={provider} />}
                             {m.status === "partial" && <span className="ml-1 text-xs text-ink-subtle">{m.finishReason==="length"?"[Reply reached its output limit]":"[Incomplete reply]"}</span>}
                           </div>
@@ -1681,7 +1687,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         ) : null}
                         {m.status === "error" && (
                           <div className="mt-2 rounded-xl border border-danger/30 bg-danger-surface p-3 text-sm text-danger">
-                            {m.error ?? `${model?.label ?? "The model"} didn't respond. Your chat is saved.`}{" "}
+                            {m.error ?? (m.content === STUDY_WIDGET_ERROR_TEXT ? STUDY_WIDGET_ERROR_TEXT : `${model?.label ?? "The model"} didn't respond. Your chat is saved.`)}{" "}
                             {m.kind === "text" && m.error?.includes("budget left") && offerCheaper && (
                               <button onClick={() => setModel(cheapest.id)} disabled={busy} className="mr-3 font-medium underline underline-offset-[3px]">
                                 Switch to {cheapest.short}

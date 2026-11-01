@@ -1,6 +1,6 @@
-import { claimStudyStart,checkStudyContinuation } from "@/lib/courses/study-start";
+import { claimStudyStart,checkStudyContinuation,loadStudyInstructions } from "@/lib/courses/study-start";
 import { parseStudyCards } from "@/lib/courses/quiz";
-import { normalizeQuizOutput } from "@/lib/courses/quiz-output";
+import { normalizeQuizOutput,hasInteractiveStudySet,STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
 import { failureState } from "@/lib/billing/outcome";
 import { conversationScope } from "@/lib/courses/conversation-scope";
 import { courseContext } from "@/lib/courses/context";
@@ -92,8 +92,8 @@ export async function POST(request: Request): Promise<Response> {
   if (content.length > CONTEXT.maximumMessageChars) return json({ error: "message_too_long" }, 400);
 
   // ---- conversation (RLS: only the user's own rows are visible or writable)
-  let conversation: { id: string; title: string; provider: string; project_id: string | null; section_folder_id: string | null; section_unavailable: boolean; mode: string; course_only: boolean; summary: string | null; summary_upto: number | null };
-  const convCols = "id, title, provider, project_id, section_folder_id, section_unavailable, mode, course_only, summary, summary_upto, orbit_mode";
+  let conversation: { id: string; title: string; provider: string; project_id: string | null; section_folder_id: string | null; section_unavailable: boolean; mode: string; study_config: unknown | null; course_only: boolean; summary: string | null; summary_upto: number | null };
+  const convCols = "id, title, provider, project_id, section_folder_id, section_unavailable, mode, study_config, course_only, summary, summary_upto, orbit_mode";
   if (isUuid(body.conversationId)) {
     const { data, error } = await supabase.from("conversations").select(convCols).eq("id", body.conversationId).maybeSingle();
     if (error) return dbError(error, "load_failed");
@@ -116,6 +116,17 @@ export async function POST(request: Request): Promise<Response> {
   let contextProjectId: string | null;
   try { contextProjectId = await conversationScope(supabase, user.id, conversation); }
   catch { return json({ error: "section_unavailable" }, 409); }
+  let activeStudyInstructions:Awaited<ReturnType<typeof loadStudyInstructions>>=null;
+  if(body.startQuiz===true||conversation.mode==="quiz"&&conversation.study_config!=null){
+    const prior=await supabase.from("messages").select("role,status").eq("conversation_id",conversation.id).eq("user_id",user.id);
+    if(prior.error)return dbError(prior.error,"load_failed");
+    const delivered=(prior.data??[]).some(m=>m.role==="assistant"&&m.status==="complete");
+    const initialRetry=retry&&(prior.data??[]).filter(m=>m.role==="user").length===1;
+    if(body.startQuiz===true||!delivered||initialRetry){
+      activeStudyInstructions=await loadStudyInstructions(supabase,user.id,conversation.id);
+      if(!activeStudyInstructions)return json({error:"invalid_quiz"},409);
+    }
+  }
   if(body.startQuiz===true||conversation.mode==="quiz"){const error=await (body.startQuiz===true?claimStudyStart:checkStudyContinuation)(supabase,user.id,conversation.id);if(error)return json({error},409);}
   // Study mode and "only use my course material" stick to the chat once set.
   const settings: Record<string, unknown> = { model_id: model.id, updated_at: new Date().toISOString() };
@@ -343,7 +354,7 @@ export async function POST(request: Request): Promise<Response> {
     skillText,
   ].filter(Boolean).join("\n\n");
   const inputCeiling = Math.min(model.contextTokens - model.maxOutputTokens, CONTEXT.maximumInputTokens);
-  const fixedTokens = estimateTokens([systemPrompt(promptBase), folderText].filter(Boolean).join("\n\n")) + imageCount * IMAGE_TOKENS + material.visualTokens + (tools ? estimateTokens(JSON.stringify(tools)) + 400 : 0);
+  const fixedTokens = estimateTokens([systemPrompt(promptBase), activeStudyInstructions?.prompt, folderText].filter(Boolean).join("\n\n")) + imageCount * IMAGE_TOKENS + material.visualTokens + (tools ? estimateTokens(JSON.stringify(tools)) + 400 : 0);
   // Tool evidence shares the same allowance as the question, instructions, summary and history.
   // Always protect the newest question; large tool results are excerpted automatically before history selection.
   const toolBudget = Math.max(0, Math.min(CONTEXT.toolInputTokens, inputCeiling - fixedTokens - estimateTokens(question) - SUMMARY_TOKENS - CONTEXT.retrievalTokens - CONTEXT.toolSafetyTokens));
@@ -409,7 +420,7 @@ export async function POST(request: Request): Promise<Response> {
   const videos = provider === "google" && questionAt >= 0 ? youtubeLinks(turns[questionAt].content) : [];
   if (videos.length) turns[questionAt] = { ...turns[questionAt], videos };
 
-  const system = [systemPrompt({ ...promptBase, summary, retrieved:retrieval.block }), folderText].filter(Boolean).join("\n\n");
+  const system = [systemPrompt({ ...promptBase, summary, retrieved:retrieval.block }), activeStudyInstructions?.prompt, folderText].filter(Boolean).join("\n\n");
   // Tool definitions count as input too (~1.5k tokens for all of them).
   let inputTokens = ctx.tokens + runTokens + (tools ? estimateTokens(JSON.stringify(tools)) + 400 : 0) + estimateTokens(system) + [...images.values()].flat().length * IMAGE_TOKENS + material.visualTokens;
   // Video duration cannot be inferred from a URL. Count the complete request before paid generation;
@@ -515,6 +526,7 @@ export async function POST(request: Request): Promise<Response> {
         }
       } catch (e) {
         failure = e instanceof ProviderError ? e : new ProviderError((e as Error)?.name === "TimeoutError" ? "timeout" : "unknown", undefined, true);
+        console.error("[chat] provider stream failed", { requestId, provider, modelId:model.id, code:failure.code, status:failure.status, started:failure.started });
       }
 
       if(!failure && finish==="blocked" && !text.trim()) text="The model did not provide an answer to this request.";
@@ -522,7 +534,7 @@ export async function POST(request: Request): Promise<Response> {
       const finalText = stopped ? shown : text;
       const incomplete=finish==="length" || finish==="unknown";
       const wantsTools = !failure && !stopped && !incomplete && finish!=="blocked" && calls.length > 0;
-      const status = failure ? "error" : stopped || wantsTools || incomplete ? "partial" : "complete";
+      let status = failure ? "error" : stopped || wantsTools || incomplete ? "partial" : "complete";
       // References only point at passages that were really sent: made-up [S#] markers are removed from the saved text.
       // Quiz results: the server keeps the score; the marker lines are removed from the saved answer.
       // Memories: [[remember: …]] lines are saved (only when the student turned memory on) and removed from the answer.
@@ -530,7 +542,11 @@ export async function POST(request: Request): Promise<Response> {
       const remember = parseRemember(study?.clean ?? finalText);
       const quiz = conversation.mode === "quiz" ? parseQuiz(remember.clean) : null;
       const cleanedReply = quiz ? quiz.clean : remember.clean;
-      const savedText = stripInventedCitations(status === "complete" ? normalizeQuizOutput(cleanedReply) : cleanedReply, allSources);
+      let savedText = stripInventedCitations(status === "complete" ? normalizeQuizOutput(cleanedReply) : cleanedReply, allSources);
+      if(status==="complete"&&activeStudyInstructions&&!hasInteractiveStudySet(savedText,activeStudyInstructions.format,activeStudyInstructions.count)){
+        status="error";
+        savedText=STUDY_WIDGET_ERROR_TEXT; // A plain front is not a usable flashcard; the student can retry the same turn.
+      }
       const sources = citedSources(savedText, allSources);
       const ground = grounding(allSources, sources);
       await supabase.from("messages").update({ content: savedText, status, ...(study?.cards.length && status==="complete" ? {study_cards:study.cards}:{}), sources: ground === "none" ? null : sources }).eq("id", replyId);
@@ -558,7 +574,7 @@ export async function POST(request: Request): Promise<Response> {
       }
       if (failure) send({ t: "error", code: failure.code });
       else if (wantsTools) send({ t: "tool_calls", replyId, text: text.slice(priorText.length).trim(), calls });
-      else send({ t: "done", status, finishReason:finish, sources, grounding: ground, content: savedText, ...(conversation.mode === "quiz" ? { quiz: quizState } : {}), ...(remembered.length ? { remembered } : {}) });
+      else send({ t: "done", status, finishReason:finish, sources, grounding: ground, content: savedText, ...(status==="error"?{error:STUDY_WIDGET_ERROR_TEXT}:{}), ...(conversation.mode === "quiz" ? { quiz: quizState } : {}), ...(remembered.length ? { remembered } : {}) });
       try {
         controller.close();
       } catch {}

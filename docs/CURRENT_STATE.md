@@ -1,5 +1,21 @@
 # Orbit AI — current state
 
+## November 1, 2026 — PDF-only flashcard release candidate
+
+`codex/pdf-only-flashcard-release` backports the interactive study widgets, flip deck, and short server-instructed quiz launch onto the pinned PDF-only Production line. It omits migration 0026 and the unfinished 512 MiB worker. Its isolated staging Preview now renders `/login` and rejects unauthenticated conversation requests as expected. Signed-in flashcard validation and a Production decision remain pending. Local checks and release gates are recorded in [the handoff](handoffs/2026-11-01-pdf-only-flashcard-release.md). Production remains on `codex/pdf-only-production`.
+
+## November 1, 2026 — course flashcard launch fix prepared
+
+PR #46's flip deck is on `main`, while the live site remains pinned to `codex/pdf-only-production` and can still show the old text-only quiz. Branch `codex/quiz-launch-card-reliability` keeps long generation instructions server-side, shows a concise launch request, and rejects missing or short interactive sets with a recoverable error. [Handoff](handoffs/2026-11-01-quiz-launch-cards.md). The branch and the deck need a separate PDF-only-compatible Production release and signed-in visual validation; this status is not evidence of a live fix.
+
+## November 1, 2026 — flashcard deck refinement prepared
+
+The flashcard widget on `codex/flashcard-deck` is now a horizontally scrollable deck with card faces that flip on click/tap, previous/next controls, keyboard arrows and self-checks that do not block browsing. Existing per-card progress remains local. Focused validation and release status are in [the handoff](handoffs/2026-11-01-flashcard-deck.md). A temporary local preview page was removed after browser control could not verify Chrome's URL; desktop and phone visual behavior still need signed-in Preview validation.
+
+## November 1, 2026 — Orbit turn recovery and self-paced quiz polish prepared
+
+On `codex/orbit-quiz-polish`, Orbit saved quizzes can resume after a failed or partial turn once the exclusive turn lease is reacquired. Prior partial assistant text is explicitly labelled incomplete in bounded context. Generic Orbit setup errors now show specific safe codes, and provider stream failures record safe request metadata for diagnosis. Short-answer and flashcard practice use validated one-reply widgets with local reveal, self-check, progress, results and retry; written answers stay in memory and are never stored in browser storage. A second-model review of the context path and UI found three retention/keying/accessibility issues, which were fixed. Focused tests and typecheck passed; full test/build outcomes and release status are in [the handoff](handoffs/2026-11-01-orbit-quiz-polish.md). Live provider reliability and signed-in desktop/phone behavior remain unverified. Production remains pinned to the PDF-only branch.
+
 ## October 31, 2026 — quiz follow-up after live failure
 
 Noah verified that answering a newly generated multiple-choice question on the live site still started an AI reply. The previous synthetic check only exercised a valid `quiz` widget; it did not establish that live providers produced one. The pinned production branch now has a follow-up fix under validation: legacy `multiple_choice` widgets display without a submit control, all text-chat and Orbit quiz prompts request the complete `quiz` widget, and validated bare/fenced JSON quiz responses are normalized for rendering. Focused tests, typecheck, lint and a webpack production build passed locally. A live provider-generated quiz and phone journey still need verification. See [handoff](handoffs/2026-10-31-mcq-live-follow-up.md).

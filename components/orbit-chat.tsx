@@ -18,6 +18,7 @@ import { Markdown } from "@/components/markdown";
 import { SpeakButton } from "@/components/speak-button";
 import { UsageShortcut } from "@/components/usage-meter";
 import { hideRememberMarkers } from "@/lib/profile/personal";
+import { STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
 import type { Decision } from "@/lib/orbit/voting";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; status?: string; model_id?: string; orbit_details?: Decision };
@@ -42,7 +43,23 @@ const ERRORS: Record<string,string> = {
   orbit_helper_limit:"This request exceeds Orbit's routing and collaboration allowance. Try a smaller task.",
   db_setup:"Orbit's database update has not been applied. Contact the team.",
   save_failed:"The answer could not be fully saved. Refresh to check your saved chat before continuing.",
+  reserve_failed:"Orbit couldn't check your allowance right now. Your message was not sent; try again shortly.",
+  load_failed:"Orbit couldn't load this chat right now. Your message was not sent; try again shortly.",
+  not_found:"This Orbit chat is no longer available. Start a new chat or reopen it from the sidebar.",
+  course_unavailable:"This course is no longer available. Choose a current course and try again.",
+  quiz_start_required:"Open this saved quiz from the course workspace before sending its first message.",
+  quiz_already_started:"This quiz already started. Reopen it from Saved quizzes to continue.",
+  quiz_turn_pending:"The previous quiz answer is still finishing. Refresh this chat before continuing.",
+  invalid_quiz:"This saved quiz needs to be recreated from the course workspace.",
+  study_widget_invalid:"The model didn't create an interactive study set. Send the prepared retry request to try again; completed calls may use allowance.",
+  not_signed_in:"Your sign-in expired. Sign in again, then reopen your saved chat.",
 };
+
+function orbitErrorText(code: unknown, phase: "start" | "finish") {
+  if (typeof code === "string" && ERRORS[code]) return ERRORS[code];
+  const safeCode = typeof code === "string" && /^[a-z_]{1,40}$/.test(code) ? ` (${code})` : "";
+  return phase === "start" ? `Orbit could not start this turn${safeCode}. Your message was not sent; try again.` : `Orbit could not finish this turn${safeCode}. Completed calls may still use allowance.`;
+}
 
 /** "Answered by Claude · 3 of 4 votes" above each Orbit answer; opens the full ballot. */
 function LeadChip({ decision }: { decision: Decision }) {
@@ -158,7 +175,9 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   async function deleteChat() {
     if(!active||!window.confirm("Delete this Orbit conversation and its saved history?"))return;
     setLoading(true);
-    try{const res=await fetch(`/api/conversations/${active}`,{method:"DELETE"});if(!res.ok)throw new Error();newChat();await refresh();}
+    try{const res=await fetch(`/api/conversations/${active}`,{method:"DELETE"});if(!res.ok)throw new Error();
+      try{for(const key of Object.keys(localStorage))if(key.startsWith(`orbit.quiz.v1.${userId}:${active}:`)||key.startsWith(`orbit.study.v1.${userId}:${active}:`))localStorage.removeItem(key);}catch{ /* Browser storage may be unavailable. */ }
+      newChat();await refresh();}
     catch{setError("Could not delete this chat. Try again.");}finally{setLoading(false);}
   }
   async function attach(list:FileList|null){
@@ -176,14 +195,14 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     const content=input.trim();if(!content||busy||loading)return;
     const attachmentIds=files.map(f=>f.id),sentFiles=files;
     setBusy(true);setError("");setInput("");setFiles([]);setDecision(null);setPhase("voting");
-    const userId=crypto.randomUUID(),localReply=crypto.randomUUID();let terminal=false,accepted=false;
+    const userId=crypto.randomUUID(),localReply=crypto.randomUUID();let terminal=false,accepted=false,serverReply:string|undefined;
     setMessages(prev=>[...prev,{id:userId,role:"user",content},{id:localReply,role:"assistant",content:"",status:"streaming"}]);
     const abort=new AbortController();controller.current=abort;
-    const patch=(change:Partial<Message>)=>setMessages(prev=>prev.map(m=>m.id===localReply?{...m,...change}:m));
+    const patch=(change:Partial<Message>)=>setMessages(prev=>prev.map(m=>m.id===localReply||m.id===serverReply?{...m,...change}:m));
     const firstQuizTurn=Boolean(active&&quizReadyIds.has(active));
     try {
       const res=await fetch("/api/orbit",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({content,thinkingLevel,startQuiz:firstQuizTurn,...(attachmentIds.length?{attachmentIds}:{}),...(active?{conversationId:active}:{projectId:course?.id})}),signal:abort.signal});
-      if(!res.ok){const d=await res.json();throw new Error(ERRORS[d.error]??"Orbit could not start this turn.");}
+      if(!res.ok){const d=await res.json().catch(()=>({}));throw new Error(orbitErrorText(d.error,"start"));}
       if(!res.body)throw new Error("The response connection could not be opened.");
       const reader=res.body.getReader(),decoder=new TextDecoder();let buffer="",text="";
       const event=(line:string)=>{
@@ -191,10 +210,10 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         if(ev.t==="meta"){accepted=true;setActive(ev.conversationId);setDropped(ev.dropped);}
         else if(ev.t==="stage")setPhase(ev.stage);
         else if(ev.t==="decision"){setDecision(ev.decision);patch({orbit_details:ev.decision});}
-        else if(ev.t==="reply")patch({model_id:ev.modelId});
+        else if(ev.t==="reply"){serverReply=ev.replyId;patch({id:ev.replyId,model_id:ev.modelId});}
         else if(ev.t==="delta"){text+=ev.v;patch({content:text});}
         else if(ev.t==="done"){terminal=true;patch({content:ev.content,status:"complete"});}
-        else if(ev.t==="error"){terminal=true;patch({status:"partial"});setFiles(sentFiles);setError(ERRORS[ev.code]??"Orbit could not finish this turn. Completed calls may have used allowance.");}
+        else if(ev.t==="error"){terminal=true;patch({status:ev.code==="study_widget_invalid"?"error":"partial",...(ev.code==="study_widget_invalid"?{content:STUDY_WIDGET_ERROR_TEXT}:{})});if(ev.code==="study_widget_invalid")setInput("Regenerate the interactive study set.");setFiles(sentFiles);setError(orbitErrorText(ev.code,"finish"));}
       };
       while(true){const {value,done}=await reader.read();if(done){buffer+=decoder.decode();break;}buffer+=decoder.decode(value,{stream:true});const lines=buffer.split("\n");buffer=lines.pop()??"";for(const line of lines)if(line.trim())event(line);}
       if(buffer.trim())event(buffer);
@@ -319,9 +338,11 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
               ? <div key={m.id} className="group msg-in mb-8 flex flex-col items-end gap-1"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div><div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100"><CopyButton text={m.content}/></div></div>
               : <article key={m.id} className="msg-in mb-8">
                 {m.orbit_details&&<LeadChip decision={m.orbit_details}/>}
-                {m.status==="streaming"&&!m.content
+                {m.status==="error"&&m.content===STUDY_WIDGET_ERROR_TEXT
+                  ? <div className="rounded-xl border border-warning/30 bg-surface-100 p-4 text-sm text-ink" role="alert">{STUDY_WIDGET_ERROR_TEXT} <button type="button" onClick={()=>setInput("Regenerate the interactive study set.")} className="font-semibold text-brand underline underline-offset-4">Prepare retry</button></div>
+                  : m.status==="streaming"&&!m.content
                   ? <OrbitVotePanel phase={phase} decision={decision} message={PHASES[phase]??"Working…"}/>
-                  : <div className={`text-[16px] leading-7 ${m.status==="streaming"?"md-streaming":""}`}><Markdown text={hideRememberMarkers(m.content)} final={m.status!=="streaming"}/></div>}
+                  : <div className={`text-[16px] leading-7 ${m.status==="streaming"?"md-streaming":""}`}><Markdown text={hideRememberMarkers(m.content)} final={m.status!=="streaming"} interaction={{storageScope:`${userId}:${active??"draft"}:${m.id}`}}/></div>}
                 {m.status==="partial"&&<p className="mt-2 text-xs text-ink-subtle">[Incomplete answer]</p>}
                 {m.status!=="streaming"&&m.content.trim()&&<div className="mt-1.5 -ml-1.5 flex items-center gap-0.5"><CopyButton text={hideRememberMarkers(m.content)}/><SpeakButton compact id={m.id} text={hideRememberMarkers(m.content)}/>{idx===messages.length-1&&m.model_id&&<span className="ml-1 text-[11px] text-ink-subtle">{getModel(m.model_id)?.label}</span>}</div>}
               </article>)}

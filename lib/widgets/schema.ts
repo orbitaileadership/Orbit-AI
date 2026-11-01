@@ -25,7 +25,9 @@ export type DiagramWidget = {
 export type MultipleChoiceWidget = { type: "multiple_choice"; question: string; options: string[] };
 export type QuizQuestion = { question: string; options: string[]; correct: number; explanation: string };
 export type QuizWidget = { type: "quiz"; title?: string; questions: QuizQuestion[] };
-export type Widget = CalculatorWidget | ChartWidget | DiagramWidget | MultipleChoiceWidget | QuizWidget;
+export type ShortAnswerQuizWidget = { type: "short_answer_quiz"; title?: string; questions: { question: string; answer: string; explanation?: string }[] };
+export type FlashcardsWidget = { type: "flashcards"; title?: string; cards: { front: string; back: string }[] };
+export type Widget = CalculatorWidget | ChartWidget | DiagramWidget | MultipleChoiceWidget | QuizWidget | ShortAnswerQuizWidget | FlashcardsWidget;
 
 function multipleChoice(o: Record<string, unknown>): MultipleChoiceWidget {
   const question = str(o.question, 1000);
@@ -49,6 +51,30 @@ function quiz(o: Record<string, unknown>): QuizWidget {
     return { question, options: options as string[], correct: q.correct as number, explanation };
   });
   return { type: "quiz", ...(str(o.title, 100) ? { title: str(o.title, 100) } : {}), questions };
+}
+
+function shortAnswerQuiz(o: Record<string, unknown>): ShortAnswerQuizWidget {
+  if (!Array.isArray(o.questions) || o.questions.length < 1 || o.questions.length > 30) throw new Error("widget_invalid");
+  const questions = o.questions.map((raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("widget_invalid");
+    const q = raw as Record<string, unknown>;
+    const question = str(q.question, 1000), answer = str(q.answer, 2000);
+    if (!question || !answer) throw new Error("widget_invalid");
+    return { question, answer, ...(str(q.explanation, 1200) ? { explanation: str(q.explanation, 1200) } : {}) };
+  });
+  return { type: "short_answer_quiz", ...(str(o.title, 100) ? { title: str(o.title, 100) } : {}), questions };
+}
+
+function flashcards(o: Record<string, unknown>): FlashcardsWidget {
+  if (!Array.isArray(o.cards) || o.cards.length < 1 || o.cards.length > 30) throw new Error("widget_invalid");
+  const cards = o.cards.map((raw) => {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("widget_invalid");
+    const card = raw as Record<string, unknown>;
+    const front = str(card.front, 1000), back = str(card.back, 2000);
+    if (!front || !back) throw new Error("widget_invalid");
+    return { front, back };
+  });
+  return { type: "flashcards", ...(str(o.title, 100) ? { title: str(o.title, 100) } : {}), cards };
 }
 
 /** A readable ordinary user turn, retained in history across reloads and model switches. */
@@ -155,6 +181,8 @@ export function parseWidget(text: string): Widget | null {
     if (!o || typeof o !== "object") return null;
     if (o.type === "multiple_choice") return multipleChoice(o);
     if (o.type === "quiz") return quiz(o);
+    if (o.type === "short_answer_quiz") return shortAnswerQuiz(o);
+    if (o.type === "flashcards") return flashcards(o);
     if (o.type === "calculator") return calculator(o);
     if (o.type === "chart") return chart(o);
     if (o.type === "diagram") return diagram(o);
