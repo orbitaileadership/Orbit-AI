@@ -10,7 +10,7 @@
 - Relevant source files: `app/api/orbit/route.ts`, `lib/courses/study-start.ts`, `components/study-session-widget.tsx`, `lib/widgets/schema.ts`, `lib/courses/quiz.ts`, `lib/providers/anthropic.ts`.
 - Checks: Focused Vitest 114/114, typecheck, lint and local webpack production build passed. Full suite had 853 passed and 9 failed: six helper tests need local socket/symlink permissions; three unrelated course folder/database compatibility assertions failed. A Turbopack build could not fetch Google fonts in the sandbox; an unsandboxed webpack build passed. A temporary synthetic UI route was removed after the in-app browser timed out on localhost. Second-model review found three UI storage/identity/accessibility issues; all fixed after review.
 - Database state: no migration or shared database change.
-- Release state: not deployed; production remains pinned to `codex/pdf-only-production`.
+- Release state: Vercel reported a passed Preview build for PR #45 after push; signed-in behavior was not verified. Production remains pinned to `codex/pdf-only-production` and was not changed.
 - Known risks or unverified behavior: No paid provider call, signed-in desktop/phone walkthrough, or live retry measurement. Provider failures are now classified/logged safely, but root causes of all intermittent provider errors may vary.
 - Rollback/recovery: Revert this branch's PR; no schema rollback needed.
 - Next action and owner: Review the PR, validate one saved Orbit quiz retry and short-answer/flashcard flow on Preview with synthetic material, then decide on production release.
