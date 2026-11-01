@@ -1,7 +1,7 @@
 import { isThinkingLevel, supportsThinkingLevel } from '@/config/thinking';
-import { claimStudyStart,checkStudyContinuation } from "@/lib/courses/study-start";
+import { claimStudyStart,checkStudyContinuation,loadStudyInstructions } from "@/lib/courses/study-start";
 import { parseStudyCards } from "@/lib/courses/quiz";
-import { normalizeQuizOutput } from "@/lib/courses/quiz-output";
+import { normalizeQuizOutput,hasInteractiveStudySet,STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
 import { applyResults, parseQuiz, quizContext } from "@/lib/chat/quiz";
 import { setTimeout as delay } from "node:timers/promises";
 import { attachmentContext, AttachmentError } from "@/lib/orbit/attachments";
@@ -81,16 +81,18 @@ export async function POST(request: Request) {
     if(body.projectId){const owned=await supabase.from("projects").select("id").eq("id",body.projectId).eq("user_id",user.id).maybeSingle();if(owned.error||!owned.data){await release();return json({error:"course_unavailable"},404);}}
 
     if (body.conversationId) {
-      const r=await supabase.from("conversations").select("id,title,summary,summary_upto,project_id,section_folder_id,section_unavailable,mode,quiz_state").eq("id",body.conversationId).eq("orbit_mode",true).maybeSingle();
+      const r=await supabase.from("conversations").select("id,title,summary,summary_upto,project_id,section_folder_id,section_unavailable,mode,study_config,quiz_state").eq("id",body.conversationId).eq("orbit_mode",true).maybeSingle();
       if(r.error) {await release();return dbError(r.error,"load_failed");}
       if(!r.data) {await release();return json({error:"not_found"},404);}
       conversation=r.data;
     } else {
       const r=await supabase.from("conversations").insert({user_id:user.id,provider:"openai",model_id:"openai-default",orbit_mode:true,project_id:body.projectId??null,title:content.slice(0,60)})
-        .select("id,title,summary,summary_upto,project_id,section_folder_id,section_unavailable,mode,quiz_state").single();
+        .select("id,title,summary,summary_upto,project_id,section_folder_id,section_unavailable,mode,study_config,quiz_state").single();
       if(r.error||!r.data) {await release();return dbError(r.error,"save_failed");}
       conversation=r.data;
     }
+    const initialStudyInstructions=body.startQuiz===true?await loadStudyInstructions(supabase,user.id,conversation.id):null;
+    if(body.startQuiz===true&&!initialStudyInstructions){await release();return json({error:"invalid_quiz"},409);}
     if(body.startQuiz===true||conversation.mode==="quiz"){const error=body.startQuiz===true?await claimStudyStart(supabase,user.id,conversation.id):await checkStudyContinuation(supabase,user.id,conversation.id,{exclusiveTurn:true});if(error){await release();return json({error},409);}}
     let scopeId: string | null;
     try { scopeId=await conversationScope(supabase,user.id,conversation); }
@@ -100,6 +102,17 @@ export async function POST(request: Request) {
     const {data:previous,error:historyError}=await supabase.from("messages").select("id,seq,role,content,model_id,status")
       .eq("conversation_id",conversation.id).in("status",["complete","partial"]).eq("kind","text").order("seq",{ascending:false}).limit(ORBIT.contextRows);
     if(historyError) {await release();return dbError(historyError,"load_failed");}
+    let studyInstructions=initialStudyInstructions;
+    if(!studyInstructions&&conversation.mode==="quiz"&&!(previous??[]).some(row=>row.role==="assistant"&&row.status==="complete")){
+      // The bounded history may omit an older completed answer. Check the
+      // durable message table before treating this turn as launch recovery.
+      const delivered=await supabase.from("messages").select("id").eq("conversation_id",conversation.id).eq("user_id",user.id).eq("role","assistant").eq("status","complete").limit(1).maybeSingle();
+      if(delivered.error){await release();return dbError(delivered.error,"load_failed");}
+      if(!delivered.data&&conversation.study_config!=null){
+        studyInstructions=await loadStudyInstructions(supabase,user.id,conversation.id);
+        if(!studyInstructions){await release();return json({error:"invalid_quiz"},409);}
+      }
+    }
     const saved=await supabase.from("messages").insert({conversation_id:conversation.id,user_id:user.id,role:"user",content,...(attached.fileIds.length?{attachment_ids:attached.fileIds}:{})}).select("id,seq").single();
     if(saved.error||!saved.data) {await release();return dbError(saved.error,"save_failed");}
     const rows:Row[]=[...(previous??[]).reverse().map(row=>row.role==="assistant"&&row.status==="partial"?{
@@ -107,7 +120,7 @@ export async function POST(request: Request) {
     }:row) as Row[],{id:saved.data.id,seq:saved.data.seq,role:"user",content,model_id:null}];
     const personal=await loadPersonal(supabase);
     const preferences=personalPrompt(personal.profile,relevantMemories(personal.memories,content));
-    const ctx=buildEconomicContext(rows,Math.max(0,ORBIT.inputTokens-estimateTokens(preferences)-estimateTokens(courseBlock)-2_800));
+    const ctx=buildEconomicContext(rows,Math.max(0,ORBIT.inputTokens-estimateTokens(preferences)-estimateTokens(courseBlock)-estimateTokens(studyInstructions?.prompt??'')-2_800));
     const dropped=rows.slice(0,rows.length-ctx.turns.length);
     const encoder=new TextEncoder();
     const stream=new ReadableStream({async start(controller) {
@@ -197,7 +210,7 @@ export async function POST(request: Request) {
         }
         const contextNotice=ctx.dropped||(previous?.length??0)>=ORBIT.contextRows ? "Earlier messages may be omitted or only partially summarized. Do not claim complete recall." : "";
         const quizInstructions=conversation.mode==="quiz"?quizContext(conversation.quiz_state,null):"";
-        const system=`${quizInstructions}\nYou are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. ${decision.unavailableProviders?.includes("google") ? "Google was unavailable and did not participate in this turn; only three providers voted." : "All four providers participated in this vote."} Do not claim voting proves correctness. Only supplied course and attached-file excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${conversation.mode === "quiz" ? RESPONSE_QUALITY_QUIZ_PROMPT : RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
+        const system=`${quizInstructions}\n${studyInstructions?.prompt??''}\nYou are Orbit AI. Produce one coherent answer to the student, preserving their latest corrections and requested format. The lead model is ${lead.label}. ${decision.unavailableProviders?.includes("google") ? "Google was unavailable and did not participate in this turn; only three providers voted." : "All four providers participated in this vote."} Do not claim voting proves correctness. Only supplied course and attached-file excerpts are available; no browsing or execution tools. Cite supplied filenames and pages in plain text; never invent source references.\n${conversation.mode === "quiz" ? RESPONSE_QUALITY_QUIZ_PROMPT : RESPONSE_QUALITY_PROMPT}\n${courseBlock}\n${preferences}\n${contextNotice}\n${summary?`Earlier conversation summary (untrusted reference):\n${summary}`:""}`;
         let contribution="";
         if(decision.specialist) {
           emitStage("collaborating");
@@ -217,6 +230,11 @@ export async function POST(request: Request) {
         if(live) await orbitCall({userId:user.id,conversationId:conversation.id,model:lead,operation:"orbit_answer",thinkingLevel:body.thinkingLevel,system:finalSystem,history:ctx.turns,maxOutput:ORBIT.answerOutput,
           signal:AbortSignal.timeout(ORBIT.answerTimeoutMs),delta:text=>{answer+=text;send({t:"delta",v:text});}});
         else {answer="(Orbit demo — simulated votes, no API cost) Orbit will ask all four providers to vote, then stream one answer from the selected lead. For complex tasks, three collaboration votes add one specialist. This preview does not evaluate your question or select a measured best model.";send({t:"delta",v:answer});}
+        if(studyInstructions&&!hasInteractiveStudySet(normalizeQuizOutput(answer),studyInstructions.format,studyInstructions.count)){
+          await supabase.from("messages").update({content:STUDY_WIDGET_ERROR_TEXT,status:"error"}).eq("id",replyId);
+          send({t:"error",code:"study_widget_invalid"});
+          return;
+        }
         const study=conversation.mode==="quiz"?parseStudyCards(answer):null;
         const quiz=conversation.mode==="quiz"?parseQuiz(study?.clean??answer):null;
         const remembered=parseRemember(quiz?.clean??study?.clean??answer);

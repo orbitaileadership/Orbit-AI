@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FOLDER_ACCESS, IMAGE_MODELS, MENU_MAIN, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
 import { THEMES } from "@/config/themes";
 import { missedConcepts, type QuizState } from "@/lib/chat/quiz";
+import { STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
 import { answersLeft, answersText, isLow, timesCheaper, typicalAnswerMicros } from "@/lib/billing/estimate";
 import { signOut } from "../login/actions";
 import { ProviderLogo } from "@/components/provider-logo";
@@ -825,7 +826,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             else if (ev.t === "done") {
               // Same shape as a reloaded message: [] = files were searched but none used, undefined = no files involved.
               patchReply((m) => ({
-                ...m, status: ev.status === "partial" ? "partial" : "complete", finishReason:ev.finishReason, sources: ev.grounding === "none" ? undefined : ev.sources,
+                ...m, status: ev.status === "error" ? "error" : ev.status === "partial" ? "partial" : "complete", error:ev.status === "error" ? ev.error : undefined, finishReason:ev.finishReason, sources: ev.grounding === "none" ? undefined : ev.sources,
                 ...(typeof ev.content === "string" ? { content: ev.content } : {}), // the saved text (quiz/memory lines removed)
                 ...(Array.isArray(ev.remembered) && ev.remembered.length ? { remembered: ev.remembered.map((r: { content: string }) => r.content) } : {}),
               }));
@@ -1647,7 +1648,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                           )
                         ) : (
                           <div className={`${theme.replyClass} ${m.status === "streaming" ? "md-streaming" : ""}`} aria-busy={m.status === "streaming"}>
-                            {m.content ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
+                            {m.content && !(m.status === "error" && m.content === STUDY_WIDGET_ERROR_TEXT) ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
                               storageScope: `${userId}:${activeId ?? "draft"}:${m.id}`,
                               legacyStorageScope: `${activeId ?? "draft"}:${idx}`,
                             }} /> : m.status === "streaming" && <PendingIndicator provider={provider} />}
@@ -1689,7 +1690,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         ) : null}
                         {m.status === "error" && (
                           <div className="mt-2 rounded-xl border border-danger/30 bg-danger-surface p-3 text-sm text-danger">
-                            {m.error ?? `${model?.label ?? "The model"} didn't respond. Your chat is saved.`}{" "}
+                            {m.error ?? (m.content === STUDY_WIDGET_ERROR_TEXT ? STUDY_WIDGET_ERROR_TEXT : `${model?.label ?? "The model"} didn't respond. Your chat is saved.`)}{" "}
                             {m.kind === "text" && m.error?.includes("budget left") && offerCheaper && (
                               <button onClick={() => setModel(cheapest.id)} disabled={busy} className="mr-3 font-medium underline underline-offset-[3px]">
                                 Switch to {cheapest.short}

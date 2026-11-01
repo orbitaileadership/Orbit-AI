@@ -787,17 +787,21 @@ it("keeps the shared image cap when attachment images precede the recent exchang
 
 describe('saved course quiz generation',()=>{
  const id='a4444444-4444-4444-8444-444444444444';
- function session(){state.live=true;state.fake!.db.conversations.push({id,user_id:'user-1',provider:'anthropic',project_id:null,mode:'quiz',study_config:{format:'flashcards',count:5,section_id:'section',start_state:'ready'}});}
+ const course='a5555555-5555-4555-8555-555555555555',folder='a6666666-6666-4666-8666-666666666666',section='a7777777-7777-4777-8777-777777777777';
+ const deck=JSON.stringify({type:'flashcards',cards:Array.from({length:5},(_,i)=>({front:i?`Question ${i}`:'ATP source?',back:i?`Answer ${i}`:'Mitochondrion'}))});
+ function session(){state.live=true;state.fake!.db.projects.push({id:course,user_id:'user-1',is_folder:false,name:'Biology',course_data:{items:[{id:section,title:'Midterm',kind:'exam',details:'Cells',folderId:folder}]}},{id:folder,user_id:'user-1',is_folder:true,parent_course_id:course,name:'Midterm'});state.fake!.db.conversations.push({id,user_id:'user-1',provider:'anthropic',project_id:course,section_folder_id:folder,mode:'quiz',study_config:{format:'flashcards',count:5,section_id:section,start_state:'ready'}});}
  it('requires the initial claim and prevents a sidebar request from bypassing it',async()=>{
   session();const before=vi.mocked(budget.reserve).mock.calls.length;
   expect((await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Start'}))).status).toBe(409);
   expect(vi.mocked(budget.reserve).mock.calls.length).toBe(before);
  });
  it('persists completed cards and quiz progress while settling the actual provider call',async()=>{
-  session();state.events=[{delta:'ATP. [[quiz: right | Cells]]\n[[card: {"front":"ATP source?","back":"Mitochondrion"}]]'},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
-  const events=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Reveal',startQuiz:true})));
+  session();state.events=[{delta:`[[quiz: right | Cells]]\n\`\`\`orbit-widget\n${deck}\n\`\`\``},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
+  const events=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Create 5 flashcards for Midterm in Biology.',startQuiz:true})));
   expect(events.at(-1)).toMatchObject({t:'done',status:'complete'});
-  const reply=state.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toEqual([{front:'ATP source?',back:'Mitochondrion'}]);expect(reply.content).not.toContain('[[card:');expect(reply.content).not.toContain('[[quiz:');expect(state.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});
+  expect(state.lastArgs!.system).toContain('one fenced orbit-widget JSON block');
+  expect(state.lastArgs!.history.at(-1)?.content).toBe('Create 5 flashcards for Midterm in Biology.');
+  const reply=state.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toHaveLength(5);expect(reply.study_cards).toContainEqual({front:'ATP source?',back:'Mitochondrion'});expect(reply.content).not.toContain('[[card:');expect(reply.content).not.toContain('[[quiz:');expect(state.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});
   expect(budget.settle).toHaveBeenCalledWith(expect.any(String),'settled',expect.any(Number),expect.objectContaining({input:100}),undefined,expect.any(Object));
   expect((await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Start again',startQuiz:true}))).status).toBe(409);
  });
@@ -805,6 +809,27 @@ describe('saved course quiz generation',()=>{
   session();state.events=[{delta:'Partial [[quiz: right | Cells]]\n[[card: {"front":"A","back":"B"}]]'},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'length'}];
   await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Reveal',startQuiz:true})));
   const reply=state.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.status).toBe('partial');expect(reply.study_cards).toBeUndefined();expect(state.fake!.db.conversations[0].quiz_state).toBeUndefined();expect(budget.settle).toHaveBeenCalled();
+ });
+ it('rejects a text-only front and lets the student retry with the same server instructions',async()=>{
+  session();state.events=[{delta:'Flashcard 1 — Front: What is ATP?'},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
+  const first=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Please make five useful flashcards',startQuiz:true})));
+  expect(first.at(-1)).toMatchObject({t:'done',status:'error',content:expect.stringContaining("couldn't create the interactive study set")});
+  expect(state.fake!.db.messages.find(m=>m.role==='assistant')).toMatchObject({status:'error',content:expect.stringContaining("couldn't create the interactive study set")});
+  state.fake!.db.projects[0].name='Biology 2027';
+  state.events=[{delta:deck},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
+  const retry=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'',retry:true})));
+  expect(retry.at(-1)).toMatchObject({t:'done',status:'complete'});
+  expect(state.lastArgs!.system).toContain('one fenced orbit-widget JSON block');
+  expect(state.lastArgs!.system).toContain('Biology 2027');
+ });
+ it('stops recovery before reserve when the saved section can no longer supply instructions',async()=>{
+  session();(state.fake!.db.conversations[0].study_config as {start_state:string}).start_state='started';
+  state.fake!.db.messages.push({id:'failed',user_id:'user-1',conversation_id:id,role:'assistant',status:'error',kind:'text',content:'',seq:1});
+  (state.fake!.db.projects[0].course_data as {items:unknown[]}).items=[];
+  const before=vi.mocked(budget.reserve).mock.calls.length;
+  expect((await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Please try again'}))).status).toBe(409);
+  expect(vi.mocked(budget.reserve).mock.calls.length).toBe(before);
+  expect(state.fake!.db.messages).toHaveLength(1); // rejected turn did not strand a user message
  });
 });
 
