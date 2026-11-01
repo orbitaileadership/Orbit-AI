@@ -145,7 +145,7 @@ export function systemPrompt(o: {
     parts.push("The student turned on \"Only use my course material\", but this chat has no course files yet. Say so, and suggest attaching the lecture slides or readings (or adding them to the course). Don't answer from general knowledge.");
   }
   if (o.voice) parts.push(VOICE_PROMPT);
-  else parts.push("If the student asks for flashcards, give them as a two-column Markdown table with the header \"Front | Back\", so they can export them to Anki or Quizlet.");
+  else if (o.mode !== "quiz") parts.push("If the student asks for flashcards, give them as a two-column Markdown table with the header \"Front | Back\", so they can export them to Anki or Quizlet.");
   if (o.web) {
     parts.push(
       "Web search results are below, numbered [W1], [W2]…. When you use one, cite it right after the claim as [W1] etc. " +

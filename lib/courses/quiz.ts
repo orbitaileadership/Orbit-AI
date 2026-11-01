@@ -8,6 +8,10 @@ export function studyConfig(raw:unknown):StudyConfig{
  if(!QUIZ_FORMATS.includes(c.format)||!Number.isInteger(c.count)||c.count<1||c.count>COURSE_WORKSPACE.maxQuestions||typeof c.section_id!=='string'||!['ready','started'].includes(c.start_state))throw new Error('invalid_quiz');return {format:c.format,count:c.count,section_id:c.section_id,start_state:c.start_state};
 }
 export const quizLabel=(format:QuizFormat)=>format==='mcq'?'Multiple choice':format==='short-answer'?'Short answer':'Flashcards';
+/** Shown in the chat and retained as the student's request. Detailed generation rules stay server-side. */
+export function studyLaunchPrompt(course:Pick<Course,'name'>,item:CourseItem,config:StudyConfig){
+ return `Create ${config.count} ${quizLabel(config.format).toLowerCase()} ${config.format==='flashcards'?'':'questions '}for ${item.title} in ${course.name}.`;
+}
 export function studyPrompt(course:Pick<Course,'name'>,item:CourseItem,config:StudyConfig){
  const formatInstruction=config.format==='mcq'
   ?`Generate exactly ${config.count} multiple-choice questions NOW in one fenced orbit-widget JSON block of type "quiz" with a questions array. Each question needs question, options (2–6 distinct choices), correct (zero-based option index), and explanation. The student gets immediate local feedback and advances without another model call.`

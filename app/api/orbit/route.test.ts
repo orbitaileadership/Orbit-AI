@@ -303,14 +303,28 @@ it("preserves a retry budget rejection even if Google's deadline expires concurr
 
 describe('saved Orbit quiz sessions',()=>{
  const id='b4444444-4444-4444-8444-444444444444';
- const prepare=()=>s.fake!.db.conversations.push({id,user_id:'u',orbit_mode:true,project_id:null,mode:'quiz',quiz_state:null,study_config:{format:'flashcards',count:5,section_id:'section',start_state:'ready'}});
+ const course='b5555555-5555-4555-8555-555555555555',folder='b6666666-6666-4666-8666-666666666666',section='b7777777-7777-4777-8777-777777777777';
+ const deck=JSON.stringify({type:'flashcards',cards:Array.from({length:5},(_,i)=>({front:i?`Question ${i}`:'ATP source?',back:i?`Answer ${i}`:'Mitochondrion'}))});
+ const prepare=()=>{s.fake!.db.projects.push({id:course,user_id:'u',is_folder:false,name:'Biology',course_data:{items:[{id:section,title:'Midterm',kind:'exam',details:'Cells',folderId:folder}]}},{id:folder,user_id:'u',is_folder:true,parent_course_id:course,name:'Midterm'});s.fake!.db.conversations.push({id,user_id:'u',orbit_mode:true,project_id:course,section_folder_id:folder,mode:'quiz',quiz_state:null,study_config:{format:'flashcards',count:5,section_id:section,start_state:'ready'}});};
  it('requires the initial study claim before any paid voting call',async()=>{prepare();const r=await POST(req({conversationId:id,content:'start'}));expect(r.status).toBe(409);expect(s.call).not.toHaveBeenCalled();});
- it('saves export cards and grades only a completed final answer',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);const text='ATP. [[quiz: right | Cells]]\n[[card: {"front":"ATP source?","back":"Mitochondrion"}]]';o.delta?.(text);return {text,finish:'stop'};});const text=await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();expect(text).toContain('"t":"done"');const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toEqual([{front:'ATP source?',back:'Mitochondrion'}]);expect(reply.content).not.toContain('[[card:');expect(s.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});});
+ it('saves export cards and grades only a completed final answer',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);const text=`[[quiz: right | Cells]]\n\`\`\`orbit-widget\n${deck}\n\`\`\``;o.delta?.(text);return {text,finish:'stop'};});const text=await(await POST(req({conversationId:id,content:'Create 5 flashcards for Midterm in Biology.',startQuiz:true}))).text();expect(text).toContain('"t":"done"');const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.study_cards).toHaveLength(5);expect(reply.study_cards).toContainEqual({front:'ATP source?',back:'Mitochondrion'});expect(reply.content).toContain('orbit-widget');expect(s.fake!.db.conversations[0].quiz_state).toMatchObject({asked:1,correct:1});expect(s.call.mock.calls.find(([o])=>o.operation==='orbit_answer')![0].system).toContain('one fenced orbit-widget JSON block');});
+ it('rejects a text-only front and recovers the format on a differently worded follow-up',async()=>{
+  prepare();const success=s.call.getMockImplementation()!;
+  s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);const text='Flashcard 1 — Front: What is ATP?';o.delta?.(text);return {text,finish:'stop'};});
+  const first=await(await POST(req({conversationId:id,content:'Create 5 flashcards for Midterm in Biology.',startQuiz:true}))).text();
+  expect(first).toContain('study_widget_invalid');
+  expect(s.fake!.db.messages.find(m=>m.role==='assistant')).toMatchObject({status:'error',content:expect.stringContaining("couldn't create the interactive study set")});
+  s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);o.delta?.(deck);return {text:deck,finish:'stop'};});
+  const second=await(await POST(req({conversationId:id,content:'Please make the cards properly this time'}))).text();
+  expect(second).toContain('"t":"done"');
+  expect(s.call.mock.calls.filter(([o])=>o.operation==='orbit_answer').at(-1)![0].system).toContain('one fenced orbit-widget JSON block');
+ });
  it('does not advance quiz state when the final model fails after partial output',async()=>{prepare();const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);o.delta?.('Partial [[quiz: right | Cells]] [[card: {"front":"A","back":"B"}]]');throw new OrbitError('orbit_incomplete_response');});await(await POST(req({conversationId:id,content:'Reveal',startQuiz:true}))).text();const reply=s.fake!.db.messages.find(m=>m.role==='assistant')!;expect(reply.status).toBe('partial');expect(reply.study_cards).toBeUndefined();expect(s.fake!.db.conversations[0].quiz_state).toBeNull();});
  it('can continue a saved incomplete quiz after acquiring the exclusive turn lease',async()=>{
   prepare();(s.fake!.db.conversations[0].study_config as {start_state:string}).start_state='started';
   s.fake!.db.messages.push({id:'q1',user_id:'u',conversation_id:id,role:'user',status:'complete',kind:'text',seq:1,content:'First question'},
     {id:'a1',user_id:'u',conversation_id:id,role:'assistant',status:'partial',kind:'text',seq:2,content:'Unfinished answer'});
+  const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);o.delta?.(deck);return {text:deck,finish:'stop'};});
   const response=await POST(req({conversationId:id,content:'Please continue'}));
   expect(response.status).toBe(200);
   expect(await response.text()).toContain('"t":"done"');
@@ -319,9 +333,16 @@ describe('saved Orbit quiz sessions',()=>{
  });
  it('can retry a started quiz with no saved messages after the turn lease is released',async()=>{
   prepare();(s.fake!.db.conversations[0].study_config as {start_state:string}).start_state='started';
+  const success=s.call.getMockImplementation()!;s.call.mockImplementation(async o=>{if(o.operation==='orbit_vote')return success(o);o.delta?.(deck);return {text:deck,finish:'stop'};});
   const response=await POST(req({conversationId:id,content:'Try the quiz again'}));
   expect(response.status).toBe(200);
   expect(await response.text()).toContain('"t":"done"');
+ });
+ it('stops recovery before paid voting when the saved section is unavailable',async()=>{
+  prepare();(s.fake!.db.conversations[0].study_config as {start_state:string}).start_state='started';
+  (s.fake!.db.projects[0].course_data as {items:unknown[]}).items=[];
+  expect((await POST(req({conversationId:id,content:'Try the cards again'}))).status).toBe(409);
+  expect(s.call).not.toHaveBeenCalled();
  });
 });
 

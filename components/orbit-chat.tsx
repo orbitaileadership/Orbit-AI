@@ -19,6 +19,7 @@ import { Markdown } from "@/components/markdown";
 import { SpeakButton } from "@/components/speak-button";
 import { UsageShortcut } from "@/components/usage-meter";
 import { hideRememberMarkers } from "@/lib/profile/personal";
+import { STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
 import type { Decision } from "@/lib/orbit/voting";
 
 type Message = { id: string; role: "user" | "assistant"; content: string; status?: string; model_id?: string; orbit_details?: Decision; attachments?: UploadedFile[] };
@@ -51,6 +52,7 @@ const ERRORS: Record<string,string> = {
   quiz_already_started:"This quiz already started. Reopen it from Saved quizzes to continue.",
   quiz_turn_pending:"The previous quiz answer is still finishing. Refresh this chat before continuing.",
   invalid_quiz:"This saved quiz needs to be recreated from the course workspace.",
+  study_widget_invalid:"The model didn't create an interactive study set. Send the prepared retry request to try again; completed calls may use allowance.",
   not_signed_in:"Your sign-in expired. Sign in again, then reopen your saved chat.",
 };
 
@@ -221,13 +223,13 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       const reader=res.body.getReader(),decoder=new TextDecoder();let buffer="",text="";
       const event=(line:string)=>{
         const ev=JSON.parse(line);
-        if(ev.t==="meta"){accepted=true;serverReply=ev.replyId;patch({id:ev.replyId});setActive(ev.conversationId);setDropped(ev.dropped);}
+        if(ev.t==="meta"){accepted=true;setActive(ev.conversationId);setDropped(ev.dropped);}
         else if(ev.t==="stage")setPhase(ev.stage);
         else if(ev.t==="decision"){setDecision(ev.decision);patch({orbit_details:ev.decision});}
-        else if(ev.t==="reply")patch({model_id:ev.modelId});
+        else if(ev.t==="reply"){serverReply=ev.replyId;patch({id:ev.replyId,model_id:ev.modelId});}
         else if(ev.t==="delta"){text+=ev.v;patch({content:text});}
         else if(ev.t==="done"){terminal=true;patch({content:ev.content,status:"complete"});}
-        else if(ev.t==="error"){terminal=true;patch({status:"partial"});setFiles(sentFiles);setError(orbitErrorText(ev.code,"finish"));}
+        else if(ev.t==="error"){terminal=true;patch({status:ev.code==="study_widget_invalid"?"error":"partial",...(ev.code==="study_widget_invalid"?{content:STUDY_WIDGET_ERROR_TEXT}:{})});if(ev.code==="study_widget_invalid")setInput("Regenerate the interactive study set.");setFiles(sentFiles);setError(orbitErrorText(ev.code,"finish"));}
       };
       while(true){const {value,done}=await reader.read();if(done){buffer+=decoder.decode();break;}buffer+=decoder.decode(value,{stream:true});const lines=buffer.split("\n");buffer=lines.pop()??"";for(const line of lines)if(line.trim())event(line);}
       if(buffer.trim())event(buffer);
@@ -352,7 +354,9 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
               ? <div key={m.id} className="group msg-in mb-8 flex flex-col items-end gap-1"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div>{m.attachments?.length ? <div className="flex max-w-[85%] flex-wrap justify-end gap-2">{m.attachments.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={fileNote(f)} onOpen={()=>setPreviewFileId(f.id)}/>)}</div> : null}<div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100"><CopyButton text={m.content}/></div></div>
               : <article key={m.id} className="msg-in mb-8">
                 {m.orbit_details&&<LeadChip decision={m.orbit_details}/>}
-                {m.status==="streaming"&&!m.content
+                {m.status==="error"&&m.content===STUDY_WIDGET_ERROR_TEXT
+                  ? <div className="rounded-xl border border-warning/30 bg-surface-100 p-4 text-sm text-ink" role="alert">{STUDY_WIDGET_ERROR_TEXT} <button type="button" onClick={()=>setInput("Regenerate the interactive study set.")} className="font-semibold text-brand underline underline-offset-4">Prepare retry</button></div>
+                  : m.status==="streaming"&&!m.content
                   ? <OrbitVotePanel phase={phase} decision={decision} message={PHASES[phase]??"Working…"}/>
                   : <div className={`text-[16px] leading-7 ${m.status==="streaming"?"md-streaming":""}`}><Markdown text={hideRememberMarkers(m.content)} final={m.status!=="streaming"} interaction={{storageScope:`${userId}:${active??"draft"}:${m.id}`}}/></div>}
                 {m.status==="partial"&&<p className="mt-2 text-xs text-ink-subtle">[Incomplete answer]</p>}
