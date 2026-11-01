@@ -2,6 +2,15 @@ import { reportedUsage, tokenCount } from "./usage";
 import { readSse } from "./sse";
 import { errorForStatus, normalizeTurns, parseArgs, ProviderError, type FinishReason, type ChatTurn, type ProviderAdapter } from "./types";
 
+function anthropicError(type: unknown, status?: number, started = false): ProviderError {
+  const code = type === "overloaded_error" || type === "api_error" ? "unavailable"
+    : type === "rate_limit_error" ? "rate_limit"
+    : type === "authentication_error" || type === "permission_error" ? "auth"
+    : type === "not_found_error" ? "model_unavailable"
+    : type === "invalid_request_error" ? "bad_request" : "unknown";
+  return new ProviderError(code, status, started);
+}
+
 // Anthropic Messages API (streaming, tool use). Claude has no image generation.
 
 function toMessage(t: ChatTurn) {
@@ -53,7 +62,11 @@ export const anthropic: ProviderAdapter = {
       }),
       signal,
     });
-    if (!res.ok || !res.body) throw errorForStatus(res.status);
+    if (!res.ok || !res.body) {
+      const body = await res.json().catch(() => null);
+      const type = body && typeof body === "object" && "error" in body && body.error && typeof body.error === "object" && "type" in body.error ? body.error.type : null;
+      throw type ? anthropicError(type, res.status) : errorForStatus(res.status);
+    }
 
     let input: number | undefined;
     let cached: number | undefined;
@@ -102,7 +115,7 @@ export const anthropic: ProviderAdapter = {
           return;
         }
         case "error":
-          throw new ProviderError(ev.error?.type === "overloaded_error" ? "unavailable" : "unknown", undefined, true);
+          throw anthropicError(ev.error?.type, undefined, true);
       }
     }
     throw new ProviderError("incomplete_stream",undefined,true);

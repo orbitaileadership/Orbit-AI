@@ -515,6 +515,7 @@ export async function POST(request: Request): Promise<Response> {
         }
       } catch (e) {
         failure = e instanceof ProviderError ? e : new ProviderError((e as Error)?.name === "TimeoutError" ? "timeout" : "unknown", undefined, true);
+        console.error("[chat] provider stream failed", { requestId, provider, modelId:model.id, code:failure.code, status:failure.status, started:failure.started });
       }
 
       if(!failure && finish==="blocked" && !text.trim()) text="The model did not provide an answer to this request.";
