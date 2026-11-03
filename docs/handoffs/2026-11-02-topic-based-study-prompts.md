@@ -16,3 +16,7 @@
 - Rollback/recovery: Revert this focused release or restore Vercel's deployment of production base `4f329d4`; no schema rollback.
 - Next action / owner: Noah validates a fresh course quiz with teaching materials on desktop and phone. No further release action is pending for this change.
 - Authorization still needed: Paid live-provider evaluations remain separate; no additional approval is needed for the already-authorized focused production release.
+
+## Main-branch review follow-up
+
+Noah explicitly requested a visible pull request after the production release. Branch `codex/topic-based-study-prompts-main` starts from current `main` at `e98900098afe34b6536c07b644ff5875dff6ca4d` and cherry-picks only this task's application/test patch and release evidence. It does not merge the PDF-only production branch's unrelated history or alter the deployed release. On this main-based integration, 172 focused tests, lint, the webpack production build including TypeScript, and a browser-bundle prompt scan passed. The application/test patch matches the already-reviewed production patch exactly. The requested next action is an open PR targeting `main`, with merge left for review.
