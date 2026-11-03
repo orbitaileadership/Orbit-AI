@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 2, 2026 — topic-based quiz prompt release prepared
+
+`codex/topic-based-study-prompts` updates all three study formats to identify and review substantive subject topics, research only through permitted available tools, and exclude syllabus administration. Full instructions have an enforced server-only boundary; create/reopen responses retain a short visible request. Repeated instructions are reduced, with a 15–17% character-size reduction on identical synthetic regular-chat requests without optional topic metadata. Local tests, lint, typecheck, production build and independent review passed; Noah authorized deployment to the existing PDF-only production line. Exact release observations and limitations are tracked in [the handoff](handoffs/2026-11-02-topic-based-study-prompts.md). Signed-in/live model quality remains unverified.
+
 ## November 1, 2026 — PDF-only flashcard release candidate
 
 PR #48 backported the interactive study widgets, flip deck, and short server-instructed quiz launch onto the pinned PDF-only Production line. The owner approved its release; Vercel reports merge commit `4f329d4` Ready on `orbit-ai-sand.vercel.app`, and the live app shell loaded. It omits migration 0026 and the unfinished 512 MiB worker. Signed-in flashcard output and phone interactions remain unverified. Local checks and release details are recorded in [the handoff](handoffs/2026-11-01-pdf-only-flashcard-release.md).

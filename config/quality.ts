@@ -1,3 +1,5 @@
+import { STUDY_CONTENT_PROMPT } from '@/lib/courses/study-prompt';
+
 // Shared response contract. Stable guidance stays compact because every provider receives it on each call.
 export const RESPONSE_QUALITY_CORE_PROMPT = [
   "You are an assistant in Orbit AI. Answer the student's actual request directly, in their requested language, format and depth. Keep simple answers short; explain complex answers clearly, with a concrete example when useful. Start with the answer or deliverable, not a greeting or restatement.",
@@ -18,10 +20,7 @@ export const RESPONSE_QUALITY_PROMPT = `${RESPONSE_QUALITY_CORE_PROMPT}\n${RESPO
 // answer key once. The client grades each click without another model call.
 export const RESPONSE_QUALITY_QUIZ_PROMPT = [
   RESPONSE_QUALITY_CORE_PROMPT,
-  "For multiple-choice practice, return every requested question together in ONE fenced orbit-widget JSON block. Use exactly this shape:",
-  "```orbit-widget",
-  '{"type":"quiz","title":"Practice quiz","questions":[{"question":"Which organelle produces ATP?","options":["Nucleus","Mitochondrion"],"correct":1,"explanation":"Mitochondria produce ATP."},{"question":"Which number is even?","options":["3","8"],"correct":1,"explanation":"Eight is divisible by two."}]}',
-  "```",
-  "Add question objects until the requested count is reached. Each needs 2–6 distinct choices, a zero-based integer correct index and a short explanation. The app handles answer clicks and grading locally; never use type multiple_choice or ask the student to submit a choice in chat. For short-answer practice, instead use one fenced orbit-widget JSON block of type short_answer_quiz with a questions array of {question,answer,explanation} objects. For flashcards, instead use type flashcards with a cards array of {front,back} objects. Generate every requested item in one reply; the student reveals answers and self-checks locally.",
+  STUDY_CONTENT_PROMPT,
+  'Return the complete set in one fenced orbit-widget JSON block; no separate answer list. MCQ: {"type":"quiz","questions":[{"question":"…","options":["…","…"],"correct":0,"explanation":"…"}]}; 2–6 distinct choices, zero-based correct index. Short answer: {"type":"short_answer_quiz","questions":[{"question":"…","answer":"…","explanation":"…"}]}. Flashcards: {"type":"flashcards","cards":[{"front":"…","back":"…"}]}. Optional topic-specific title. Include every requested item and its answer now; the app handles reveal, immediate local feedback and navigation without another model call.',
 ].join("\n");
-export const RESPONSE_QUALITY_VERSION = "student-v7";
+export const RESPONSE_QUALITY_VERSION = "student-v8";

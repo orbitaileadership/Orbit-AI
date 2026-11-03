@@ -1,6 +1,9 @@
 import { describe,expect,it } from 'vitest';
 import { addDays,calendarIcs,calendarRange,validateEvent,browserLocalTime,localTimeCandidates,resolveLocalTime } from './calendar';
-import { cardsTsv,hideStudyCards,parseStudyCards,studyConfig,studyPrompt } from './quiz';
+import { cardsTsv,hideStudyCards,parseStudyCards,studyConfig } from './quiz';
+import { studyPrompt as scopePrompt } from './study-prompt';
+import { RESPONSE_QUALITY_QUIZ_PROMPT } from '@/config/quality';
+const studyPrompt=(...args:Parameters<typeof scopePrompt>)=>RESPONSE_QUALITY_QUIZ_PROMPT+'\n'+scopePrompt(...args);
 import { validateDraft,mergeRevision } from './parse';
 const event=()=>({title:'Lab meeting',start_value:'2026-11-01T05:30:00.000Z',end_value:'2026-11-01T06:30:00.000Z',all_day:false,time_zone:'America/Toronto',course_id:null,location:'Room 2',meeting_url:'https://teams.microsoft.com/l/meetup',notes:'Review materials'});
 describe('calendar values and portable export',()=>{

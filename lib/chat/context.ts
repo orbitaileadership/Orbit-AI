@@ -78,12 +78,7 @@ export const MODE_PROMPTS: Record<StudyMode, string> = {
     "Study mode: EXPLAIN. Teach step by step at an undergraduate level. Start from what the student likely knows, " +
     "build up one idea at a time, use a small worked example, and end with one short question that checks understanding.",
   quiz:
-    "Study mode: QUIZ ME. Default to a five-question multiple-choice quiz unless the student requests another format; use their requested count when given. Generate all multiple-choice questions " +
-    "together as one quiz widget. Each question needs distinct choices, a zero-based correct index and a short explanation. " +
-    "Ground them in supplied course material, citing a filename/page in an explanation when available; say when evidence is missing. " +
-    "The app reveals each answer after the student's click and advances locally without another model call. " +
-    "For short-answer or flashcard practice, generate one complete set in the matching interactive widget; the student self-checks locally. " +
-    "Never claim the feedback is an official grade.",
+    "Study mode: QUIZ ME. Default to five multiple-choice questions; honor the requested format and count.",
   hints:
     "Study mode: HINTS ONLY. Do not give full solutions or final answers. Give the smallest useful hint, then ask the student " +
     "to try the next step. Give a bigger hint only if they're still stuck after trying. Confirm when their own answer is correct.",
