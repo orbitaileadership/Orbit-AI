@@ -16,6 +16,10 @@ Seeded from the conversation and existing engineering protocol on October 19, 20
 
 New entry format: decision; owner; date; source/link; affected behavior; what it supersedes. Preserve changed decisions as superseded rather than keeping contradictory active instructions.
 
+## November 2, 2026 — Topic-based study generation and private prompts
+
+Noah approved concise shared instructions for MCQ, flashcards and short answer: review substantive learning materials and research identified topics with available permitted tools before generation; use syllabi as scope maps, excluding administrative trivia. Respect course-only restrictions and disclose evidence limits. Full system instructions stay server-side, with only a short launch request exposed to the frontend. Noah explicitly authorized deploying this focused change to Orbit. See [handoff](handoffs/2026-11-02-topic-based-study-prompts.md).
+
 ## October 31, 2026 — Multiple-choice study flow
 
 Noah requested click-through multiple-choice questions without a new AI response after each choice. New MCQ quiz sessions generate the requested set in one model response, then grade and navigate locally. This supersedes one-question-per-model-turn MCQs for newly generated quizzes; short-answer practice and saved single-question widgets retain their existing flow. Noah merged [PR #43](https://github.com/orbitaileadership/Orbit-AI/pull/43), then reported the live site still used the old flow. The validated code was backported to the pinned Production branch rather than changing its schema-dependent branch tracking.

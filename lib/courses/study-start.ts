@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { studyConfig,studyPrompt,studyLaunchPrompt } from './quiz';
+import { studyConfig,studyLaunchPrompt } from './quiz';
+import { studyPrompt } from './study-prompt';
 import type {CourseDraft} from './types';
 
 /** Rebuild launch instructions from owned course data; never accept instructions from the browser. */
