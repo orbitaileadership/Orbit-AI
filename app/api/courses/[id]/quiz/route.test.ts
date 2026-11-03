@@ -16,11 +16,30 @@ it('shows a short launch request and resolves the full instructions only from ow
  expect(launchBody.prompt).not.toContain('orbit-widget');
  const db=s.db!.client as unknown as Parameters<typeof loadStudyInstructions>[0];
  const instructions=await loadStudyInstructions(db,'u',launch);
- expect(instructions).toMatchObject({format:'flashcards',count:5,prompt:expect.stringContaining('one fenced orbit-widget JSON block')});
+ expect(instructions).toMatchObject({format:'flashcards',count:5,prompt:expect.stringContaining('matching widget schema')});
  expect(instructions?.prompt).toContain('Cells');
  expect(await loadStudyInstructions(db,'v',launch)).toBeNull();
  s.db!.db.projects[1].user_id='v';
  expect(await loadStudyInstructions(db,'u',launch)).toBeNull();
+});
+it.each(['mcq','flashcards','short-answer'])('keeps %s system instructions and topic context out of create/reopen responses',async format=>{
+ const items=(s.db!.db.projects[0].course_data as {items:{details:string}[]}).items;
+ items[0].details='Cellular respiration';
+ (items as unknown[]).push({id:'topic',kind:'topic',title:'Cellular respiration',details:'ATP synthesis'});
+ const response=await (await POST(request({...body(),format}),ctx())).json();
+ const instructions=await loadStudyInstructions(s.db!.client as unknown as Parameters<typeof loadStudyInstructions>[0],'u',launch);
+ expect(instructions?.prompt).toContain('"topics":["Cellular respiration"]');
+ expect(response.prompt).toMatch(/^Create 5 /);
+ const reopened=await (await GET(new Request(`http://local/quiz?conversationId=${launch}`),ctx())).json();
+ expect(reopened.prompt).toBe(response.prompt);
+ for(const payload of [response,reopened]){
+  const json=JSON.stringify(payload);
+  expect(json).not.toContain('matching widget schema');
+  expect(json).not.toContain('untrusted data');
+  expect(json).not.toContain('Cellular respiration');
+  expect(json).not.toContain(instructions!.prompt);
+ }
+ expect(s.db!.db.messages).toHaveLength(0);
 });
 it('rejects reuse of a launch id with changed format',async()=>{await POST(request(),ctx());expect((await POST(request({...body(),format:'flashcards'}),ctx())).status).toBe(409);});
 it('rejects foreign courses and forged section folders',async()=>{s.db!.db.projects[1].user_id='v';expect((await POST(request(),ctx())).status).toBe(404);s.db!.db.projects[0].user_id='v';expect((await POST(request(),ctx())).status).toBe(404);});
