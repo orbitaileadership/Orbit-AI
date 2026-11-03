@@ -29,6 +29,22 @@ afterAll(async()=>{await db?.close();});
 async function reserve(id:string,bound:number=300000){
  return (await db.query<{r:{ok:boolean;reason?:string}}>(`select public.reserve_budget_v2($1,$2,'openai-default','text',$3,$4::jsonb,'{}') as r`,[U,id,bound,JSON.stringify({provider:'openai',operation:'chat',conversationId:C})])).rows[0].r;
 }
+describe('conversation archives and RLS', () => {
+ it('preserves owned history, blocks other students and restores without deleting data', async () => {
+   const own = 'dddddddd-1111-4111-8111-111111111111';
+   await db.exec(`insert into public.conversations(id,user_id,provider,model_id,title) values('${own}','${U}','openai','openai-default','Synthetic archive');
+   insert into public.messages(conversation_id,user_id,role,content) values('${own}','${U}','user','Synthetic archive history');
+   set role authenticated; select set_config('app.user_id','${V}',false);`);
+   try {
+     expect((await db.query(`update public.conversations set archived=true where id='${own}' returning id`)).rows).toHaveLength(0);
+     expect((await db.query(`select * from public.conversations where id='${own}'`)).rows).toHaveLength(0);
+     await db.exec(`select set_config('app.user_id','${U}',false);`);
+     expect((await db.query(`update public.conversations set archived=true where id='${own}' returning archived`)).rows).toEqual([{archived:true}]);
+     expect((await db.query(`select content from public.messages where conversation_id='${own}'`)).rows).toEqual([{content:'Synthetic archive history'}]);
+     expect((await db.query(`update public.conversations set archived=false where id='${own}' returning archived`)).rows).toEqual([{archived:false}]);
+   } finally { await db.exec(`reset role; delete from public.conversations where id='${own}';`); }
+ });
+});
 describe('financial SQL and RLS',()=>{
  it('serializes Orbit turns and keeps lease RPCs inaccessible to students',async()=>{
    const a='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', b='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';

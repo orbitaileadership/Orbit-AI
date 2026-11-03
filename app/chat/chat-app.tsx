@@ -35,6 +35,7 @@ import { VoiceMode } from "@/components/voice-mode";
 import { OneDriveDialog } from "@/components/onedrive-dialog";
 import { GitHubDialog } from "@/components/github-dialog";
 import { MailDialog, type MailTarget } from "@/components/mail-dialog";
+import { ArchivedChats } from "@/components/archived-chats";
 import { SearchChats } from "@/components/search-chats";
 import { PluginsPage } from "@/components/plugins-page";
 import { actionDraft, isPluginAction, isPluginTool, PLUGIN_BY_ID, pluginLinks, PLUGINS, pluginOfTool, type PluginId } from "@/lib/plugins/catalog";
@@ -147,6 +148,10 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const [dropped, setDropped] = useState<Record<string, boolean>>({});
   const [input, setInput] = useState("");
   const [imageMode, setImageMode] = useState(false);
+  const [archivesOpen, setArchivesOpen] = useState(false);
+  const [archiveStatus, setArchiveStatus] = useState("");
+  const [archiving, setArchiving] = useState<string | null>(null);
+  const archiveRef = useRef<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false); // phone: slide-in menu
   const [collapsed, setCollapsed] = useState(false); // computer: chats sidebar hidden (remembered)
   useEffect(() => {
@@ -533,6 +538,21 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     setSidebarOpen(false);
   }
 
+  async function archiveChat(id: string) {
+    if (runRef.current || archiveRef.current) return;
+    archiveRef.current = id;
+    setArchiveStatus("Archiving chat…");
+    const target = provider;
+    setArchiving(id);
+    const res = await fetch(`/api/conversations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ archived: true }) }).catch(() => null);
+    archiveRef.current = null;
+    setArchiving(null);
+    if (!res?.ok) { setArchiveStatus("Could not archive this chat. Try again."); return; }
+    setConvs(prev => ({ ...prev, [target]: (prev[target] ?? []).filter(c => c.id !== id) }));
+    setActiveIds(prev => prev[target] === id ? { ...prev, [target]: null } : prev);
+    setArchiveStatus("Chat archived. You can restore it anytime from Archived chats.");
+  }
+
   async function deleteChat(id: string) {
     const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" }).catch(() => null);
     if (!res?.ok) return;
@@ -713,7 +733,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const priorQuestion = readyQuizRetry ? [...(messages[msgKey] ?? [])].reverse().find(m => m.role === "user") : null;
     const content = text.trim() || (readyQuizRetry ? priorQuestion?.content?.trim() ?? "" : "");
     const ready = pending.filter((p) => p.file);
-    if ((!content && (!retry || readyQuizRetry) && !ready.length) || runRef.current || pending.some((p) => p.uploading)) return;
+    if ((!content && (!retry || readyQuizRetry) && !ready.length) || runRef.current || archiveRef.current || pending.some((p) => p.uploading)) return;
     const key = msgKey;
     const label = currentModel?.label ?? theme.appName;
     stick.current = true; // a new question always brings the view to the bottom
@@ -1105,7 +1125,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       <span className="h-3 w-3 rounded-[2px] bg-current" />
     </button>
   ) : (
-    <button type="submit" disabled={(!input.trim() && !pending.some((p) => p.file)) || run !== null || pending.some((p) => p.uploading)} aria-label={imageMode ? "Create image" : "Send"}
+    <button type="submit" disabled={(!input.trim() && !pending.some((p) => p.file)) || run !== null || archiving !== null || pending.some((p) => p.uploading)} aria-label={imageMode ? "Create image" : "Send"}
       className={`grid shrink-0 place-items-center bg-brand text-on-brand transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-30 ${theme.sendClass}`}>
       <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden>
         <path d="M8 13V3M3.5 7.5L8 3l4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
@@ -1397,6 +1417,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             Search chats
             <kbd className="ml-auto hidden font-sans text-xs text-ink-subtle md:inline">{isMac ? "⌘K" : "Ctrl K"}</kbd>
           </button>
+          <button disabled={busy || archiving !== null} onClick={() => { setArchivesOpen(true); setSidebarOpen(false); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] hover:bg-surface-200 disabled:opacity-60">Archived chats</button>
+          {archiveStatus && <p role="status" className="px-3 py-2 text-xs text-ink-muted">{archiveStatus}</p>}
           <button onClick={onCourses} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50 ${theme.itemClass}`}>
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M2.5 7.5 10 4l7.5 3.5L10 11 2.5 7.5zM5.5 9v3.6c0 1.2 2 2.4 4.5 2.4s4.5-1.2 4.5-2.4V9M17.5 7.5v4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
             Courses
@@ -1412,7 +1434,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           <CourseChatTree storageKey="provider-course-tree" courses={courseProjects} folders={projects[provider]} chats={appConvs ?? []} activeId={activeId}
             onCourse={c => selectCourse(c.id)} onSection={f => selectCourse(f.id)} onChat={c => { setProjectFilter(prev => ({ ...prev, [provider]: c.sectionFolderId ?? c.projectId })); setInput(""); setActive(c.id); setPage("chat"); setSidebarOpen(false); }}
             renamingId={renaming} onRenameCommit={renameChat} renderChatAction={c => <ChatRowMenu title={c.title || "chat"} folders={projects[provider]} folderId={c.sectionFolderId ?? c.projectId}
-              onRename={() => setRenaming(c.id)} onMove={id => moveToProject(c.id, id)} onDelete={() => deleteChat(c.id)} />} />
+              onRename={() => setRenaming(c.id)} onMove={id => moveToProject(c.id, id)} onArchive={run !== null || archiving !== null ? undefined : () => archiveChat(c.id)} onDelete={() => deleteChat(c.id)} />} />
           <FolderBrowser userId={userId} standaloneOnly onOpen={folder => {
             setProjects(prev => Object.fromEntries(PROVIDERS.map(p => [p, [folder, ...prev[p].filter(f => f.id !== folder.id)]])) as Record<ProviderId, Project[]>);
             selectCourse(folder.id);
@@ -1439,7 +1461,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                   )}
                   <div className="pr-1.5">
                     <ChatRowMenu title={c.title || "chat"} folders={projects[provider]} folderId={c.projectId ?? null}
-                      onRename={() => setRenaming(c.id)} onMove={(id) => moveToProject(c.id, id)} onDelete={() => deleteChat(c.id)} />
+                      onRename={() => setRenaming(c.id)} onMove={(id) => moveToProject(c.id, id)} onArchive={run !== null || archiving !== null ? undefined : () => archiveChat(c.id)} onDelete={() => deleteChat(c.id)} />
                   </div>
                 </div>
               ))}
@@ -1750,6 +1772,9 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
           hint={activeProject?.name}
         />
       )}
+      {archivesOpen && <ArchivedChats key={provider} provider={provider} onClose={() => setArchivesOpen(false)} onRestored={chat => {
+        setConvs(prev => ({ ...prev, [provider]: [chat, ...(prev[provider] ?? []).filter(c => c.id !== chat.id)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)) }));
+      }} />}
       <SearchChats open={searchOpen} onClose={() => setSearchOpen(false)} appName={theme.appName} onNew={newChat}
         chats={(appConvs ?? []).map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt }))} onOpen={(id) => { setActive(id); setPage("chat"); }} />
       <MailDialog target={mailTarget} onClose={() => setMailTarget(null)} onPicked={(files) => void attachFiles(files)} />

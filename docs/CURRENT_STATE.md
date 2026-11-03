@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 2, 2026 — context transfer and archives release candidate
+
+Prepared on the pinned PDF-only production base with independent review and desktop/phone synthetic checks. Import requires a successfully loaded Profile and explicit review/save; archives retain chat content and support search/restore. `0027_chat_archives.sql` is not applied: automatic approval review requires explicit authorization for the shared production database change. The app is not merged or deployed. [Release handoff](handoffs/2026-11-02-context-transfer-archives-release.md) records checks, the four reproduced baseline test failures, approval blocker and rollback.
+
 ## November 2, 2026 — topic-based quiz prompt release prepared
 
 `codex/topic-based-study-prompts` updates all three study formats to identify and review substantive subject topics, research only through permitted available tools, and exclude syllabus administration. Full instructions have an enforced server-only boundary; create/reopen responses retain a short visible request. Repeated instructions are reduced, with a 15–17% character-size reduction on identical synthetic regular-chat requests without optional topic metadata. Local tests, lint, typecheck, production build and independent review passed; Noah authorized deployment to the existing PDF-only production line. Exact release observations and limitations are tracked in [the handoff](handoffs/2026-11-02-topic-based-study-prompts.md). Signed-in/live model quality remains unverified.

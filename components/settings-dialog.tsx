@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { ProviderId } from "@/config/models";
+import { ImportContext } from "./import-context";
 import { ImportHistory } from "./import-history";
 import { emptyProfile, LENGTHS, LIMITS, STYLES, type Memory, type Profile } from "@/lib/profile/personal";
 import { ECONOMICS } from "@/config/economics";
@@ -27,7 +28,7 @@ const SECTIONS: { group: string; items: { key: SettingsTab | "plugins" | "analyt
   { group: "Personalization", items: [
     { key: "memory", label: "Memory", keywords: "memories remember forget delete", icon: icon(<><path d="M10 3.5a6.5 6.5 0 1 0 6.5 6.5" /><path d="M10 6.5V10l2.5 1.5" /><path d="M14 3.5h2.5V6" /></>) },
     { key: "courses", label: "Courses", keywords: "course instructions folders", icon: icon(<><path d="M3 5.5A1.5 1.5 0 0 1 4.5 4h3.5L9.5 5.5h6A1.5 1.5 0 0 1 17 7v7.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5z" /></>) },
-    { key: "import", label: "Import chats", keywords: "import history chatgpt claude export", icon: icon(<><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5" /><path d="M4 13.5V15a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 16 15v-1.5" /></>) },
+    { key: "import", label: "Import AI data", keywords: "import context preferences history chatgpt claude export", icon: icon(<><path d="M10 3v9M6.5 8.5 10 12l3.5-3.5" /><path d="M4 13.5V15a1.5 1.5 0 0 0 1.5 1.5h9A1.5 1.5 0 0 0 16 15v-1.5" /></>) },
   ] },
   { group: "Customize", items: [
     { key: "plugins", label: "Plugins & skills", keywords: "plugins skills connectors integrations google drive notion github", icon: icon(<><path d="M8 3.5h4v3a1.5 1.5 0 0 0 3 0V6h1.5v4h-1a1.5 1.5 0 0 0 0 3h1v3.5h-4v-1a1.5 1.5 0 0 0-3 0v1H3.5V13h1a1.5 1.5 0 0 0 0-3h-1V6H8z" /></>) },
@@ -88,6 +89,7 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
   const [saved, setSaved] = useState<Profile>(emptyProfile());
   const [memories, setMemories] = useState<Memory[]>([]);
   const [ready, setReady] = useState(true);
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [newMemory, setNewMemory] = useState("");
@@ -114,11 +116,13 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setProfileLoaded(false);
       const res = await fetch("/api/profile").catch(() => null);
       const out = res?.ok ? ((await res.json()) as { profile: Profile; memories: Memory[]; ready: boolean }) : null;
       if (cancelled) return;
       setLoading(false);
       if (!out) return setStatus("Couldn't load your settings. Try again.");
+      setProfileLoaded(true);
       setProfile(out.profile);
       setSaved(out.profile);
       setMemories(out.memories);
@@ -152,6 +156,7 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
   }, [open, tab, usageRefresh]);
 
   async function save(next: Profile, note = "Saved.") {
+    if (!profileLoaded || loading || !ready) return;
     setStatus("Saving…");
     const res = await fetch("/api/profile", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) }).catch(() => null);
     if (!res?.ok) return setStatus("Couldn't save. Try again.");
@@ -339,7 +344,7 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
 
                 <div className="mt-5 flex items-center justify-end gap-3">
                   {status && <span role="status" className="text-sm text-ink-muted">{status}</span>}
-                  <button type="submit" disabled={!dirty || loading || !ready} className={primary}>Save</button>
+                  <button type="submit" disabled={!dirty || loading || !ready || !profileLoaded} className={primary}>Save</button>
                 </div>
               </form>
             )}
@@ -490,7 +495,9 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
             {tab === "import" && (
               <div>
                 {heading("Import chats", "Bring conversations over from another AI app.")}
-                <ImportHistory onImported={(p) => onImported?.(p)} />
+                {!profileLoaded && !loading && status && <p role="status" className="mb-3 text-sm text-ink-muted">{status} Close Settings and reopen to try again.</p>}
+                <ImportContext profile={profile} disabled={loading || !ready || !profileLoaded} onReview={(next) => { setProfile(next); setTab("profile"); setStatus("Review your imported context below, then Save. Nothing has been saved yet."); }} />
+                <div className="mt-8 border-t border-line pt-6"><ImportHistory onImported={(p) => onImported?.(p)} /></div>
               </div>
             )}
 

@@ -12,10 +12,10 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
     private filters: ((r: Row) => boolean)[] = [];
     private op: "select" | "insert" | "update" | "delete" = "select";
     private payload: Row | Row[] | null = null;
-    private orderBy: string | null = null;
-    private descending=false;
+    private ordering: {column: string; descending: boolean}[] = [];
     private returning = false;
     private exactCount = false;
+    private bounds: [number, number] | null = null;
     constructor(private table: string) {}
     select(_columns?: string, options?: { count?: string }) { if (this.op !== "select") this.returning = true; this.exactCount = options?.count === "exact"; return this; }
     insert(p: Row | Row[]) { this.op = "insert"; this.payload = p; return this; }
@@ -39,8 +39,9 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
       this.filters.push((r) => parts.some(([c, op, v]) => (op === "is" ? (r[c] ?? null) === null : String(r[c]) === v)));
       return this;
     }
-    order(c: string,o?:{ascending?:boolean}) { this.orderBy = c; this.descending=o?.ascending===false; return this; }
+    order(c: string,o?:{ascending?:boolean}) { this.ordering.push({column:c,descending:o?.ascending===false}); return this; }
     limit() { return this; }
+    range(from: number, to: number) { this.bounds = [from, to]; return this; }
     private run(): Row[] {
       const t = (db[this.table] ??= []);
       if (this.op === "insert") {
@@ -61,8 +62,8 @@ export function fakeSupabase(tables: Record<string, Row[]> = {}, rowCaps: Record
       const hit = t.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") hit.forEach((r) => Object.assign(r, this.payload));
       if (this.op === "delete") db[this.table] = t.filter((r) => !hit.includes(r));
-      if (this.orderBy) hit.sort((a,b)=>{const x=a[this.orderBy!] as string|number,y=b[this.orderBy!] as string|number;const n=x===y?0:x<y?-1:1;return this.descending?-n:n;});
-      return hit;
+      if (this.ordering.length) hit.sort((a,b)=>{ for (const {column,descending} of this.ordering) { const x=a[column] as string|number,y=b[column] as string|number; const n=x===y?0:x<y?-1:1; if(n)return descending?-n:n; } return 0; });
+      return this.bounds ? hit.slice(this.bounds[0], this.bounds[1] + 1) : hit;
     }
     async single() { const r = this.run(); return { data: r[0] ?? null, error: r[0] ? null : { message: "none" } }; }
     async maybeSingle() { return { data: this.run()[0] ?? null, error: null }; }
