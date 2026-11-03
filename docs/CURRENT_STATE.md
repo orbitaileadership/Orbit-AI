@@ -6,7 +6,7 @@
 
 ## API cost efficiency work — October 27, 2026
 
-`feat/request-cost-ceiling-prod` adds a ledger-backed 1% ceiling per logical request, less expensive visible defaults, smaller output caps, shared IDs across chat/Orbit/voice operations, an Orbit affordability preflight and a private request-cost report. The existing v5 response prompt is retained. Migration 0027 is separate from the unreleased large-file migration 0026. The ceiling is exact for reserved budget commitments, while actual provider overrun remains a risk. First chat POSTs from current clients are deduplicated by a stable turn ID. See [assessment and cost comparison](API_COST_EFFICIENCY.md) and [handoff](handoffs/2026-10-27-api-cost-efficiency.md).
+`feat/request-cost-ceiling-prod` adds a ledger-backed 1% ceiling per logical request, less expensive visible defaults, smaller output caps, shared IDs across chat/Orbit/voice operations, an Orbit affordability preflight and a private request-cost report. The existing v5 response prompt is retained. Migration 0027 is separate from the unreleased large-file migration 0026; 0027 passed isolated staging application and permission checks on November 2, while production remains unchanged. The ceiling is exact for reserved budget commitments, while actual provider overrun remains a risk. First chat POSTs from current clients are deduplicated by a stable turn ID. See [assessment and cost comparison](API_COST_EFFICIENCY.md) and [handoff](handoffs/2026-10-27-api-cost-efficiency.md).
 
 ## November 1, 2026 — course flashcard launch fix prepared
 

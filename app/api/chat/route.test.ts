@@ -84,7 +84,7 @@ describe("POST /api/chat", () => {
   it("rejects a repeated initial turn before reserving or calling the provider", async () => {
     state.live = true;
     const clientRequestId = crypto.randomUUID();
-    const first = await readEvents(await POST(req({provider:"anthropic",modelId:"anthropic-default",content:"One question",clientRequestId})));
+    await readEvents(await POST(req({provider:"anthropic",modelId:"anthropic-default",content:"One question",clientRequestId})));
     const second = await POST(req({provider:"anthropic",modelId:"anthropic-default",content:"One question",clientRequestId}));
     expect(second.status).toBe(409);
     expect(await second.json()).toMatchObject({error:"duplicate_request"});

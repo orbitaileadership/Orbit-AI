@@ -1,8 +1,8 @@
-# API cost efficiency — local implementation, October 27, 2026
+# API cost efficiency — production release candidate, November 2, 2026
 
 ## Scope and priority
 
-P0 financial safeguard: at most 1% of the user's remaining rolling daily allowance may be **reserved and charged by the budget ledger for one logical request**, measured at its first reservation. The owner explicitly prioritized cost efficiency over response polish. No production migration, deployment, live model call or paid benchmark is part of this implementation.
+P0 financial safeguard: at most 1% of the user's remaining rolling daily allowance may be **reserved and charged by the budget ledger for one logical request**, measured at its first reservation. The owner explicitly prioritized cost efficiency over response polish. Migration 0027 has been applied and permission-checked in the isolated staging project only. No production migration, deployment, live model call or paid benchmark has occurred for this release.
 
 ## Current cost assessment and ranked opportunities
 
@@ -43,7 +43,7 @@ No real before/after API cost or response-quality measurements exist yet. The ex
 
 ## Validation and limits
 
-Local PGlite tests cover snapshot arithmetic, shared calls, settlement release, duplicate rejection, user isolation, service-role bypass denial and admin-report access. Route tests cover chat (including the duplicate first-POST guard), Orbit's preflight, voice and analytics. Focused tests, typecheck, scoped lint and webpack production build passed. The full suite had 12 failures: 9 unchanged course/helper failures reproduced on the baseline, and 3 office/file timeouts under full-suite contention that passed when rerun alone. No live provider or shared database was touched.
+Local PGlite tests cover snapshot arithmetic, shared calls, settlement release, duplicate rejection, user isolation, service-role bypass denial and admin-report access. Route tests cover chat (including the duplicate first-POST guard), Orbit's preflight, voice and analytics. On the pinned PDF-only production line, 173 focused tests, typecheck, lint and webpack production build passed. The full suite had 848 passes, 9 failures and 5 skips; the failures are in unchanged course/helper tests and match the nine earlier baseline failures. The isolated staging database accepted migration 0027; read-only verification confirmed RLS, service-only v3/report execution, and denied legacy v2 execution. No live provider was called.
 
 The ceiling is exact for **budget commitments** made through `reserve_budget_v3`. Actual provider expense can exceed a reservation if a provider reports more billable units than the conservative estimate; the ledger preserves the true charge and the report flags an over-cap request. This means an absolute external-provider 1% guarantee is not yet demonstrated. Multimodal token counting, provider price changes and unreported usage need production reconciliation. Legacy clients that omit the new turn ID can still create duplicate initial questions; each receives its own cap. The older OpenAI optional-setting 400 retry remains inside one reservation and should be reviewed against provider billing rules.
 
