@@ -5,13 +5,14 @@ import { useEffect, useRef, useState } from "react";
 type Folder = { id: string; name: string };
 
 /** The "⋯" menu on a chat in the sidebar, as in ChatGPT and Claude: rename, move to a folder, delete. */
-export function ChatRowMenu({ title, folders, folderId, onRename, onMove, onDelete }: {
+export function ChatRowMenu({ title, folders, folderId, onRename, onMove, onDelete, onArchive }: {
   title: string;
   folders: Folder[];
   folderId: string | null;
   onRename: () => void;
   onMove: (folderId: string | null) => void;
   onDelete: () => void;
+  onArchive?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [moving, setMoving] = useState(false);
@@ -67,6 +68,7 @@ export function ChatRowMenu({ title, folders, folderId, onRename, onMove, onDele
                   <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden className="text-ink-subtle"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
                 </button>
               )}
+              {onArchive && <button type="button" role="menuitem" onClick={() => { onArchive(); close(); }} className={row}>Archive</button>}
               <div className="my-1 border-t border-line" />
               <button type="button" role="menuitem" onClick={() => { onDelete(); close(); }} className={`${row} text-danger hover:bg-danger-surface`}>
                 <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
