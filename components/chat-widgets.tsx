@@ -158,7 +158,8 @@ function XYChart({ w }: { w: ChartWidget }) {
   const gw = bar ? Math.min(28, (band * 0.72) / w.series.length) : 0;
   return (
     <div className="relative px-2 pt-2">
-      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full touch-none select-none" role="img" aria-label={w.title ?? "Chart"}
+      {w.yLabel && <p className="px-3 pb-1 text-[11px] text-ink-subtle">Y axis: {w.yLabel}</p>}
+      <svg ref={svg} viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full touch-none select-none" role="img" aria-label={[w.title ?? "Chart", w.xLabel && `X axis: ${w.xLabel}`, w.yLabel && `Y axis: ${w.yLabel}`].filter(Boolean).join(". ")}
         onPointerMove={(e) => pick(e.clientX)} onPointerDown={(e) => pick(e.clientX)} onPointerLeave={() => setHover(null)}>
         <defs><clipPath id={clip}><rect x={PAD.l} y={PAD.t - 4} width={iw} height={ih + 8} /></clipPath></defs>
         {ticks.map((t) => (
