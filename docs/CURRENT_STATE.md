@@ -2,7 +2,7 @@
 
 ## November 8, 2026 — local approval-gated feedback coordinator
 
-In isolated branch `codex/local-feedback-coordinator`, the four-role feedback controller supports continuous low-cost website testing, two submissions per loop, and a mandatory owner approval gate after every report. The owner selected Vercel for testing and authorized publishing this coordinator branch; application fixes and deployment still require approval. The first journaled GPT-5 nano test returned an API-key rejection, with no answer or automatic retry. The ten-minute heartbeat remains paused; the failed submission needs reconciliation before another attempt. All 52 mocked/artifact tests pass; live answer quality is unverified. See [handoff](handoffs/2026-11-08-continuous-feedback-approval.md).
+In isolated branch `codex/local-feedback-coordinator`, the four-role feedback controller supports continuous website testing, two submissions per loop, and owner approval after every report. The owner repaired the initial OpenAI credential failure; loop2's two fresh GPT-5 nano answers passed independent review with no code change. The owner then authorized higher-tier/cross-provider testing, especially Orbit Mode, and a same-source pinned-production redeploy, which reached Ready. Loop3's four ballots selected Gemini3.1Pro, but its lead-answer call returned HTTP429 (`rate_limit`); the held-out Claude task was not sent and no code patch was justified. The heartbeat remains paused pending Gemini quota/rate investigation and failed-attempt reconciliation. The earlier52 mocked/artifact tests passed; this is not full-site validation. See [latest handoff](handoffs/2026-11-08-feedback-loop3-policy.md).
 
 ## November 2, 2026 — topic-based quiz prompts released
 
