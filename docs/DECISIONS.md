@@ -1,5 +1,9 @@
 # Orbit AI — approved decisions register
 
+## November 8, 2026 — automatic feedback release authorization
+
+Noah's Working Chat request, “fix the Gemini issue and implement the automatic merging and deployment so the loops can keep running, and send the plain English updates to Slack,” authorizes this workflow's reviewed source changes, PR merges to pinned `codex/pdf-only-production`, Vercel verification and immediate continuation. Reports go to `#loop-feedback-report` and say what broke, what was fixed and what comes next. This supersedes per-loop human approval for in-scope automatic candidates. It does not authorize shared migrations, account-budget increases, payment activation, credential changes or bypassing protections. If Gemini's light models have no remaining allowance, test another provider and disclose the change; do not retry/substitute within a failed request. See [execution protocol](FEEDBACK_AUTOMATION.md).
+
 Seeded from the conversation and existing engineering protocol on October 19, 2026. Jake/Noah should review before adopting. Add the exact issue/PR/chat reference as it becomes available. Proposed priorities belong in CURRENT_STATE until approved.
 
 | Decision | Owner/source | Date/status |

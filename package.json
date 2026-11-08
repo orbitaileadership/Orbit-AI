@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "feedback": "node scripts/feedback/cli.mjs",
+    "feedback:app": "node scripts/feedback/app-loop.mjs",
+    "feedback:candidate": "node scripts/feedback/candidate.mjs",
+    "test:feedback": "node --test scripts/feedback/*.test.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 8, 2026 — automatic feedback release candidate
+
+The owner authorized automatic reviewed PR merging, verified production deployment, plain-English Slack reports and immediate next-loop continuation. Draft PR54 is based on pinned production, not main, and adds durable exact-evidence release gates plus CI. Its local migration 0028 repairs an existing course-deletion folder-link defect; applying it to the shared database awaits separate owner approval. Node 22 CI on `23ff82e` passed all 64 coordinator tests, 879 application tests, lint, typecheck and build; its Vercel Preview passed. Independent review found no remaining code blockers. PR55's Gemini change merged as `270a950` and is verified Ready/Current in production: four-provider Orbit voting with a correct Claude answer and a separate correct Gemini 3.8 Flash answer both completed through the website. Gemini as an elected Orbit lead remains unverified. Review identified an existing dollar-sign rendering defect for a future loop. The updated ten-minute recovery automation remains paused pending the separate database approval and bootstrap release. See [handoff](handoffs/2026-11-08-automatic-feedback-release.md).
+
 ## November 2, 2026 — context transfer and archives release candidate
 
 Prepared on the pinned PDF-only production base with independent review and desktop/phone synthetic checks. Import requires a successfully loaded Profile and explicit review/save; archives retain chat content and support search/restore. `0027_chat_archives.sql` is not applied: automatic approval review requires explicit authorization for the shared production database change. The app is not merged or deployed. [Release handoff](handoffs/2026-11-02-context-transfer-archives-release.md) records checks, the four reproduced baseline test failures, approval blocker and rollback.

@@ -273,7 +273,8 @@ describe('course folders', () => {
    insert into public.projects(id,user_id,provider,name,is_folder,parent_course_id) values('${folder}','${U}',null,'Assignment 1',true,'${course}'),('${second}','${U}',null,'Assignment 2',true,'${course}');
    update public.conversations set project_id='${folder}' where id='${C}';`);
   expect((await db.query(`select id from public.projects where parent_course_id='${course}'`)).rows).toHaveLength(2);
-  expect((await db.query(`select project_id from public.conversations where id='${C}'`)).rows[0]).toMatchObject({project_id:folder});
+  // Migration 0024 keeps the course as owner while retaining the section's context link.
+  expect((await db.query(`select project_id,section_folder_id from public.conversations where id='${C}'`)).rows[0]).toMatchObject({project_id:course,section_folder_id:folder});
  });
  it('rejects cross-owner, nested-folder and course-to-folder conversions at the database boundary',async()=>{
   await expect(db.exec(`update public.projects set parent_course_id='${other}' where id='${folder}'`)).rejects.toThrow(/folder_course_owner_mismatch/);
@@ -289,10 +290,42 @@ describe('course folders', () => {
  it('detaches folders when their course is deleted without deleting folder chats or files',async()=>{
   const file='85858585-8585-4585-8585-858585858585';
   await db.exec(`insert into public.files(id,user_id,name,mime,size_bytes,storage_path,kind,project_id) values('${file}','${U}','synthetic.txt','text/plain',12,'${U}/${file}/synthetic.txt','document','${folder}');
+    insert into public.messages(conversation_id,user_id,role,content) values('${C}','${U}','user','Synthetic section history survives course deletion');
     delete from public.projects where id='${course}';`);
   expect((await db.query(`select parent_course_id from public.projects where id='${folder}'`)).rows[0]).toEqual({parent_course_id:null});
   expect((await db.query(`select project_id from public.conversations where id='${C}'`)).rows[0]).toEqual({project_id:folder});
+  expect((await db.query(`select section_folder_id,section_unavailable from public.conversations where id='${C}'`)).rows[0]).toEqual({section_folder_id:null,section_unavailable:false});
+  expect((await db.query(`select content from public.messages where conversation_id='${C}' and content='Synthetic section history survives course deletion'`)).rows).toHaveLength(1);
   expect((await db.query(`select project_id from public.files where id='${file}'`)).rows[0]).toEqual({project_id:folder});
+  await db.exec(`set role authenticated; select set_config('app.user_id','${V}',false);`);
+  try{expect((await db.query(`select id from public.conversations where id='${C}'`)).rows).toHaveLength(0);}
+  finally{await db.exec('reset role');}
+ });
+ it('honors explicit chat detachment while the parent course still exists',async()=>{
+  const parent=crypto.randomUUID(),section=crypto.randomUUID(),chat=crypto.randomUUID();
+  await db.exec('begin');
+  try{
+   await db.exec(`insert into public.projects(id,user_id,name) values('${parent}','${U}','Synthetic detach course');
+    insert into public.projects(id,user_id,name,is_folder,parent_course_id) values('${section}','${U}','Synthetic detach section',true,'${parent}');
+    insert into public.conversations(id,user_id,provider,model_id,project_id) values('${chat}','${U}','openai','openai-default','${section}');
+    update public.conversations set project_id=null where id='${chat}';`);
+   expect((await db.query(`select project_id,section_folder_id from public.conversations where id='${chat}'`)).rows).toEqual([{project_id:null,section_folder_id:null}]);
+   expect((await db.query(`select id from public.projects where id='${parent}'`)).rows).toHaveLength(1);
+  }finally{await db.exec('rollback');}
+ });
+ it.each(['projects','account'] as const)('preserves no-chat %s deletion without modifying project rows in a delete trigger',async target=>{
+  const owner=crypto.randomUUID(),parent=crypto.randomUUID(),section=crypto.randomUUID();
+  await db.exec('begin');
+  try{
+   await db.exec(`insert into auth.users values('${owner}','synthetic-deletion@uwo.ca',now());
+    insert into public.projects(id,user_id,name) values('${parent}','${owner}','Synthetic deletion course');
+    insert into public.projects(id,user_id,name,is_folder,parent_course_id) values('${section}','${owner}','Synthetic deletion section',true,'${parent}');`);
+   if(target==='projects')await db.exec(`delete from public.projects where user_id='${owner}'`);
+   else await db.exec(`delete from auth.users where id='${owner}'`);
+   expect((await db.query(`select id from public.projects where user_id='${owner}'`)).rows).toHaveLength(0);
+   expect((await db.query(`select id from auth.users where id='${owner}'`)).rows).toHaveLength(target==='account'?0:1);
+   expect((await db.query(`select id from public.projects where id='${other}' and user_id='${V}'`)).rows).toHaveLength(1);
+  }finally{await db.exec('rollback');}
  });
 });
 
