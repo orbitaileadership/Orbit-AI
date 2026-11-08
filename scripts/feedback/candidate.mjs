@@ -1,6 +1,6 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdir, readFile, writeFile, realpath, lstat, symlink, readdir, readlink } from 'node:fs/promises';
-import { resolve, join, relative, isAbsolute, extname } from 'node:path';
+import { resolve, join, relative, isAbsolute, extname, dirname } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import net from 'node:net';
@@ -111,6 +111,23 @@ export async function sourceDigest(candidate) {
   }
   return digest(JSON.stringify(files));
 }
+async function syntaxFormats(candidate, path) {
+  if (extname(path) === '.mjs') return ['module'];
+  let directory = dirname(join(candidate, path));
+  while (directory === candidate || within(candidate, directory)) {
+    const packagePath = join(directory, 'package.json');
+    if (await exists(packagePath)) {
+      const { type } = JSON.parse(await readFile(packagePath, 'utf8'));
+      if (type === 'module' || type === 'commonjs') return [type];
+      break;
+    }
+    if (directory === candidate) break;
+    directory = dirname(directory);
+  }
+  // Node 22's implicit .js module detection can return success before parsing
+  // the rest of an ES module. Explicit stdin grammars avoid that false pass.
+  return ['module', 'commonjs'];
+}
 export async function verify({ candidate, runDir, checks = ['diff'], timeoutMs = 120000 }) {
   runDir = await realpath(resolve(runDir)); candidate = await realpath(resolve(candidate));
   const manifest = JSON.parse(await readFile(join(runDir, 'candidate-manifest.json'), 'utf8'));
@@ -121,17 +138,29 @@ export async function verify({ candidate, runDir, checks = ['diff'], timeoutMs =
   for (const name of await readdir(candidate)) if (/^\.env($|\.)/.test(name) && !name.endsWith('.example')) throw new Error('Environment files prohibited in candidate');
   const before = await sourceDigest(candidate), results = [];
   if (before !== manifest.candidateDigest || digest(await readFile(join(runDir, 'candidate.patch'))) !== manifest.patchSha256) throw new Error('Prepared candidate or patch changed; prepare a new reviewed candidate');
-  const execute = (name, binary, args) => {
-    const r = spawnSync(binary, args, { cwd: candidate, env: environment(), encoding: 'utf8', timeout: timeoutMs, maxBuffer: 2_000_000, windowsHide: true });
+  const execute = (name, binary, args, options = {}) => {
+    const env = environment();
+    // --check only parses supplied text; executing preload hooks is unnecessary.
+    // Every executing tool below retains the offline guard and stripped env.
+    if (options.syntaxOnly) delete env.NODE_OPTIONS;
+    const r = spawnSync(binary, args, { cwd: candidate, env, input: options.input, encoding: 'utf8', timeout: timeoutMs, maxBuffer: 2_000_000, windowsHide: true });
     const result = { name, command: [binary, ...args], status: r.error ? 'failed' : r.status === 0 ? 'passed' : 'failed', exitCode: r.status, timedOut: r.error?.code === 'ETIMEDOUT', stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
-    results.push(result); return result;
+    if (!options.syntaxOnly) results.push(result); return result;
   };
   for (const check of checks) {
     if (check === 'diff') execute(check, 'git', ['diff', '--check']);
     else if (check === 'syntax') {
       const files = manifest.paths.filter(p => ['.js', '.mjs'].includes(extname(p)));
       if (!files.length) results.push({ name: check, status: 'skipped', reason: 'No JavaScript files; TypeScript requires typecheck.' });
-      for (const path of files) if (await exists(join(candidate, path))) execute(`syntax:${path}`, process.execPath, ['--check', path]);
+      for (const path of files) if (await exists(join(candidate, path))) {
+        const input = await readFile(join(candidate, path), 'utf8'), attempts = [];
+        for (const format of await syntaxFormats(candidate, path)) {
+          const result = execute(`syntax:${path}`, process.execPath, ['--check', `--input-type=${format}`, '-'], { syntaxOnly: true, input });
+          attempts.push(result);
+          if (result.status === 'passed' || result.timedOut) break;
+        }
+        results.push({ ...attempts.at(-1), attempts });
+      }
     } else {
       const commands = { lint: [['eslint/bin/eslint.js', ...manifest.paths.filter(p => /\.[cm]?[jt]sx?$/.test(p))]], typecheck: [['next/dist/bin/next', 'typegen'], ['typescript/bin/tsc', '--noEmit']], test: [['vitest/vitest.mjs', 'run']], build: [['next/dist/bin/next', 'build', '--webpack']] };
       for (const args of commands[check]) {
