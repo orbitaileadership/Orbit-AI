@@ -46,3 +46,6 @@ next-env.d.ts
 
 # live evaluation output (may contain model answers)
 /benchmarks/results/
+
+# Private feedback evidence and disposable candidates
+/.feedback-runs/

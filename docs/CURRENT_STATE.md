@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 8, 2026 — automatic feedback release candidate
+
+The owner authorized automatic reviewed PR merging, verified production deployment, plain-English Slack reports and immediate next-loop continuation. The isolated `codex/automatic-feedback-release` candidate is based on pinned production, not main. It adds durable exact-evidence release gates and offline CI. Google AI Studio shows the Orbit project has zero Gemini 3.1 Pro allowance; the candidate selects available Gemini 3.8 Flash before voting and preserves explicit thinking and actual-model accounting. Local feedback tests (62) and focused provider tests (124), lint/typecheck and an offline build passed. Full-suite validation exposed stale test fixtures plus an existing course-deletion database-link defect; release remains blocked pending that defect's separate repair/approval. No claim of a live Gemini fix or enabled unattended releases yet. See [handoff](handoffs/2026-11-08-automatic-feedback-release.md).
+
 ## November 2, 2026 — context transfer and archives release candidate
 
 Prepared on the pinned PDF-only production base with independent review and desktop/phone synthetic checks. Import requires a successfully loaded Profile and explicit review/save; archives retain chat content and support search/restore. `0027_chat_archives.sql` is not applied: automatic approval review requires explicit authorization for the shared production database change. The app is not merged or deployed. [Release handoff](handoffs/2026-11-02-context-transfer-archives-release.md) records checks, the four reproduced baseline test failures, approval blocker and rollback.

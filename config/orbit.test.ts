@@ -23,7 +23,7 @@ describe("Orbit voting model configuration", () => {
     expect(ORBIT.candidates).toEqual({
       openai: "openai-default",
       anthropic: "anthropic-default",
-      google: "google-pro",
+      google: "google-default",
       xai: "xai-default",
     });
   });

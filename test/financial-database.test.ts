@@ -273,7 +273,8 @@ describe('course folders', () => {
    insert into public.projects(id,user_id,provider,name,is_folder,parent_course_id) values('${folder}','${U}',null,'Assignment 1',true,'${course}'),('${second}','${U}',null,'Assignment 2',true,'${course}');
    update public.conversations set project_id='${folder}' where id='${C}';`);
   expect((await db.query(`select id from public.projects where parent_course_id='${course}'`)).rows).toHaveLength(2);
-  expect((await db.query(`select project_id from public.conversations where id='${C}'`)).rows[0]).toMatchObject({project_id:folder});
+  // Migration 0024 keeps the course as owner while retaining the section's context link.
+  expect((await db.query(`select project_id,section_folder_id from public.conversations where id='${C}'`)).rows[0]).toMatchObject({project_id:course,section_folder_id:folder});
  });
  it('rejects cross-owner, nested-folder and course-to-folder conversions at the database boundary',async()=>{
   await expect(db.exec(`update public.projects set parent_course_id='${other}' where id='${folder}'`)).rejects.toThrow(/folder_course_owner_mismatch/);

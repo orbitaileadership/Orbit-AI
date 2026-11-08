@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL("./", import.meta.url)), "server-only": fileURLToPath(new URL("./node_modules/next/dist/compiled/server-only/empty.js", import.meta.url)) } },
-  test: { environment: "node" },
+  test: { environment: "node", exclude: [...configDefaults.exclude, "scripts/feedback/**", ".feedback-runs/**"] },
 });
