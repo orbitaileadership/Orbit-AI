@@ -1,0 +1,40 @@
+name: Feedback release checks
+
+on:
+  pull_request:
+    branches: [codex/pdf-only-production, main]
+  push:
+    branches: [codex/pdf-only-production]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: feedback-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Offline verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      LIVE_MODELS: 'off'
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_synthetic_ci_only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npm run test:feedback
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -- --webpack

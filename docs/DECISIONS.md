@@ -1,5 +1,9 @@
 # Orbit AI — approved decisions register
 
+## November 8, 2026 — merge reviewed feedback changes into main
+
+Noah explicitly requested merging the reviewed production changes into `main` before loop 8. This authorizes a checked integration PR to `main`; it does not change Vercel's existing production branch or the immutable release grant of the paused loop. Future automatic releases need their target and deployment configuration aligned before resuming. This supersedes the earlier instruction to never merge the feedback work into `main`.
+
 Seeded from the conversation and existing engineering protocol on October 19, 2026. Jake/Noah should review before adopting. Add the exact issue/PR/chat reference as it becomes available. Proposed priorities belong in CURRENT_STATE until approved.
 
 | Decision | Owner/source | Date/status |

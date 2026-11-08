@@ -57,6 +57,23 @@ describe("Orbit endpoint",()=>{
    s.call.mockImplementation(async o=>({text:JSON.stringify({nominee:o.model.provider,collaborate:false,specialist:null}),finish:"stop"}));
    const text=await(await POST(req({content:"question"}))).text();expect(text).toContain("orbit_vote_failed");expect(s.call).toHaveBeenCalledTimes(1);expect(s.fake!.db.messages.filter(m=>m.role==="assistant")).toHaveLength(0);
  });
+ it("describes Flash before voting and persists the actual Google lead with explicit effort",async()=>{
+   s.call.mockImplementation(async o=>{
+     if(o.operation==="orbit_vote")return {text:JSON.stringify({nominee:o.model.provider==="google"?"anthropic":"google",collaborate:false,specialist:null}),finish:"stop"};
+     o.delta?.("Synthetic Flash answer");return {text:"Synthetic Flash answer",finish:"stop"};
+   });
+   const events=await(await POST(req({content:"Compare two synthetic investment options",thinkingLevel:"medium"}))).text();
+   expect(events).toContain('"t":"done"');
+   for(const [vote] of s.call.mock.calls.filter(([o])=>o.operation==="orbit_vote")){
+     expect(vote.system).toContain("google: Gemini 3.8 Flash");
+     expect(vote.system).not.toContain("Gemini 3.1 Pro");
+   }
+   const answers=s.call.mock.calls.filter(([o])=>o.operation==="orbit_answer");
+   expect(answers).toHaveLength(1);
+   expect(answers[0][0]).toMatchObject({model:{id:"google-default",apiModel:"gemini-3.8-flash"},thinkingLevel:"medium"});
+   expect(events).toContain('"modelId":"google-default"');
+   expect(s.fake!.db.messages.find(m=>m.role==="assistant")).toMatchObject({model_id:"google-default",status:"complete",orbit_details:{lead:"google",thinkingLevel:"medium"}});
+ });
  it("adds only one specialist when three ballots request collaboration",async()=>{
    s.call.mockImplementation(async o=>{
      if(o.operation==="orbit_vote"){const voter=o.model.provider;const nominee=voter==="anthropic"?"openai":"anthropic";const specialist=voter==="google"?"xai":"google";return {text:JSON.stringify({nominee,collaborate:true,specialist}),finish:"stop"};}

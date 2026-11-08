@@ -64,9 +64,16 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/conversati
   if ("error" in auth) return auth.error;
   const { id } = await ctx.params;
   if (!isUuid(id)) return json({ error: "not_found" }, 404);
-  const body = (await request.json().catch(() => ({}))) as { title?: unknown; projectId?: unknown; modelId?: unknown };
+  const body = await request.json().catch(() => null) as { title?: unknown; projectId?: unknown; modelId?: unknown; archived?: unknown } | null;
+  if (!body || typeof body !== "object" || Array.isArray(body)) return json({ error: "bad_request" }, 400);
 
   const patch: Record<string, unknown> = {};
+  if (body.archived !== undefined) {
+    if (typeof body.archived !== "boolean") return json({ error: "bad_request" }, 400);
+    patch.archived = body.archived;
+    // Restored chats return to Recents even when their old date is outside the list limit.
+    if (!body.archived) patch.updated_at = new Date().toISOString();
+  }
   if (typeof body.title === "string" && body.title.trim()) patch.title = body.title.trim().slice(0, 120);
   if (body.projectId === null || isUuid(body.projectId)) {
     patch.project_id = body.projectId;
@@ -83,9 +90,10 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/conversati
   if (!Object.keys(patch).length) return json({ error: "bad_request" }, 400);
 
   // RLS also checks that a project belongs to this user and the same app.
-  const { error } = await auth.supabase.from("conversations").update(patch).eq("id", id);
+  const { data, error } = await auth.supabase.from("conversations").update(patch).eq("id", id).eq("user_id", auth.user.id).select("id").maybeSingle();
   if (error) return dbError(error, "save_failed", 400);
-  return json({ ok: true });
+  if (!data) return json({ error: "not_found" }, 404);
+  return json({ ok: true, ...(patch.updated_at ? { updatedAt: patch.updated_at } : {}) });
 }
 
 export async function DELETE(_: Request, ctx: RouteContext<"/api/conversations/[id]">) {
