@@ -18,18 +18,56 @@ import { ChatWidget, WidgetPending } from "./chat-widgets";
 // language label and Copy, and LaTeX maths. Citation markers ([S1] course files, [W2] web) become small chips.
 const tagOf = (s: Pick<Source, "kind" | "n">) => `${s.kind === "web" ? "W" : "S"}${s.n}`;
 
+// remark-math treats even TeX's escaped dollar as a delimiter inside inline math.
+// Use an equivalent KaTeX character command there, leaving prose escapes intact.
+const mathCurrency = (body: string) => body.replace(/\\\$/g, String.raw`\text{\char36}`);
+
+function prepareDollars(text: string): string {
+  let result = "";
+  for (let i = 0; i < text.length;) {
+    if (text[i] === "\\") {
+      // Explicit math delimiters are unambiguous, including numeric expressions.
+      const close = text[i + 1] === "(" ? "\\)" : text[i + 1] === "[" ? "\\]" : null;
+      const end = close ? text.indexOf(close, i + 2) : -1;
+      if (end >= 0) {
+        const body = mathCurrency(text.slice(i + 2, end).trim());
+        result += close === "\\)" ? `$${body}$` : `\n$$\n${body}\n$$\n`;
+        i = end + 2;
+      } else { result += text.slice(i, i + 2); i += 2; }
+      continue;
+    }
+    if (text[i] !== "$") { result += text[i++]; continue; }
+    const delimiter = text[i + 1] === "$" ? "$$" : "$";
+    let end = i + delimiter.length;
+    for (; end < text.length; end++) {
+      if (text[end] === "\\") { end++; continue; }
+      if (text.startsWith(delimiter, end)) break;
+    }
+    const body = text.slice(i + delimiter.length, end);
+    // A numeric currency opener must not consume the next price (or the opening
+    // dollar of a following formula). Keep ordinary $2x$ and $2 + 2 = 4$ math.
+    const currency = delimiter === "$" && /^[+-]?(?:\d|\.\d)/.test(body) &&
+      (end === text.length || /\n\s*\n/.test(body) || /\d/.test(text[end + 1] ?? "") ||
+        (/\s$/.test(body) && /[A-Za-z\\]/.test(text[end + 1] ?? "")));
+    if (currency) { result += "\\$"; i++; }
+    else if (end < text.length) {
+      result += delimiter + mathCurrency(body) + delimiter;
+      i = end + delimiter.length;
+    } else { result += text.slice(i); break; }
+  }
+  return result;
+}
+
 /** Text → Markdown ready to render: hidden markers removed, \( \) / \[ \] maths turned into $ / $$, citations into
  *  `cite:` links (dropped when final and they point at nothing). Code is left untouched. Pure, for tests. */
 export function prepareMarkdown(text: string, sources: Source[] | undefined, final: boolean): string {
   const tags = new Set((sources ?? []).map(tagOf));
   const clean = hideRememberMarkers(hideQuizMarkers(text));
   return clean
-    .split(/(```[\s\S]*?(?:```|$)|`[^`\n]+`)/g)
+    .split(/(```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]+`|\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|https?:\/\/[^\s<>]+)/g)
     .map((part, i) => {
-      if (i % 2) return part;
-      return part
-        .replace(/\\\[([\s\S]+?)\\\]/g, (_, m: string) => `\n$$\n${m.trim()}\n$$\n`)
-        .replace(/\\\(([\s\S]+?)\\\)/g, (_, m: string) => `$${m.trim()}$`)
+      if (i % 2) return part.startsWith("\\(") || part.startsWith("\\[") ? prepareDollars(part) : part;
+      return prepareDollars(part)
         .replace(/(\s?)\[([SW])(\d+)\](?!\()/g, (_, sp: string, k: string, n: string) => (final && !tags.has(`${k}${n}`) ? "" : `${sp}[${k}${n}](cite:${k}${n})`));
     })
     .join("");
