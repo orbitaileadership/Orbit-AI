@@ -43,6 +43,21 @@ $$\frac{\$36}{\$48} \times 100\% = 75\%$$`} />);
     expect(html).toContain("<mo>×</mo>");
     expect(html).toContain("<mtext>$</mtext>");
   });
+  it("keeps escaped prices legible after a prose currency unit and across list items", () => {
+    const text = String.raw`**Price change** (units: $ per tune-up)
+- $P_1 = \$24$, $P_2 = \$20$
+- $\Delta P = -\$4$, midpoint $= \$22$
+
+**Check:** Revenue went from $50 \times \$24 = \$1{,}200$ to $65 \times \$20 = \$1{,}300$.
+
+This describes the interval between $20 and $24.`;
+    const html = renderToStaticMarkup(<Markdown text={text} />);
+    expect(html).not.toContain("katex-error");
+    expect(html.match(/class="katex"/g)).toHaveLength(6);
+    expect(html).toContain("<mtext>$</mtext>");
+    expect(html).toContain("Price change");
+    expect(html).toContain("$20 and $24");
+  });
   it("preserves mixed currency, single-dollar math, explicit math and display math", () => {
     const html = renderToStaticMarkup(<Markdown text={String.raw`Pay $5 and use $x + 1$, $2x$, $2 + 2 = 4$, \(3 + 4 = 7\), and $$x^2$$. Escaped price: \$9.`} />);
     expect(html).toContain("Pay $5 and use");
