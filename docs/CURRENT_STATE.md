@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 8, 2026 — local approval-gated feedback coordinator
+
+In isolated branch `codex/local-feedback-coordinator`, the four-role feedback controller supports continuous low-cost website testing, two submissions per loop, and a mandatory owner approval gate after every report. The owner selected Vercel for testing and authorized publishing this coordinator branch; application fixes and deployment still require approval. The first journaled GPT-5 nano test returned an API-key rejection, with no answer or automatic retry. The ten-minute heartbeat remains paused; the failed submission needs reconciliation before another attempt. All 52 mocked/artifact tests pass; live answer quality is unverified. See [handoff](handoffs/2026-11-08-continuous-feedback-approval.md).
+
 ## November 2, 2026 — topic-based quiz prompts released
 
 [PR #49](https://github.com/orbitaileadership/Orbit-AI/pull/49), merged as `12a49786372142f27ae11fe10810b8085c9e2fce` on the pinned PDF-only production branch, updates all three study formats to review substantive subject topics, research only through permitted available tools, and exclude syllabus administration. Full instructions have an enforced server-only boundary; create/reopen responses retain a short visible request. Combined instructions are 15–17% shorter by character count on identical synthetic regular-chat requests without optional topic metadata. The 171 focused tests, lint, typecheck, production build and independent review passed. Vercel reported deployment complete; live login returned HTTP 200 and unauthenticated conversation/Orbit APIs returned HTTP 401. [Handoff](handoffs/2026-11-02-topic-based-study-prompts.md) records evidence and limits. Signed-in desktop/phone generation and live model quality remain unverified.
