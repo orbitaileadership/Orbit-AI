@@ -1,5 +1,11 @@
 # Orbit mode — bounded four-provider routing preview
 
+## November 8, 2026 — available Gemini answer candidate
+
+Loop3 reached all four ballots but its Gemini 3.1 Pro lead returned HTTP429. Google AI Studio then showed the Orbit AI project on the free tier with zero request/token allowance for 3.1 Pro, while Gemini 3.8 Flash and the 3.1 Flash-Lite voter had nonzero allowances. The owner requested using available models instead of adding billing. Orbit's configured Google answer/specialist candidate is now `google-default` (Gemini 3.8 Flash). Voters see that actual model's label and description before choosing; saved responses retain its actual model ID. This is a configuration change before voting, not a hidden retry or replacement after a lead fails. Standalone Pro selection remains subject to the account's allowance.
+
+Flash supports the existing low/medium/high control, verified against [Google's Generate Content thinking table](https://ai.google.dev/gemini-api/docs/generate-content/thinking), so it is explicitly included in the capability allowlist. Reservations and usage settlement continue using the configured Flash model's own prices. No billing setting, quota, spending cap, retry policy or database schema changes. Mocked routing/accounting checks do not prove live availability or response quality; a deployed website check is still required, and the finite free-tier allowance can still run out.
+
 Jake authorized Orbit mode on October 15, including four independent votes per prompt, one lead answer, and at most one specialist when collaboration is requested. This supersedes the older launch exclusion for smart model routing. Natan's main-review fixes remain a separate workstream.
 
 ## Product behavior
