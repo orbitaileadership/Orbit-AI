@@ -2,7 +2,7 @@ name: Feedback release checks
 
 on:
   pull_request:
-    branches: [codex/pdf-only-production]
+    branches: [codex/pdf-only-production, main]
   push:
     branches: [codex/pdf-only-production]
 
