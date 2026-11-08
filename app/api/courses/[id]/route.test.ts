@@ -2,7 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest';
 import { fakeSupabase } from '@/test/fake-supabase';
 const s = vi.hoisted(() => ({ fake: null as ReturnType<typeof fakeSupabase> | null }));
 vi.mock('@/lib/api', async original => ({ ...await original<typeof import('@/lib/api')>(), requireAppUser: async () => ({ user: { id: 'u' }, supabase: s.fake!.client }) }));
-import { PATCH } from './route';
+import { GET, PATCH } from './route';
 const course = '11111111-1111-4111-8111-111111111111';
 const file = '22222222-2222-4222-8222-222222222222';
 const version = '2026-10-18T12:00:00Z';
@@ -30,4 +30,12 @@ it('drops a forged folder link that is not this course\'s folder', async () => {
 it('rejects evidence from another course or owner', async () => {
   s.fake!.db.files[0].project_id = file; expect((await update()).status).toBe(400);
   s.fake!.db.files[0].project_id = course; s.fake!.db.files[0].user_id = 'someone-else'; expect((await update()).status).toBe(400);
+});
+
+it('hides archived course chats while retaining active chats and files', async () => {
+ s.fake!.db.conversations.push({id:'active',user_id:'u',project_id:course,archived:false},{id:'archived',user_id:'u',project_id:course,archived:true});
+ const result=await GET(new Request('http://localhost/api/courses/'+course),{params:Promise.resolve({id:course})});
+ const body=await result.json();
+ expect(body.chats.map((c:{id:string})=>c.id)).toEqual(['active']);
+ expect(body.files).toHaveLength(1);
 });

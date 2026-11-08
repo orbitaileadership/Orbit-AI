@@ -54,6 +54,36 @@ test('actual syntax failure is recorded with nonzero exit code', async t => {
   const { candidate } = await prepare(f);
   const report = await verify({ candidate, runDir: f.runDir, checks: ['syntax'] });
   assert.equal(report.passed, false); assert.equal(report.checks[0].status, 'failed'); assert.notEqual(report.checks[0].exitCode, 0);
+  assert.match(report.checks[0].stderr, /SyntaxError/);
+  assert.ok(report.checks[0].attempts.every(attempt => attempt.status === 'failed' && attempt.exitCode !== 0));
+});
+
+test('syntax-only validation accepts valid code without executing its top-level effects', async t => {
+  const f = await fixture(t);
+  await writeFile(f.patchPath, patch.replace('+export const value = 2;', "+export const value = 2; throw new Error('candidate must not execute');"));
+  const { candidate } = await prepare(f);
+  const result = await verify({ candidate, runDir: f.runDir, checks: ['syntax'] });
+  assert.equal(result.passed, true); assert.equal(result.checks[0].stdout, '');
+  assert.equal(result.sourceUnchangedDuringChecks, true);
+});
+
+test('syntax-only validation handles CommonJS grammar and respects explicit package type', async t => {
+  const f = await fixture(t);
+  await writeFile(f.patchPath, patch.replace('+export const value = 2;', '+return;'));
+  const { candidate } = await prepare(f);
+  const ambiguous = await verify({ candidate, runDir: f.runDir, checks: ['syntax'] });
+  assert.equal(ambiguous.passed, true);
+  assert.equal(ambiguous.checks[0].attempts.length, 2);
+  assert.match(ambiguous.checks[0].command.join(' '), /--input-type=commonjs/);
+
+  const explicit = await fixture(t);
+  await writeFile(join(explicit.repo, 'package.json'), JSON.stringify({ type: 'module' }));
+  explicit.git(['add', 'package.json']); explicit.git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-m', 'Explicit module fixture']);
+  await writeFile(explicit.patchPath, patch.replace('+export const value = 2;', '+return;'));
+  const prepared = await prepare(explicit);
+  const checked = await verify({ candidate: prepared.candidate, runDir: explicit.runDir, checks: ['syntax'] });
+  assert.equal(checked.passed, false); assert.equal(checked.checks[0].attempts.length, 1);
+  assert.match(checked.checks[0].stderr, /SyntaxError/);
 });
 
 test('verification refuses unrelated candidate and arbitrary commands', async t => {

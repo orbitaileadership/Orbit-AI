@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { snapshot, replaceCheckpoint } from './coordinator.mjs';
 import { validateWebsiteEvidence } from './website-evidence.mjs';
 import { sourceDigest, patchPaths } from './candidate.mjs';
+import { validateReleasePolicy, validateAutomaticReview, releaseChecks, newRelease, claimReleaseAction, observeReleaseAction, observeReleaseChecks, observeReleaseDeployment } from './automatic-release.mjs';
 
 const digest = data => createHash('sha256').update(data).digest('hex');
 const readJson = async path => JSON.parse(await readFile(path, 'utf8'));
@@ -64,15 +65,16 @@ async function update(runDir, operation) {
 function publicStatus(state) {
   return { runId: state.id, status: state.status, mode: state.mode, modePolicy: state.mode === 'student-choice' ? 'student-choice' : 'fixed', scope: state.scope ?? 'website', url: state.url, completed: state.completed, loops: state.loops,
     submissions: state.submissions, perLoopSubmissions: state.perLoopSubmissions ?? 2, allowedModes: state.allowedModes ?? [], reservedUsdMicros: state.reservedUsdMicros, repairAttempts: state.repairAttempts,
-    spendPolicy: state.grant?.spendPolicy ?? 'bounded', review: state.review ? { report: state.review.report, reportSha256: state.review.reportSha256, decision: state.review.approval?.decision ?? null } : null,
+    spendPolicy: state.grant?.spendPolicy ?? 'bounded', review: state.review ? { report: state.review.report, reportSha256: state.review.reportSha256, candidateDigest: state.review.candidateDigest, testsSha256: state.review.testsSha256, decision: state.review.approval?.decision ?? null } : null,
     inFlight: state.inFlight ? { submissionId: state.inFlight.id, status: 'uncertain_until_captured', loop: state.inFlight.loop } : null,
-    authorized: grantValid(state),
+    authorized: grantValid(state), automaticRelease: state.grant?.automaticRelease ?? null, release: state.release ?? null,
     limitations: ['Journal validates supplied evidence; it does not prove browser authenticity.', continuous(state) ? 'Continuous runs have no total USD cap; actual provider costs are unmeasured.' : 'Reserved amounts are owner-supplied conservative allowances, not measured provider costs or a verified actual spending cap.'] };
 }
 function authorized(state) {
   const g = state.grant;
   validateScope(state.scope ?? 'website', state.url);
   if (!grantValid(state)) throw new Error('Live operation disabled: current owner grant required');
+  if (g.automaticRelease) validateReleasePolicy(g.automaticRelease, state.url);
   if (g.mode !== state.mode || g.url !== state.url || g.loops !== state.loops) throw new Error('Grant does not match run');
   if ((g.scope ?? 'website') !== (state.scope ?? 'website')) throw new Error('Grant scope does not match run');
   if (continuous(state) && (g.perLoopSubmissions !== state.perLoopSubmissions || JSON.stringify(g.allowedModes) !== JSON.stringify(state.allowedModes))) throw new Error('Grant mode/submission policy does not match run');
@@ -124,6 +126,10 @@ export async function authorizeAppRun(runDir, grant) {
       if (grant.perSubmissionUsdMicros > grant.maxSpendUsdMicros) throw new Error('One submission exceeds grant spend allowance');
     }
     if (!(continuous(state) && grant.expiresAt === null) && (!Number.isFinite(Date.parse(grant.expiresAt)) || Date.parse(grant.expiresAt) <= Date.now())) throw new Error('Grant expiry must be in the future or explicitly continuous');
+    if (grant.automaticRelease) {
+      if (!continuous(state)) throw new Error('Automatic release requires a continuous run');
+      validateReleasePolicy(grant.automaticRelease, state.url);
+    }
     state.grant = { ...structuredClone(grant), url: state.url }; state.status = 'ready';
     state.grantDigest = digest(JSON.stringify(state.grant));
     if (continuous(state)) state.reservedUsdMicros = null;
@@ -177,6 +183,26 @@ export async function captureAppResponse(runDir, evidence) {
     await atomic(join(directory, filename), { ...verified, split: pending.split, promptSha256: pending.promptSha256, validatedAt: new Date().toISOString(), authenticity: 'Requires independent browser/reviewer verification' });
     state.current.evidence.push({ submissionId: pending.id, responseId: verified.responseId, split: pending.split, mode: pending.mode ?? state.mode, file: filename, sha256: digest(JSON.stringify(verified)) });
     state.inFlight = null;
+  });
+}
+export async function recordFailedSubmission(runDir, evidence) {
+  return update(runDir, async (state, directory) => {
+    const pending = state.inFlight;
+    if (!pending || !state.current || !['paused', 'running'].includes(state.status)) throw new Error('No pending website failure to reconcile');
+    if (evidence.status !== 'failed' || evidence.terminal !== true) throw new Error('Only an independently observed terminal failure can be archived');
+    text(evidence.errorCode, 'safe error code'); text(evidence.reviewerReference, 'independent failure review');
+    // Reuse structural mode/prompt/time/capture validation only. The stored result
+    // remains failed, never a completed answer and never evaluation evidence.
+    const verified = validateWebsiteEvidence({ ...evidence, status: 'complete' }, { url: state.url, mode: pending.mode ?? state.mode, prompt: pending.prompt, submissionId: pending.id });
+    if (digest(verified.prompt) !== pending.promptSha256 || Date.parse(verified.submittedAt) < Date.parse(pending.journaledAt) || Date.parse(verified.completedAt) > Date.now() + 5000) throw new Error('Failure evidence does not match journal');
+    const bytes = await readFile(await inside(directory, verified.capture.path));
+    const png = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const jpeg = bytes.length > 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+    if ((!png && !jpeg) || digest(bytes) !== verified.capture.sha256) throw new Error('Failure screenshot bytes/digest invalid');
+    const filename = `failed-${pending.id}.json`;
+    await atomic(join(directory, filename), { ...evidence, status: 'failed', split: pending.split, promptSha256: pending.promptSha256, archivedAt: new Date().toISOString(), cost: 'unknown; any prior calls remain consumed' });
+    state.history.push({ number: state.current.number, evidence: state.current.evidence, failedSubmission: filename, failedSubmissionSha256: digest(await readFile(join(directory, filename))) });
+    state.inFlight = null; state.current = null; state.status = 'failed';
   });
 }
 function validateReport(report, state) {
@@ -257,16 +283,21 @@ export async function finishAppLoop(runDir, report) {
       spendBasis: continuous(state) ? 'Explicit uncapped spend consent; actual provider cost unmeasured' : 'Owner-supplied conservative allowances; actual provider cost/cap unverified', evidence: state.current.evidence, validation: 'Metadata and artifact integrity checked; independent reviewer must assess content/workflow.' });
     const reportSha256 = digest(await readFile(join(directory, filename)));
     state.history.push({ number: state.current.number, evidence: state.current.evidence, report: filename, reportSha256 });
-    if (continuous(state)) state.review = { report: filename, reportSha256, approval: null, baseline: final, candidateDigest: candidateManifest?.candidateDigest ?? null, patchSha256: candidateManifest?.patchSha256 ?? null };
+    if (continuous(state)) state.review = { report: filename, reportSha256, approval: null, baseline: final, candidateDigest: candidateManifest?.candidateDigest ?? null, patchSha256: candidateManifest?.patchSha256 ?? null,
+      testsSha256: candidateTests ? digest(await readFile(await inside(directory, join(report.candidateArtifactsDir, 'candidate-tests.json')))) : null };
     state.completed++; state.current = null;
     state.status = continuous(state) || report.verdict !== 'pass' || report.changes.length ? 'review_required' : exhausted(state) ? 'complete' : 'ready';
   });
 }
-export async function stopAppLoop(runDir) { return update(runDir, state => { if (['ready', 'running'].includes(state.status)) state.status = 'paused'; }); }
+export async function stopAppLoop(runDir) { return update(runDir, state => {
+  if (state.grant?.automaticRelease && state.review && state.status !== 'paused') { state.pausedReleaseStatus = state.status; state.status = 'paused'; }
+  else if (['ready', 'running'].includes(state.status)) state.status = 'paused';
+}); }
 export async function resumeAppLoop(runDir) {
   return update(runDir, state => {
     authorized(state);
     if (state.status !== 'paused' || state.inFlight) throw new Error('Resume requires a paused run with no uncertain submission; reconcile first');
+    if (state.grant?.automaticRelease && state.pausedReleaseStatus) { state.status = state.pausedReleaseStatus; delete state.pausedReleaseStatus; return; }
     if (state.review) throw new Error('Owner review must be completed before another loop');
     state.status = state.current ? 'running' : exhausted(state) ? 'complete' : 'ready';
   });
@@ -293,6 +324,7 @@ async function frozenCandidate(state, directory, report) {
   if (await sourceDigest(report.candidateRepo) !== state.review.candidateDigest) throw new Error('Approved candidate has drifted');
   const patch = await readFile(await inside(directory, report.changes[0].patchFile));
   if (digest(patch) !== state.review.patchSha256) throw new Error('Approved patch has drifted');
+  if (state.review.testsSha256 && digest(await readFile(await inside(directory, join(report.candidateArtifactsDir, 'candidate-tests.json')))) !== state.review.testsSha256) throw new Error('Approved test evidence has drifted');
 }
 async function preservationDigest(repo, except) {
   const excluded = new Set(except);
@@ -312,6 +344,11 @@ async function preservationDigest(repo, except) {
 }
 export async function approveAppReview(runDir, approval) {
   return update(runDir, async (state, directory) => {
+    if (state.grant?.automaticRelease) throw new Error('Automatic policy requires the independent automatic-review gate');
+    await acceptReview(state, directory, approval);
+  });
+}
+async function acceptReview(state, directory, approval) {
     authorized(state);
     if (state.status !== 'review_required' || state.inFlight || state.review?.approval) throw new Error('No unapproved completed loop is awaiting owner review');
     text(approval.approvalReference, 'owner approval reference'); text(approval.notificationReference, 'per-loop notification reference');
@@ -325,6 +362,25 @@ export async function approveAppReview(runDir, approval) {
     state.review.approval = { ...structuredClone(approval), approvedAt: new Date().toISOString() };
     state.review.preservationDigest = await preservationDigest(state.repo, report.changes.map(change => change.path));
     state.status = expectedDecision === 'apply' ? 'awaiting_apply' : 'awaiting_acknowledgement';
+}
+export async function automaticallyReview(runDir, input) {
+  return update(runDir, async (state, directory) => {
+    authorized(state);
+    const policy = state.grant.automaticRelease;
+    validateReleasePolicy(policy, state.url);
+    const report = await reviewReport(state, directory, input.reportSha256);
+    const reviewBytes = await readFile(await inside(directory, input.reviewFile));
+    const review = JSON.parse(reviewBytes);
+    validateAutomaticReview(report, review, state.review);
+    if (report.changes.length) {
+      const testsBytes = await readFile(await inside(directory, join(report.candidateArtifactsDir, 'candidate-tests.json')));
+      if (digest(testsBytes) !== state.review.testsSha256) throw new Error('Candidate tests drifted since report');
+      const tests = JSON.parse(testsBytes);
+      if (!releaseChecks.every(name => tests.checks.some(check => check.name === name && check.status === 'passed' && check.exitCode === 0)) || tests.checks.some(check => check.status !== 'passed')) throw new Error('Automatic release requires lint, typecheck, test and build checks');
+    }
+    await acceptReview(state, directory, { reportSha256: input.reportSha256, approvalReference: policy.approvalReference,
+      notificationReference: `Pending Slack delivery after release; independent review ${digest(reviewBytes)}`, decision: report.changes.length ? 'apply' : 'continue', checkpointCommit: true, automatic: true,
+      independentReview: { file: input.reviewFile, sha256: digest(reviewBytes) } });
   });
 }
 export async function completeAppReview(runDir, completion) {
@@ -362,14 +418,53 @@ export async function completeAppReview(runDir, completion) {
     const filename = state.review.report.replace('-report.json', '-approval-completion.json');
     await atomic(join(directory, filename), record);
     state.history.at(-1).approvalCompletion = filename;
-    state.baseline = record.final; state.review = null; state.status = exhausted(state) ? 'complete' : 'ready';
+    state.baseline = record.final;
+    if (state.review.approval.automatic) {
+      state.release = newRelease({ ...report, reportSha256: state.review.reportSha256 }, state.grant.automaticRelease, record.final.head);
+      state.status = 'awaiting_release';
+    } else { state.review = null; state.status = exhausted(state) ? 'complete' : 'ready'; }
+  });
+}
+
+// The native orchestrator performs external actions only after a durable claim.
+// A crash leaves pending intact. Read remote state and reconcile; never replay it.
+export async function releaseAppLoop(runDir, input) {
+  return update(runDir, async (state, directory) => {
+    authorized(state);
+    if (state.status !== 'awaiting_release' || !state.release || !state.review?.approval?.automatic || state.inFlight) throw new Error('No automatic release is ready');
+    const report = await reviewReport(state, directory, state.release.reportSha256);
+    const independent = state.review.approval.independentReview;
+    if (digest(await readFile(await inside(directory, independent.file))) !== independent.sha256) throw new Error('Independent review drifted');
+    await frozenCandidate(state, directory, report);
+    if (input.command === 'sync') {
+      if (!state.release.changed || state.release.stage !== 'notify' || state.release.pending || state.release.synced) throw new Error('Local sync requires verified deployment before Slack notification');
+      const current = snapshot(state.repo), mergeSha = state.release.mergeSha;
+      if (current.head !== mergeSha || git(state.repo, ['rev-parse', `${mergeSha}^{tree}`]) !== git(state.repo, ['rev-parse', `${state.release.headSha}^{tree}`])) throw new Error('Local baseline must match exact deployed commit and reviewed tree');
+      git(state.repo, ['merge-base', '--is-ancestor', state.release.headSha, mergeSha]);
+      if (JSON.stringify({ ...current, head: state.baseline.head }) !== JSON.stringify(state.baseline)) throw new Error('Local sync changed unrelated work or branch');
+      state.baseline = current; state.release.synced = true; return;
+    }
+    if (JSON.stringify(snapshot(state.repo)) !== JSON.stringify(state.baseline)) throw new Error('Release source changed since local verification');
+    if (input.command === 'claim') return claimReleaseAction(state.release, input.action);
+    const bytes = await readFile(await inside(directory, input.evidenceFile)); const evidence = JSON.parse(bytes);
+    if (input.command === 'observe') observeReleaseAction(state.release, state.grant.automaticRelease, evidence);
+    else if (input.command === 'checks') observeReleaseChecks(state.release, evidence);
+    else if (input.command === 'deployment') observeReleaseDeployment(state.release, state.grant.automaticRelease, evidence);
+    else throw new Error('Release command must be claim, observe, checks, deployment or sync');
+    state.release.evidenceFiles ??= [];
+    state.release.evidenceFiles.push({ file: input.evidenceFile, sha256: digest(bytes) });
+    if (state.release.stage === 'complete') {
+      const filename = state.review.report.replace('-report.json', '-release.json');
+      await atomic(join(directory, filename), state.release);
+      state.history.at(-1).release = filename; state.release = null; state.review = null; state.status = exhausted(state) ? 'complete' : 'ready';
+    }
   });
 }
 
 async function cli() {
   const [command, ...args] = process.argv.slice(2); const opts = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!['--run', '--repo', '--loops', '--mode', '--scope', '--url', '--grant', '--prompt-file', '--split', '--evidence', '--report', '--config', '--approval', '--completion', '--per-loop-submissions', '--allowed-modes'].includes(args[i]) || args[i + 1] === undefined || Object.hasOwn(opts, args[i])) throw new Error('Unknown, duplicate or missing CLI option');
+    if (!['--run', '--repo', '--loops', '--mode', '--scope', '--url', '--grant', '--prompt-file', '--split', '--evidence', '--report', '--config', '--approval', '--completion', '--per-loop-submissions', '--allowed-modes', '--input'].includes(args[i]) || args[i + 1] === undefined || Object.hasOwn(opts, args[i])) throw new Error('Unknown, duplicate or missing CLI option');
     opts[args[i]] = args[i + 1];
   }
   if (!opts['--run']) throw new Error('--run is required');
@@ -378,16 +473,19 @@ async function cli() {
   else if (command === 'reconfigure') result = await reconfigureAppRun(dir, await readJson(opts['--config']));
   else if (command === 'approve-review') result = await approveAppReview(dir, await readJson(opts['--approval']));
   else if (command === 'complete-review') result = await completeAppReview(dir, await readJson(opts['--completion']));
+  else if (command === 'automatic-review') result = await automaticallyReview(dir, await readJson(opts['--input']));
+  else if (command === 'release') result = await releaseAppLoop(dir, await readJson(opts['--input']));
   else if (command === 'authorize') result = await authorizeAppRun(dir, await readJson(opts['--grant']));
   else if (command === 'begin') result = await beginAppLoop(dir);
   else if (command === 'submit') result = await journalSubmission(dir, { prompt: await readFile(opts['--prompt-file'], 'utf8'), split: opts['--split'], mode: opts['--mode'] });
   else if (['capture', 'reconcile'].includes(command)) result = await captureAppResponse(dir, await readJson(opts['--evidence']));
+  else if (command === 'fail-submission') result = await recordFailedSubmission(dir, await readJson(opts['--evidence']));
   else if (command === 'finish') result = await finishAppLoop(dir, await readJson(opts['--report']));
   else if (command === 'status') result = await appStatus(dir);
   else if (command === 'stop') result = await stopAppLoop(dir);
   else if (command === 'resume') result = await resumeAppLoop(dir);
   else if (command === 'repair') result = await repairAppLoop(dir);
-  else throw new Error('Commands: init reconfigure authorize begin submit capture reconcile finish approve-review complete-review stop resume repair status');
+  else throw new Error('Commands: init reconfigure authorize begin submit capture reconcile fail-submission finish approve-review complete-review automatic-review release stop resume repair status');
   console.log(JSON.stringify(result, null, 2));
 }
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) cli().catch(error => { console.error(error.message); process.exitCode = 1; });

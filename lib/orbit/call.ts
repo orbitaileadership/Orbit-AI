@@ -1,4 +1,5 @@
 import { supportsThinkingLevel, type ThinkingLevel } from '@/config/thinking';
+import { createHash } from 'node:crypto';
 import { failureState } from "@/lib/billing/outcome";
 import type { ModelOption } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
@@ -14,6 +15,10 @@ export class OrbitError extends Error {
 export function orbitInputTokens(system: string, history: ChatTurn[]): number {
   return estimateTokens(system) + history.reduce((n,t) => n + estimateTokens(t.content) + 8,0);
 }
+
+/** Match direct chat's short opaque cache scope without exposing account identifiers. */
+const answerCacheKey = (userId: string, conversationId: string) =>
+  `orbit-${createHash('sha256').update(`${userId}:${conversationId}`).digest('base64url').slice(0, 32)}`;
 
 /** Every paid phase has its own priced ledger row. Never logs prompt or output text. */
 export async function orbitCall(o: {
@@ -34,7 +39,7 @@ export async function orbitCall(o: {
   if (!r.ok) throw new OrbitError(r.reason === "global_stop" ? "paused" : r.reason === "error" ? "reserve_failed" : r.reason);
   let text = "", usage: Usage | undefined, finish: FinishReason = "unknown";
   try {
-    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,...(o.thinkingLevel ? {thinkingLevel:o.thinkingLevel} : {}),...(o.operation === "orbit_vote" && o.model.apiModel === "claude-haiku-5-5" ? {disableThinking:true} : {}),apiKey:key,signal:o.signal })) {
+    for await (const event of ADAPTERS[o.model.provider].stream({ model:o.model,system:o.system,history:o.history,maxOutput:o.maxOutput,...(o.thinkingLevel ? {thinkingLevel:o.thinkingLevel} : {}),...(o.operation === "orbit_vote" && o.model.apiModel === "claude-haiku-5-5" ? {disableThinking:true} : {}),...(o.operation === "orbit_answer" && (o.model.provider === "openai" || o.model.provider === "anthropic") ? {cacheKey:answerCacheKey(o.userId,o.conversationId)} : {}),apiKey:key,signal:o.signal })) {
       if (event.delta) { text += event.delta; o.delta?.(event.delta); }
       if (event.usage) usage = event.usage;
       if (event.finish) finish = event.finish;

@@ -4,7 +4,6 @@ import {PDFDocument} from "pdf-lib";
 import {fakeSupabase} from "@/test/fake-supabase";
 import {gatherMaterial,namedFiles,pickVisualPages} from "./material";
 import {systemPrompt} from "./context";
-import {parseWidget} from "@/lib/widgets/schema";
 const CHAT='synthetic-chat';
 type FileRow=Parameters<typeof pickVisualPages>[0][number];
 const file=(id:string,name:string,over:Record<string,unknown>={})=>({id,name,user_id:'synthetic',kind:'document',status:'ready',char_count:20000,page_count:30,project_id:null,conversation_id:CHAT,storage_path:'synthetic/'+name,mime:'application/pdf',visual_pages:[],...over});
@@ -62,11 +61,15 @@ describe('shared student response contract',()=>{
  });
  it('requests a complete click-through MCQ set in quiz mode',()=>{
   const prompt=systemPrompt({modelLabel:'Synthetic model',mode:'quiz'});
-  expect(prompt).toContain('five-question multiple-choice quiz');
+  expect(prompt).toContain('Default to five multiple-choice questions');
+  expect(prompt).toContain('honor the requested format and count');
   expect(prompt).toContain('without another model call');
-  expect(prompt).toContain('"type":"quiz"');
-  const example=prompt.match(/```orbit-widget\n([^`]+)\n```/)?.[1];
-  expect(parseWidget(example??'')).toMatchObject({type:'quiz',questions:[{},{}]});
+  expect(prompt).toContain('Return the complete set in one fenced orbit-widget JSON block');
+  expect(prompt).toContain('Include every requested item and its answer now');
+  expect(prompt).toContain('2–6 distinct choices, zero-based correct index');
+  // The compact contract supplies an inline schema template rather than sample questions.
+  const schema=prompt.match(/MCQ: (\{"type":"quiz"[^;]+\});/)?.[1];
+  expect(JSON.parse(schema??'null')).toMatchObject({type:'quiz',questions:[{question:expect.any(String),options:[expect.any(String),expect.any(String)],correct:0,explanation:expect.any(String)}]});
  });
 });
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVELS, type ThinkingLevel } from "@/config/thinking";
+import { ArchivedChats } from "./archived-chats";
 import { FolderBrowser } from "./folder-browser";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { PROVIDERS, getModel, type ProviderId } from "@/config/models";
@@ -107,6 +108,8 @@ const greetingFor = (name: string) => { const h = new Date().getHours(); return 
 
 export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, account, onUsage, visible=true, dots, onActivity }: { userId: string; onUsage?: () => void; account?: (compact: boolean) => ReactNode; visible?: boolean; dots?: Partial<Record<ProviderId | "orbit", "running" | "done">>; onActivity?: (state: "running" | "done" | null) => void; onSelectProvider: (provider: ProviderId) => void; onCourses?:()=>void; courseLaunch?:(import("@/lib/courses/types").CourseLaunch & {key:number})|null }) {
   const [thinkingLevel,setThinkingLevel]=useState<ThinkingLevel>(DEFAULT_THINKING_LEVEL);
+  const [archivesOpen,setArchivesOpen]=useState(false);
+  const [archiveStatus,setArchiveStatus]=useState("");
   const [folderFilter,setFolderFilter]=useState<{id:string;name:string}|null>(null);
   const [courseGroups,setCourseGroups]=useState<{id:string;name:string}[]>([]);
   const [courseFolders,setCourseFolders]=useState<TreeFolder[]>([]);
@@ -187,6 +190,16 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     view.current++;setActive(null);setMessages([]);setDecision(null);setDropped(false);setLoading(false);
   },[courseLaunch]);
   function newChat(){setFiles([]);setCourse(draftFolder??folderFilter);view.current++;setLoading(false);setActive(null);setMessages([]);setDecision(null);setDropped(false);setError("");setSidebar(false);}
+  async function archiveChat() {
+    if(!active||busy||loading)return;
+    setLoading(true);
+    try{
+      const res=await fetch(`/api/conversations/${active}`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({archived:true})});
+      if(!res.ok)throw new Error();
+      newChat();await refresh();setArchiveStatus("Chat archived. You can restore it anytime from Archived chats.");
+    }catch{setError("Could not archive this chat. Try again.");}
+    finally{setLoading(false);}
+  }
   async function deleteChat() {
     if(!active||!window.confirm("Delete this Orbit conversation and its saved history?"))return;
     setLoading(true);
@@ -288,6 +301,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   );
 
   return <div className="flex h-dvh bg-surface-000 font-ui text-ink">
+    {archivesOpen&&<ArchivedChats provider="orbit" onClose={()=>setArchivesOpen(false)} onRestored={()=>{void refresh().catch(()=>setError("Could not refresh chats. Reload to see your restored chat."));}}/>}
     <AppRail active="orbit" dots={dots} onOrbit={()=>{}} onProvider={onSelectProvider} account={account?.(true)}/>
     {sidebar&&<div className="fixed inset-0 z-20 bg-black/50 md:hidden" onClick={()=>setSidebar(false)}/>}
     <aside className={`fixed inset-y-0 left-0 z-30 flex w-72 shrink-0 flex-col bg-surface-100 transition-transform md:static md:translate-x-0 ${sidebar?"translate-x-0":"-translate-x-full"}`}>
@@ -301,6 +315,8 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
           <span aria-hidden className="orbit-send -ml-0.5 grid h-[22px] w-[22px] place-items-center rounded-full text-white transition-transform group-hover/new:rotate-90"><svg viewBox="0 0 16 16" width="12" height="12"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg></span>
           New chat
         </button>
+        <button disabled={busy||loading} onClick={()=>{setArchivesOpen(true);setSidebar(false);}} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] hover:bg-surface-200 disabled:opacity-50">Archived chats</button>
+        {archiveStatus&&<p role="status" className="px-3 py-2 text-xs text-ink-muted">{archiveStatus}</p>}
         <button onClick={onCourses} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[15px] transition hover:bg-surface-200 disabled:opacity-50">
           <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M3 5.5 10 3l7 2.5L10 8 3 5.5zM5.5 7v4.2c0 1.3 2 2.3 4.5 2.3s4.5-1 4.5-2.3V7M17 5.5V10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           Courses
@@ -329,6 +345,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         <button onClick={()=>setSidebar(true)} className="rounded-md p-1 text-ink-muted hover:text-ink md:hidden" aria-label="Open menu"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden><path d="M2.5 4h11M2.5 8h11M2.5 12h11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg></button>
         <span className="hidden items-center gap-2 text-lg sm:flex">Orbit <span className="text-ink-subtle">Up to 4 AIs</span></span>
         <div className="ml-auto flex items-center gap-1">
+          {active&&<button disabled={busy||loading} onClick={archiveChat} className="rounded-full px-3 py-2 text-sm text-ink-muted hover:bg-surface-200 disabled:opacity-40">Archive chat</button>}
           {active&&<button disabled={busy||loading} onClick={deleteChat} aria-label="Delete chat" title="Delete chat" className="grid h-9 w-9 place-items-center rounded-full text-ink-muted hover:bg-surface-200 hover:text-danger disabled:opacity-40">
             <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden><path d="M3 4h10M6.5 4V2.5h3V4M5 4l.6 9h4.8L11 4" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg></button>}
           <AppSwitcher active="orbit" dots={dots} onOrbit={()=>{}} onProvider={onSelectProvider}/>

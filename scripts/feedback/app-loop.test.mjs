@@ -4,10 +4,10 @@ import { mkdir, mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { initAppRun, appStatus, authorizeAppRun, beginAppLoop, journalSubmission, captureAppResponse, finishAppLoop, stopAppLoop, resumeAppLoop, repairAppLoop, reconfigureAppRun, approveAppReview, completeAppReview } from './app-loop.mjs';
+import { initAppRun, appStatus, authorizeAppRun, beginAppLoop, journalSubmission, captureAppResponse, finishAppLoop, stopAppLoop, resumeAppLoop, repairAppLoop, reconfigureAppRun, approveAppReview, completeAppReview, automaticallyReview, releaseAppLoop, recordFailedSubmission } from './app-loop.mjs';
 import { prepare, verify, sourceDigest } from './candidate.mjs';
 
-async function fixture(t, { loops = 2, maxSubmissions = 4, maxSpendUsdMicros = 400, perSubmissionUsdMicros = 100, authorize = true, mode = 'Orbit / Medium', scope = 'website', url = 'https://orbit.example.test/', allowedModes = [], perLoopSubmissions = 2 } = {}) {
+async function fixture(t, { loops = 2, maxSubmissions = 4, maxSpendUsdMicros = 400, perSubmissionUsdMicros = 100, authorize = true, mode = 'Orbit / Medium', scope = 'website', url = 'https://orbit.example.test/', allowedModes = [], perLoopSubmissions = 2, automaticRelease } = {}) {
   const root = join(process.cwd(), '.feedback-runs', 'app-test-fixtures'); await mkdir(root, { recursive: true });
   const repo = await mkdtemp(join(root, 'case-'));
   t.after(() => rm(repo, { recursive: true, force: true }));
@@ -18,6 +18,7 @@ async function fixture(t, { loops = 2, maxSubmissions = 4, maxSpendUsdMicros = 4
   await initAppRun({ runDir, repo, loops, mode, url, scope, allowedModes, perLoopSubmissions });
   const grant = { mode, url, scope, loops, maxSubmissions, maxSpendUsdMicros, perSubmissionUsdMicros, approvalReference: 'Synthetic fixture only; not a real approval', boundEvidenceReference: 'Synthetic test bound only', expiresAt: new Date(Date.now() + 60_000).toISOString() };
   if (loops === 'continuous') Object.assign(grant, { continuousConsent: true, spendPolicy: 'uncapped', maxSubmissions: null, maxSpendUsdMicros: null, perSubmissionUsdMicros: null, expiresAt: null, allowedModes, perLoopSubmissions, modelSelectionEvidenceReference: 'Synthetic lowest-cost fixture selection' });
+  if (automaticRelease) grant.automaticRelease = automaticRelease;
   if (authorize) await authorizeAppRun(runDir, grant);
   return { repo, runDir, grant };
 }
@@ -244,4 +245,97 @@ test('continuous apply requires exact owner approval, local checkpoint and fresh
   await writeFile(join(runDir, 'verification.json'), JSON.stringify(verification));
   assert.equal((await completeAppReview(runDir, completion)).status, 'ready');
   assert.equal((await beginAppLoop(runDir)).status, 'running');
+});
+
+const automaticPolicy = { kind: 'automatic', repository: 'orbitaileadership/Orbit-AI', targetBranch: 'codex/pdf-only-production', productionUrl: 'https://orbit-ai-sand.vercel.app/', slackChannelId: 'C0CFVDUP3FG', approvalReference: 'Synthetic standing release permission only' };
+test('automatic no-change cycle requires independent review and durable Slack receipt before immediate next loop', async t => {
+  const { runDir } = await fixture(t, { ...continuousConfig, url: automaticPolicy.productionUrl, automaticRelease: automaticPolicy });
+  const finished = await finishContinuousFixture(runDir);
+  const reportSha256 = finished.review.reportSha256;
+  await assert.rejects(approveAppReview(runDir, {}), /automatic-review/);
+  const independent = { reportSha256, candidateDigest: null, testsSha256: null, verdict: 'pass', reviewer: 'reviewer-4', authorModel: 'author-model', reviewerModel: 'reviewer-model', evidenceReference: 'Synthetic independent no-change review' };
+  await writeFile(join(runDir, 'independent.json'), JSON.stringify(independent));
+  await automaticallyReview(runDir, { reportSha256, reviewFile: 'independent.json' });
+  assert.equal((await completeAppReview(runDir, { reportSha256, completionReference: 'Synthetic local no-change completion' })).status, 'awaiting_release');
+  await assert.rejects(beginAppLoop(runDir), /not ready/);
+  const claim = await releaseAppLoop(runDir, { command: 'claim', action: 'notify' });
+  await assert.rejects(releaseAppLoop(runDir, { command: 'claim', action: 'notify' }), /uncertain/);
+  await stopAppLoop(runDir);
+  assert.equal((await appStatus(runDir)).status, 'paused');
+  await assert.rejects(releaseAppLoop(runDir, { command: 'claim', action: 'notify' }), /No automatic release/);
+  await resumeAppLoop(runDir);
+  const receipt = { actionId: claim.actionId, channelId: automaticPolicy.slackChannelId, messageUrl: 'https://orbit-ai-global.slack.com/archives/C0CFVDUP3FG/p123456789', observedAt: new Date().toISOString(), evidenceReference: 'Synthetic Slack receipt' };
+  await writeFile(join(runDir, 'slack.json'), JSON.stringify(receipt));
+  const ready = await releaseAppLoop(runDir, { command: 'observe', evidenceFile: 'slack.json' });
+  assert.equal(ready.status, 'ready');
+  assert.equal((await beginAppLoop(runDir)).status, 'running');
+  const release = JSON.parse(await readFile(join(runDir, 'loop-0001-release.json'), 'utf8'));
+  assert.equal(release.stage, 'complete'); assert.equal(release.actions.length, 1);
+});
+test('failed submission archives terminal error without inventing answer or enabling replay', async t => {
+  const { runDir } = await fixture(t); await beginAppLoop(runDir);
+  const answer = await evidence(runDir);
+  await stopAppLoop(runDir);
+  const failure = { ...answer, status: 'failed', terminal: true, errorCode: 'rate_limit', reviewerReference: 'Synthetic observed terminal failure', response: 'Provider rejected the request' };
+  await assert.rejects(recordFailedSubmission(runDir, { ...failure, terminal: false }), /terminal failure/);
+  await assert.rejects(recordFailedSubmission(runDir, { ...failure, submissionId: 'wrong' }), /wrong submission/);
+  const status = await recordFailedSubmission(runDir, failure);
+  assert.equal(status.status, 'failed'); assert.equal(status.completed, 0); assert.equal(status.submissions, 1); assert.equal(status.inFlight, null);
+  await assert.rejects(resumeAppLoop(runDir), /paused run/);
+  await assert.rejects(beginAppLoop(runDir), /not ready/);
+  await assert.rejects(recordFailedSubmission(runDir, failure), /No pending/);
+  const state = JSON.parse(await readFile(join(runDir, 'app-state.json'), 'utf8'));
+  assert.deepEqual(state.history[0].evidence, []);
+  const saved = JSON.parse(await readFile(join(runDir, state.history[0].failedSubmission), 'utf8'));
+  assert.equal(saved.status, 'failed'); assert.equal(saved.response, failure.response);
+});
+
+test('automatic changed cycle freezes evidence and synchronizes deployed merge before notification', async t => {
+  const { repo, runDir } = await fixture(t, { ...continuousConfig, url: automaticPolicy.productionUrl, automaticRelease: automaticPolicy });
+  const git = args => execFileSync('git', ['-c', 'user.name=Synthetic', '-c', 'user.email=synthetic@example.test', ...args], { cwd: repo, encoding: 'utf8', stdio: 'pipe' }).trim();
+  const base = git(['rev-parse', 'HEAD']);
+  const patch = 'diff --git a/config/auto.mjs b/config/auto.mjs\nnew file mode 100644\n--- /dev/null\n+++ b/config/auto.mjs\n@@ -0,0 +1 @@\n+export const automatic = true;\n';
+  const input = join(runDir, 'proposal.patch'); await writeFile(input, patch);
+  const artifacts = 'loop-0001-candidate', candidateRun = join(runDir, artifacts);
+  const manifest = await prepare({ repo, runDir: candidateRun, patchPath: input, reason: 'Synthetic automatic transition fixture' });
+  const actual = await verify({ candidate: manifest.candidate, runDir: candidateRun, checks: ['diff', 'syntax'] });
+  // Mock the external validation record for state-machine integration only.
+  // This does not claim lint/typecheck/build were executed against the real app.
+  const mockChecks = { ...actual, checks: ['lint', 'typecheck', 'test', 'build'].map(name => ({ name, command: `synthetic mock ${name}`, status: 'passed', exitCode: 0 })) };
+  await writeFile(join(candidateRun, 'candidate-tests.json'), JSON.stringify(mockChecks));
+  const afterSha256 = createHash('sha256').update(await readFile(join(manifest.candidate, 'config/auto.mjs'))).digest('hex');
+  const finished = await finishContinuousFixture(runDir, 1, { candidateRepo: manifest.candidate, candidateArtifactsDir: artifacts, changes: [{ path: 'config/auto.mjs', reason: 'Synthetic fixture', patchFile: `${artifacts}/candidate.patch`, afterSha256 }], noChangeWarranted: false });
+  const reportSha256 = finished.review.reportSha256;
+  await writeFile(join(runDir, 'independent.json'), JSON.stringify({ reportSha256, candidateDigest: finished.review.candidateDigest, testsSha256: finished.review.testsSha256, verdict: 'pass', reviewer: 'reviewer-4', authorModel: 'author-model', reviewerModel: 'reviewer-model', evidenceReference: 'Synthetic second-model fixture' }));
+  await automaticallyReview(runDir, { reportSha256, reviewFile: 'independent.json' });
+  git(['apply', input]); git(['add', '--', 'config/auto.mjs']); git(['commit', '-m', 'Synthetic reviewed checkpoint']);
+  const head = git(['rev-parse', 'HEAD']);
+  const output = execFileSync(process.execPath, ['--check', 'config/auto.mjs'], { cwd: repo, encoding: 'utf8' });
+  const log = `${output}\nExit code: 0\n`; await writeFile(join(runDir, 'postapply.log'), log);
+  await writeFile(join(runDir, 'verification.json'), JSON.stringify({ reportSha256, repo, head, sourceDigest: await sourceDigest(repo), passed: true, checks: [{ command: 'node --check config/auto.mjs', status: 'passed', exitCode: 0, logFile: 'postapply.log', logSha256: createHash('sha256').update(log).digest('hex') }] }));
+  await completeAppReview(runDir, { reportSha256, completionReference: 'Synthetic applied verification', verificationFile: 'verification.json' });
+  const binding = { repository: automaticPolicy.repository, targetBranch: automaticPolicy.targetBranch, baseSha: base, headSha: head };
+  let receiptIndex = 0;
+  const observe = async (command, evidence) => {
+    const evidenceFile = `receipt-${++receiptIndex}.json`;
+    await writeFile(join(runDir, evidenceFile), JSON.stringify({ observedAt: new Date().toISOString(), evidenceReference: 'Synthetic connector observation', ...evidence }));
+    return releaseAppLoop(runDir, { command, evidenceFile });
+  };
+  const publish = await releaseAppLoop(runDir, { command: 'claim', action: 'publish' });
+  await observe('observe', { ...binding, actionId: publish.actionId, prNumber: 12, state: 'open', draft: false, remoteHeadSha: head, remoteBaseSha: base });
+  await observe('checks', { ...binding, prNumber: 12, remoteHeadSha: head, remoteBaseSha: base, mergeable: true, unresolvedReviewThreads: 0, changesRequested: false, requiredChecksPassed: true, checks: [{ name: 'Offline verification', status: 'passed', headSha: head }] });
+  const merge = await releaseAppLoop(runDir, { command: 'claim', action: 'merge' });
+  const merged = git(['commit-tree', `${head}^{tree}`, '-p', base, '-p', head, '-m', 'Synthetic observed GitHub merge']);
+  await observe('observe', { ...binding, actionId: merge.actionId, prNumber: 12, merged: true, mergeSha: merged, currentProductionSha: merged });
+  await observe('deployment', { deploymentId: 'synthetic-only', commitSha: merged, currentProductionSha: merged, url: automaticPolicy.productionUrl, status: 'Ready', current: true, smokeChecks: [{ name: 'Synthetic deployed check', status: 'passed', commitSha: merged }] });
+  await assert.rejects(releaseAppLoop(runDir, { command: 'claim', action: 'notify' }), /Synchronize/);
+  await assert.rejects(releaseAppLoop(runDir, { command: 'sync' }), /exact deployed/);
+  git(['merge', '--ff-only', merged]);
+  await releaseAppLoop(runDir, { command: 'sync' });
+  const notify = await releaseAppLoop(runDir, { command: 'claim', action: 'notify' });
+  const result = await observe('observe', { actionId: notify.actionId, channelId: automaticPolicy.slackChannelId, messageUrl: 'https://orbit-ai-global.slack.com/archives/C0CFVDUP3FG/p123456789' });
+  assert.equal(result.status, 'ready');
+  await beginAppLoop(runDir);
+  const saved = JSON.parse(await readFile(join(runDir, 'app-state.json'), 'utf8'));
+  assert.equal(saved.current.baseline.head, merged);
 });

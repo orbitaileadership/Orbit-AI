@@ -1,17 +1,28 @@
 import { afterEach,beforeEach,describe,expect,it,vi } from "vitest";
 import { getModel } from "@/config/models";
+import { ORBIT } from "@/config/orbit";
 import { ProviderError } from "@/lib/providers/types";
 const state=vi.hoisted(()=>({disabled:false,reserve:vi.fn(),settle:vi.fn(),stream:vi.fn()}));
 vi.mock("@/lib/billing/budget",()=>({isProviderDisabled:async()=>state.disabled,reserve:state.reserve,settle:state.settle}));
-vi.mock("@/lib/providers",()=>({apiKeyFor:()=>"synthetic-key",ADAPTERS:{openai:{stream:state.stream},anthropic:{stream:state.stream}}}));
+vi.mock("@/lib/providers",()=>({apiKeyFor:()=>"synthetic-key",ADAPTERS:{openai:{stream:state.stream},anthropic:{stream:state.stream},google:{stream:state.stream}}}));
 import { orbitCall, orbitInputTokens } from "./call";
-import { reservationMicros } from "@/lib/chat/context";
+import { costMicros, reservationMicros } from "@/lib/chat/context";
 const args=()=>({userId:"u",conversationId:"c",model:getModel("openai-luna")!,operation:"orbit_vote" as const,
  system:"Vote",history:[{role:"user" as const,content:"Synthetic question"}],maxOutput:100,signal:new AbortController().signal});
 afterEach(()=>vi.restoreAllMocks());
 beforeEach(()=>{vi.clearAllMocks();vi.spyOn(console,"error").mockImplementation(()=>{});state.disabled=false;state.reserve.mockResolvedValue({ok:true});state.settle.mockResolvedValue(undefined);
  state.stream.mockImplementation(async function*(){yield {delta:'{"nominee":"google"}'};yield {usage:{input:100,output:20,reasoning:0,cached:0}};yield {finish:"stop"};});});
 describe("Orbit paid calls",()=>{
+ it("reserves and settles the configured Flash lead at its own prices with explicit thinking",async()=>{
+   const model=getModel(ORBIT.candidates.google)!;
+   const o={...args(),model,operation:"orbit_answer" as const,thinkingLevel:"medium" as const};
+   await orbitCall(o);
+   expect(state.reserve).toHaveBeenCalledWith("u",expect.any(String),"google-default","text",reservationMicros(model,orbitInputTokens(o.system,o.history),o.maxOutput),expect.objectContaining({provider:"google",operation:"orbit_answer"}));
+   expect(state.stream).toHaveBeenCalledWith(expect.objectContaining({model,thinkingLevel:"medium"}));
+   expect(state.reserve.mock.invocationCallOrder[0]).toBeLessThan(state.stream.mock.invocationCallOrder[0]);
+   expect(state.settle).toHaveBeenCalledWith(expect.any(String),"settled",costMicros(model,{input:100,output:20,reasoning:0,cached:0}),expect.any(Object),undefined,{finishReason:"stop"});
+   expect(state.stream.mock.invocationCallOrder[0]).toBeLessThan(state.settle.mock.invocationCallOrder[0]);
+ });
  it("shares the framing-aware helper estimate with the actual reservation",async()=>{
    const o=args();o.history=Array.from({length:50},()=>({role:"user",content:"short"}));
    const input=orbitInputTokens(o.system,o.history);
@@ -160,4 +171,20 @@ it("turns off Haiku 5.5 thinking for bounded Orbit ballots only",async()=>{
  const lead={...ballot,operation:"orbit_answer" as const};
  await orbitCall(lead);
  expect(state.stream).toHaveBeenLastCalledWith(expect.not.objectContaining({disableThinking:true}));
+});
+
+it("uses an opaque conversation cache scope for eligible leads without caching ballots",async()=>{
+ await orbitCall(args());
+ expect(state.stream).toHaveBeenLastCalledWith(expect.not.objectContaining({cacheKey:expect.anything()}));
+ const answer={...args(),operation:"orbit_answer" as const};
+ await orbitCall(answer);
+ const firstKey=state.stream.mock.lastCall?.[0].cacheKey;
+ expect(firstKey).toMatch(/^orbit-[A-Za-z0-9_-]{32}$/);
+ expect(firstKey).not.toBe(`${answer.userId}:${answer.conversationId}`);
+ await orbitCall(answer);
+ expect(state.stream.mock.lastCall?.[0].cacheKey).toBe(firstKey);
+ await orbitCall({...answer,conversationId:"other"});
+ expect(state.stream.mock.lastCall?.[0].cacheKey).not.toBe(firstKey);
+ await orbitCall({...answer,userId:"other"});
+ expect(state.stream.mock.lastCall?.[0].cacheKey).not.toBe(firstKey);
 });

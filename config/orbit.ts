@@ -5,7 +5,8 @@ export const ORBIT = {
   version: "orbit-v2",
   // Cost-selected voting models, not a claim of benchmarked quality parity.
   voters: { openai: "openai-luna", anthropic: "anthropic-haiku-5-5", google: "google-3-1-flash-lite", xai: "xai-grok-4-3" } satisfies Record<ProviderId, string>,
-  candidates: { openai: "openai-default", anthropic: "anthropic-default", google: "google-pro", xai: "xai-default" } satisfies Record<ProviderId, string>,
+  // Select an available model before voting; never substitute a failed lead at runtime.
+  candidates: { openai: "openai-default", anthropic: "anthropic-default", google: "google-default", xai: "xai-default" } satisfies Record<ProviderId, string>,
   ballotOutput: 256,
   specialistOutput: 900,
   answerOutput: 4_000,

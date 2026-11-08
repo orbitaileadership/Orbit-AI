@@ -26,6 +26,49 @@ describe("prepareMarkdown", () => {
 });
 
 describe("Markdown", () => {
+  it("keeps prices, prose spacing and arithmetic readable instead of pairing currency as math", () => {
+    const text = "Contribution margin = $4.00 − $1.50 = $2.50 per cup\n\nProfit fell from $120 to $45. The full $2.50 per cup (30 cups × $2.50 = $75).";
+    const html = renderToStaticMarkup(<Markdown text={text} />);
+    expect(html).not.toContain('class="katex"');
+    expect(html).toContain("$4.00 − $1.50 = $2.50 per cup");
+    expect(html).toContain("$120 to $45");
+    expect(html).toContain("30 cups × $2.50 = $75");
+  });
+  it("renders escaped currency inside inline and display math without breaking the delimiters", () => {
+    const html = renderToStaticMarkup(<Markdown text={String.raw`Revenue: $8 \times \$6 = \$48$. Cost: $\$48 - \$12 = \$36$.
+
+$$\frac{\$36}{\$48} \times 100\% = 75\%$$`} />);
+    expect(html.match(/class="katex"/g)).toHaveLength(3);
+    expect(html).not.toContain("katex-error");
+    expect(html).toContain("<mo>×</mo>");
+    expect(html).toContain("<mtext>$</mtext>");
+  });
+  it("preserves mixed currency, single-dollar math, explicit math and display math", () => {
+    const html = renderToStaticMarkup(<Markdown text={String.raw`Pay $5 and use $x + 1$, $2x$, $2 + 2 = 4$, \(3 + 4 = 7\), and $$x^2$$. Escaped price: \$9.`} />);
+    expect(html).toContain("Pay $5 and use");
+    expect(html.match(/class="katex"/g)).toHaveLength(5);
+    expect(html).not.toContain("katex-error");
+    expect(html).toContain("Escaped price: $9.");
+  });
+  it("leaves currency in code and link destinations alone", () => {
+    const text = "`$5 and $6`\n\n```text\n$5 and $6\n```\n\n~~~text\n$5 and $6\n~~~\n\n[price](https://example.com/$5) <https://example.com/$6>";
+    expect(prepareMarkdown(text, undefined, true)).toBe(text);
+    const html = renderToStaticMarkup(<Markdown text={text} />);
+    expect(html).toContain('href="https://example.com/$5"');
+    expect(html).toContain('href="https://example.com/$6"');
+    expect(html).not.toContain('class="katex"');
+  });
+  it("keeps URLs inside explicit math expressions together", () => {
+    const html = renderToStaticMarkup(<Markdown text={String.raw`\(\text{https://example.com}\) and \[\text{https://example.com}\]`} />);
+    expect(html.match(/class="katex"/g)).toHaveLength(2);
+    expect(html).not.toContain("katex-error");
+    expect(html).toContain("<mtext>https://example.com</mtext>");
+  });
+  it("keeps an unfinished streaming price visible", () => {
+    const html = renderToStaticMarkup(<Markdown text="The price is $12.50" final={false} />);
+    expect(html).toContain("The price is $12.50");
+    expect(html).not.toContain('class="katex"');
+  });
   it("renders headings, lists, tables, code with a header, maths and citation chips", () => {
     const html = renderToStaticMarkup(<Markdown sources={src} text={"## Title\n\n- **one** [S1]\n- two [W2]\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n```python\nprint(1)\n```\n\n$E=mc^2$\n\n[link](https://uwo.ca)"} />);
     expect(html).toContain("<h2>Title</h2>");

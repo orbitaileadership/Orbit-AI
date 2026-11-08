@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 8, 2026 — main integration prepared
+
+Noah requested that the reviewed changes already deployed from `codex/pdf-only-production` be merged into `main` before the next feedback loop. A separate integration worktree combines that branch with `main`'s document and course work; loop 8 and its heartbeat remain paused while the integration is checked. Vercel still tracks `codex/pdf-only-production`, so the `main` merge does not itself redeploy the site. The continuous run's release grant still names the pinned production branch and must not be rewritten. See [integration handoff](handoffs/2026-11-08-main-feedback-integration.md).
+
 ## November 8, 2026 — local approval-gated feedback coordinator
 
 In isolated branch `codex/local-feedback-coordinator`, the four-role feedback controller supports continuous website testing, two submissions per loop, and owner approval after every report. The owner repaired the initial OpenAI credential failure; loop2's two fresh GPT-5 nano answers passed independent review with no code change. The owner then authorized higher-tier/cross-provider testing, especially Orbit Mode, and a same-source pinned-production redeploy, which reached Ready. Loop3's four ballots selected Gemini3.1Pro, but its lead-answer call returned HTTP429 (`rate_limit`); the held-out Claude task was not sent and no code patch was justified. The heartbeat remains paused pending Gemini quota/rate investigation and failed-attempt reconciliation. The earlier52 mocked/artifact tests passed; this is not full-site validation. See [latest handoff](handoffs/2026-11-08-feedback-loop3-policy.md).
