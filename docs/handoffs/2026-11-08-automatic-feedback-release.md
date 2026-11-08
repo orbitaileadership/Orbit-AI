@@ -1,5 +1,17 @@
 # Automatic feedback release candidate
 
+## Latest verified result
+
+- Gemini PR55 merged as `270a9509c1299d29b6b5f52801eb158d62a0029a`. Vercel deployment `J8vDp337X72Pa5DaSY5begH5cJC6` was Ready/Current for that source and `orbit-ai-sand.vercel.app`.
+- Two separately journaled release smoke checks completed in the real signed-in website: Orbit / Medium collected all four votes and Claude Sonnet 5.5 correctly solved the business calculation; direct Gemini 3.8 Flash correctly solved the physics calculation. These are release smoke checks, not a completed four-role loop. Gemini as an elected Orbit lead remains unverified. Private captures and exact responses are under `.feedback-runs/gemini-release-smoke/` and are not committed.
+- Independent review confirmed the Orbit arithmetic and found an existing currency-rendering defect: dollar signs can be interpreted as inline math, compressing text and hiding currency markers. This remains open for a future loop; no unrelated renderer change is included here.
+- After reconciling production, Node 22 GitHub Actions run `42517115486`, job `128842518379`, verified exact source `23ff82eab09a0ba59e5996db5e23477a76ab631a`: 64/64 coordinator tests, 879/879 application tests across 106 files, lint, typecheck and build all passed. Vercel Preview `Vfw7aHFdLrV6sVm7tJQiiv8DxG2N` also passed. These results supersede the initial failures recorded below. Documentation-only follow-up checks must be distinguished from this source validation.
+- Separate final second-model review found no new code blocker; migration hash remains unchanged. Shared application of migration 0028 still requires Noah's explicit approval and has not occurred. PR54 remains draft and unmerged.
+- Saved heartbeat now uses this worktree and the automatic checked-release protocol, including provider quota exclusions and immediate continuation after deployment plus Slack receipt. It remains PAUSED. No fresh automatic run is initialized yet. Bootstrap release and its database gate must finish before enabling it; the old failed loop3 must not restart.
+- The original checkout's unrelated changes remain untouched. No credentials, provider billing, account budgets, payment activation or branch protections were changed.
+
+## Preparation history
+
 - Owner/date: Noah / November 8, 2026. Explicit request for automatic merges, deployments, immediate continuation and plain-English Slack reports.
 - Branch/base: `codex/automatic-feedback-release`, isolated `orbit-ai-autorelease`; based on pinned production `e70ad09a8ef5f75c6b7446126487af069ceea8bd`. Main and the older coordinator's unrelated changes are preserved.
 - Gemini diagnosis: Orbit AI's Google project is on the free tier; AI Studio shows Gemini 3.1 Pro at zero RPM/TPM/RPD allowance. Flash 3.8 has allowance. Candidate config chooses Flash before ballots and preserves explicit effort, displayed identity and model-specific reservation/settlement. No billing/key change or runtime silent fallback.
