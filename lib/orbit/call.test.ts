@@ -172,3 +172,19 @@ it("turns off Haiku 5.5 thinking for bounded Orbit ballots only",async()=>{
  await orbitCall(lead);
  expect(state.stream).toHaveBeenLastCalledWith(expect.not.objectContaining({disableThinking:true}));
 });
+
+it("uses an opaque conversation cache scope for eligible leads without caching ballots",async()=>{
+ await orbitCall(args());
+ expect(state.stream).toHaveBeenLastCalledWith(expect.not.objectContaining({cacheKey:expect.anything()}));
+ const answer={...args(),operation:"orbit_answer" as const};
+ await orbitCall(answer);
+ const firstKey=state.stream.mock.lastCall?.[0].cacheKey;
+ expect(firstKey).toMatch(/^orbit-[A-Za-z0-9_-]{32}$/);
+ expect(firstKey).not.toBe(`${answer.userId}:${answer.conversationId}`);
+ await orbitCall(answer);
+ expect(state.stream.mock.lastCall?.[0].cacheKey).toBe(firstKey);
+ await orbitCall({...answer,conversationId:"other"});
+ expect(state.stream.mock.lastCall?.[0].cacheKey).not.toBe(firstKey);
+ await orbitCall({...answer,userId:"other"});
+ expect(state.stream.mock.lastCall?.[0].cacheKey).not.toBe(firstKey);
+});
