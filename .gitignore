@@ -49,3 +49,6 @@ next-env.d.ts
 
 # Disposable local Supabase stack with uniquely numbered copies of legacy migrations.
 /.local-supabase/
+
+# Local feedback run state, held-out tasks, captured responses and reports.
+/.feedback-runs/
