@@ -39,21 +39,26 @@ function prepareDollars(text: string): string {
     if (text[i] !== "$") { result += text[i++]; continue; }
     const delimiter = text[i + 1] === "$" ? "$$" : "$";
     let end = i + delimiter.length;
+    let crossedLine = false;
     for (; end < text.length; end++) {
+      // Inline math cannot use a later line's dollar sign as its closer.
+      if (delimiter === "$" && text[end] === "\n") { crossedLine = true; break; }
       if (text[end] === "\\") { end++; continue; }
       if (text.startsWith(delimiter, end)) break;
     }
     const body = text.slice(i + delimiter.length, end);
     // A numeric currency opener must not consume the next price (or the opening
     // dollar of a following formula). Keep ordinary $2x$ and $2 + 2 = 4$ math.
-    const currency = delimiter === "$" && /^[+-]?(?:\d|\.\d)/.test(body) &&
-      (end === text.length || /\n\s*\n/.test(body) || /\d/.test(text[end + 1] ?? "") ||
-        (/\s$/.test(body) && /[A-Za-z\\]/.test(text[end + 1] ?? "")));
+    const currency = delimiter === "$" && ((crossedLine && /^[ \t]/.test(body)) ||
+      (/^[+-]?(?:\d|\.\d)/.test(body) &&
+        (end === text.length || crossedLine || /\d/.test(text[end + 1] ?? "") ||
+          (/\s$/.test(body) && /[A-Za-z\\]/.test(text[end + 1] ?? "")))));
     if (currency) { result += "\\$"; i++; }
-    else if (end < text.length) {
+    else if (!crossedLine && end < text.length) {
       result += delimiter + mathCurrency(body) + delimiter;
       i = end + delimiter.length;
-    } else { result += text.slice(i); break; }
+    } else if (crossedLine) { result += text[i++]; }
+    else { result += text.slice(i); break; }
   }
   return result;
 }
