@@ -791,7 +791,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const skills = activeSkills(extensions.ext);
     const firstQuizTurn = Boolean(convId && quizReadyIds.has(convId) && (!retry || readyQuizRetry));
     const quizTurn = firstQuizTurn || chatSettings.mode === "quiz";
-    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: quizTurn || chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
+    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
       plugins: !quizTurn && plugins.length ? plugins : undefined, skills: !quizTurn && skills.length ? skills : undefined,
       mentions: !quizTurn && mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
     let body: object = { ...common, content, retry: retry && !readyQuizRetry, startQuiz: firstQuizTurn, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
