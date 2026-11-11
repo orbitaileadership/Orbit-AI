@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 // "Search chats" (⌘K / Ctrl+K), like the apps: type to filter this app's chats by name, arrows + Enter to open.
 export type ChatRow = { id: string; title: string; updatedAt: string };
@@ -23,6 +23,8 @@ export function SearchChats({ open, onClose, chats, onOpen, onNew, appName }: {
   open: boolean; onClose: () => void; chats: ChatRow[]; onOpen: (id: string) => void; onNew: () => void; appName: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const listboxId = useId();
   const [q, setQ] = useState("");
   const [at, setAt] = useState(0);
   useEffect(() => {
@@ -35,6 +37,11 @@ export function SearchChats({ open, onClose, chats, onOpen, onNew, appName }: {
     } else if (!open && d.open) d.close();
   }, [open]);
   const hits = useMemo(() => matchChats(chats, q).slice(0, 50), [chats, q]);
+  const activeIndex = Math.max(0, Math.min(at, hits.length - 1));
+  const activeOptionId = hits.length ? `${listboxId}-option-${activeIndex}` : undefined;
+  useEffect(() => {
+    if (open) listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [open, activeIndex, hits]);
   const pick = (i: number) => {
     const c = hits[i];
     if (c) { onOpen(c.id); onClose(); }
@@ -45,36 +52,38 @@ export function SearchChats({ open, onClose, chats, onOpen, onNew, appName }: {
       <div className="flex items-center gap-3 border-b border-line px-5 py-3.5">
         <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="shrink-0 text-ink-subtle"><circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M10.5 10.5 14 14" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
         <input autoFocus value={q} placeholder={`Search ${appName} chats…`} aria-label="Search chats"
+          role="combobox" aria-autocomplete="list" aria-expanded={open} aria-controls={listboxId} aria-activedescendant={activeOptionId}
           onChange={(e) => { setQ(e.target.value); setAt(0); }}
           onKeyDown={(e) => {
-            if (e.key === "ArrowDown") { e.preventDefault(); setAt((a) => Math.min(a + 1, hits.length - 1)); }
-            if (e.key === "ArrowUp") { e.preventDefault(); setAt((a) => Math.max(a - 1, 0)); }
-            if (e.key === "Enter") { e.preventDefault(); pick(at); }
+            if (e.key === "ArrowDown") { e.preventDefault(); setAt(Math.min(activeIndex + 1, Math.max(0, hits.length - 1))); }
+            if (e.key === "ArrowUp") { e.preventDefault(); setAt(Math.max(activeIndex - 1, 0)); }
+            if (e.key === "Enter") { e.preventDefault(); pick(activeIndex); }
           }}
           className="min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-subtle" />
         <button type="button" onClick={onClose} aria-label="Close" className="rounded-full px-2 py-0.5 text-ink-muted hover:bg-surface-300">✕</button>
       </div>
-      <ul className="max-h-[60vh] overflow-y-auto p-2" role="listbox" aria-label="Matching chats">
-        {!q && (
-          <li>
+      {!q && (
+        <div className="px-2 pt-2">
             <button type="button" onClick={() => { onNew(); onClose(); }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-surface-200">
               <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden><path d="M11.5 4.5H5.5a1.5 1.5 0 0 0-1.5 1.5v8.5A1.5 1.5 0 0 0 5.5 16H14a1.5 1.5 0 0 0 1.5-1.5v-6M13.6 3.4a1.4 1.4 0 0 1 2 2L10 11l-2.6.6.6-2.6 5.6-5.6z" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               New chat
             </button>
-          </li>
-        )}
+        </div>
+      )}
+      <ul ref={listRef} id={listboxId} className="max-h-[60vh] overflow-y-auto p-2" role="listbox" aria-label="Matching chats">
         {hits.map((c, i) => (
-          <li key={c.id} role="option" aria-selected={i === at}>
-            <button type="button" onMouseEnter={() => setAt(i)} onClick={() => pick(i)}
-              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm ${i === at ? "bg-surface-200" : ""}`}>
+          <li key={c.id} role="none">
+            <button type="button" id={`${listboxId}-option-${i}`} role="option" aria-selected={i === activeIndex} tabIndex={-1}
+              onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setAt(i)} onClick={() => pick(i)}
+              className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm ${i === activeIndex ? "bg-surface-200" : ""}`}>
               <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden className="shrink-0 text-ink-subtle"><path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" /></svg>
               <span className="min-w-0 flex-1 truncate">{c.title || "Untitled"}</span>
               <span className="shrink-0 text-xs text-ink-subtle">{when(c.updatedAt)}</span>
             </button>
           </li>
         ))}
-        {q && hits.length === 0 && <li className="px-3 py-6 text-center text-sm text-ink-subtle">No chats match “{q}”.</li>}
       </ul>
+      {q && hits.length === 0 && <p role="status" className="px-3 py-6 text-center text-sm text-ink-subtle">No chats match “{q}”.</p>}
     </dialog>
   );
 }
