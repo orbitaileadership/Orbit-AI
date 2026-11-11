@@ -1,5 +1,4 @@
 import { STUDY_CONTENT_PROMPT } from '@/lib/courses/study-prompt';
-import type { QuizFormat } from '@/config/course-workspace';
 
 // Shared response contract. Stable guidance stays compact because every provider receives it on each call.
 export const RESPONSE_QUALITY_CORE_PROMPT = [
@@ -19,24 +18,9 @@ export const RESPONSE_QUALITY_TEXT_PROMPT = [
 export const RESPONSE_QUALITY_PROMPT = `${RESPONSE_QUALITY_CORE_PROMPT}\n${RESPONSE_QUALITY_TEXT_PROMPT}`;
 // Quiz sessions use a shorter, explicit format contract so models build the full
 // answer key once. The client grades each click without another model call.
-const QUIZ_OUTPUT_PREFIX = 'Return the complete set in one fenced orbit-widget JSON block; no separate answer list.';
-const QUIZ_FORMAT_PROMPTS: Record<QuizFormat, string> = {
-  mcq: 'MCQ: {"type":"quiz","questions":[{"question":"…","options":["…","…"],"correct":0,"explanation":"…"}]}; 2–6 distinct choices, zero-based correct index.',
-  'short-answer': 'Short answer: {"type":"short_answer_quiz","questions":[{"question":"…","answer":"…","explanation":"…"}]}.',
-  flashcards: 'Flashcards: {"type":"flashcards","cards":[{"front":"…","back":"…"}]}.',
-};
-const QUIZ_OUTPUT_SUFFIX = 'Optional topic-specific title. Include every requested item and its answer now; the app handles reveal, immediate local feedback and navigation without another model call.';
-const quizOutputContract = (format?: QuizFormat) => [QUIZ_OUTPUT_PREFIX,
-  ...(format ? [QUIZ_FORMAT_PROMPTS[format]] : Object.values(QUIZ_FORMAT_PROMPTS)),
-  QUIZ_OUTPUT_SUFFIX].join(' ');
 export const RESPONSE_QUALITY_QUIZ_PROMPT = [
   RESPONSE_QUALITY_CORE_PROMPT,
   STUDY_CONTENT_PROMPT,
-  quizOutputContract(),
+  'Return the complete set in one fenced orbit-widget JSON block; no separate answer list. MCQ: {"type":"quiz","questions":[{"question":"…","options":["…","…"],"correct":0,"explanation":"…"}]}; 2–6 distinct choices, zero-based correct index. Short answer: {"type":"short_answer_quiz","questions":[{"question":"…","answer":"…","explanation":"…"}]}. Flashcards: {"type":"flashcards","cards":[{"front":"…","back":"…"}]}. Optional topic-specific title. Include every requested item and its answer now; the app handles reveal, immediate local feedback and navigation without another model call.',
 ].join("\n");
-// A launched course quiz already has a validated format; omit unrelated schema examples.
-// General quiz chats retain the complete format contract when the format is unknown.
-export const quizResponsePrompt = (format?: QuizFormat) => format
-  ? [RESPONSE_QUALITY_CORE_PROMPT, STUDY_CONTENT_PROMPT, quizOutputContract(format)].join("\n")
-  : RESPONSE_QUALITY_QUIZ_PROMPT;
 export const RESPONSE_QUALITY_VERSION = "student-v8";
