@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FOLDER_ACCESS, IMAGE_MODELS, MENU_MAIN, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
 import { THEMES } from "@/config/themes";
 import { missedConcepts, type QuizState } from "@/lib/chat/quiz";
+import { recoverCompletedReply } from "@/lib/chat/recovery-client";
 import { STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
 import { answersLeft, answersText, isLow, timesCheaper, typicalAnswerMicros } from "@/lib/billing/estimate";
 import { signOut } from "../login/actions";
@@ -140,6 +141,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const [courseProjects, setCourseProjects] = useState<Project[]>([]);
   const [quizReadyIds, setQuizReadyIds] = useState<Set<string>>(() => new Set());
   const [activeIds, setActiveIds] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
+  const [courseOnlyTouched, setCourseOnlyTouched] = useState<Record<string, boolean>>({});
   const [projectFilter, setProjectFilter] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [draftModels, setDraftModels] = useState<Record<ProviderId, string>>(() =>
     Object.fromEntries(PROVIDERS.map((p) => [p, defaultModelFor(p)])) as Record<ProviderId, string>,
@@ -791,10 +793,13 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const skills = activeSkills(extensions.ext);
     const firstQuizTurn = Boolean(convId && quizReadyIds.has(convId) && (!retry || readyQuizRetry));
     const quizTurn = firstQuizTurn || chatSettings.mode === "quiz";
-    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: quizTurn || chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
+    // The server chooses a file-aware default on the first quiz turn unless the student used the toggle.
+    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: firstQuizTurn && !courseOnlyTouched[msgKey] ? undefined : chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
       plugins: !quizTurn && plugins.length ? plugins : undefined, skills: !quizTurn && skills.length ? skills : undefined,
       mentions: !quizTurn && mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
     let body: object = { ...common, content, retry: retry && !readyQuizRetry, startQuiz: firstQuizTurn, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
+    let serverReplyId: string | null = null;
+    let sawCompleteDone = false;
     const steps: Step[] = [];
     const dataCache = new Map<string, RunFile>(); // data files downloaded once per reply
     try {
@@ -832,16 +837,18 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             if (!line.trim()) continue;
             const ev = JSON.parse(line);
             if (ev.t === "meta") {
+              if (typeof ev.replyId === "string") serverReplyId = ev.replyId;
               if (!convId) {
                 adoptConversation(ev.conversationId, ev.title, key);
                 currentKey = convId = ev.conversationId;
               }
               if (ev.toolContextCompacted) patchReply((m) => ({ ...m, toolContextCompacted: true }));
               setDropped((prev) => ({ ...prev, [ev.conversationId]: ev.dropped }));
-              setSettings((prev)=>({...prev,[ev.conversationId]:{...(prev[ev.conversationId]??chatSettings),summaryIncomplete:Boolean(ev.summaryIncomplete)}}));
+              setSettings((prev)=>({...prev,[ev.conversationId]:{...(prev[ev.conversationId]??chatSettings),summaryIncomplete:Boolean(ev.summaryIncomplete),courseOnly:Boolean(ev.courseOnly)}}));
               if (ev.summarized) setSettings((prev) => ({ ...prev, [ev.conversationId]: { ...(prev[ev.conversationId] ?? chatSettings), summarized: true } }));
             } else if (ev.t === "delta") patchReply((m) => ({ ...m, content: m.content + ev.v }));
             else if (ev.t === "done") {
+              if (ev.status === "complete") sawCompleteDone = true;
               // Same shape as a reloaded message: [] = files were searched but none used, undefined = no files involved.
               patchReply((m) => ({
                 ...m, status: ev.status === "error" ? "error" : ev.status === "partial" ? "partial" : "complete", error:ev.status === "error" ? ev.error : undefined, finishReason:ev.finishReason, sources: ev.grounding === "none" ? undefined : ev.sources,
@@ -873,7 +880,28 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       }
     } catch (e) {
       const stopped = (e as Error).name === "AbortError";
-      patchReply((m) => ({ ...m, status: stopped ? "partial" : "error", error: stopped ? undefined : errorText("unknown", label, theme.appName) }));
+      if (stopped) {
+        patchReply((m) => ({ ...m, status: "partial", error: undefined }));
+      } else if (!sawCompleteDone) {
+        // A broken browser stream can lose its final frame after the server saved a usable reply.
+        // Read only that reply by server ID; never replay the billable model request.
+        const recovered = convId && serverReplyId
+          ? await recoverCompletedReply<Message>(convId, serverReplyId, modelId)
+          : null;
+        if (recovered) {
+          patchReply((m) => ({ ...m, ...recovered.message, activity: m.activity, error: undefined }));
+          setSettings((prev) => ({
+            ...prev,
+            [convId!]: {
+              ...(prev[convId!] ?? chatSettings),
+              courseOnly: recovered.courseOnly,
+              quiz: recovered.quiz as QuizState | null,
+            },
+          }));
+        } else {
+          patchReply((m) => ({ ...m, status: "error", error: errorText("unknown", label, theme.appName) }));
+        }
+      }
     } finally {
       if (firstQuizTurn && convId) {
         const checked = await fetch(`/api/conversations/${convId}`).catch(() => null);
@@ -1263,7 +1291,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       onTogglePlugin={(id, on) => extensions.enablePlugin(id as PluginId, on)}
       imageLabel={imageModel?.label ?? null} imageMode={imageMode} onImageMode={setImageMode}
       mode={chatSettings.mode} onMode={(m) => setChatSettings({ mode: m })}
-      courseOnly={chatSettings.courseOnly} onCourseOnly={(v) => setChatSettings({ courseOnly: v, ...(v ? { web: false } : {}) })}
+      courseOnly={chatSettings.courseOnly} onCourseOnly={(v) => { setCourseOnlyTouched(prev => ({ ...prev, [msgKey]: true })); setChatSettings({ courseOnly: v, ...(v ? { web: false } : {}) }); }}
       web={Boolean(chatSettings.web)} onWeb={(v) => setChatSettings({ web: v, ...(v ? { courseOnly: false } : {}) })}
       folderName={folder?.name ?? null} folderOffline={Boolean(folder) && !folderOnline}
       onFolder={FOLDER_ACCESS[provider] ? () => setFolderDialog(true) : undefined}
