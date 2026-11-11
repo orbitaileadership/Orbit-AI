@@ -1,5 +1,6 @@
-import { RESPONSE_QUALITY_CORE_PROMPT, RESPONSE_QUALITY_PROMPT, RESPONSE_QUALITY_QUIZ_PROMPT } from "@/config/quality";
+import { RESPONSE_QUALITY_CORE_PROMPT, RESPONSE_QUALITY_PROMPT, quizResponsePrompt } from "@/config/quality";
 import { CONTEXT } from "@/config/context";
+import type { QuizFormat } from "@/config/course-workspace";
 import type { ModelOption } from "@/config/models";
 import type { ChatTurn, Usage } from "@/lib/providers/types";
 
@@ -99,6 +100,7 @@ export function systemPrompt(o: {
   projectInstructions?: string;
   mode?: StudyMode;
   quiz?: string;            // quiz progress and grading format (lib/chat/quiz.ts), in quiz mode
+  quizFormat?: QuizFormat;   // validated format of a launched course quiz
   material?: string;        // numbered passages from course files
   courseOnly?: boolean;
   hasFiles?: boolean;
@@ -109,7 +111,7 @@ export function systemPrompt(o: {
   summary?: string | null;  // summary of earlier messages that no longer fit
   voice?: boolean;          // voice conversation: the answer is read aloud
 }): string {
-  const parts = [`${BASE_SYSTEM_PROMPT}\nYou are ${o.modelLabel}.`, o.voice ? RESPONSE_QUALITY_CORE_PROMPT : o.mode === "quiz" ? RESPONSE_QUALITY_QUIZ_PROMPT : RESPONSE_QUALITY_PROMPT];
+  const parts = [`${BASE_SYSTEM_PROMPT}\nYou are ${o.modelLabel}.`, o.voice ? RESPONSE_QUALITY_CORE_PROMPT : o.mode === "quiz" ? quizResponsePrompt(o.quizFormat) : RESPONSE_QUALITY_PROMPT];
   if (o.personal) parts.push(o.personal);
   if (o.projectName) parts.push(`This chat is part of the student's course "${o.projectName}".`);
   if (o.projectInstructions?.trim()) parts.push(`Course instructions from the student:\n${o.projectInstructions.trim()}`);
