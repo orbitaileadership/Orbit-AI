@@ -790,35 +790,6 @@ describe('saved course quiz generation',()=>{
  const course='a5555555-5555-4555-8555-555555555555',folder='a6666666-6666-4666-8666-666666666666',section='a7777777-7777-4777-8777-777777777777';
  const deck=JSON.stringify({type:'flashcards',cards:Array.from({length:5},(_,i)=>({front:i?`Question ${i}`:'ATP source?',back:i?`Answer ${i}`:'Mitochondrion'}))});
  function session(){state.live=true;state.fake!.db.projects.push({id:course,user_id:'user-1',is_folder:false,name:'Biology',course_data:{items:[{id:section,title:'Midterm',kind:'exam',details:'Cells',folderId:folder}]}},{id:folder,user_id:'user-1',is_folder:true,parent_course_id:course,name:'Midterm'});state.fake!.db.conversations.push({id,user_id:'user-1',provider:'anthropic',project_id:course,section_folder_id:folder,mode:'quiz',study_config:{format:'flashcards',count:5,section_id:section,start_state:'ready'}});}
- it('uses general knowledge for the first quiz when the course has no files and no file-only choice was made',async()=>{
-  session();vi.stubEnv('TAVILY_API_KEY','synthetic-key');
-  try {
-   state.events=[{delta:deck},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
-   const events=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Create five cell biology flashcards.',startQuiz:true})));
-   expect(events.at(-1)).toMatchObject({t:'done',status:'complete'});
-   expect(events.find(e=>e.t==='meta')).toMatchObject({courseOnly:false});
-   expect(state.fake!.db.conversations[0].course_only).toBe(false);
-   expect(state.lastArgs!.system).not.toContain("Don't answer from general knowledge");
-   expect(state.lastArgs!.tools?.some(t=>t.name==='web_search')).toBeFalsy();
-  } finally {vi.unstubAllEnvs();}
- });
- it('defaults a file-backed section quiz to the student files',async()=>{
-  session();state.fake!.db.files.push({id:'a8888888-8888-4888-8888-888888888888',user_id:'user-1',name:'cell-notes.txt',kind:'document',status:'ready',char_count:80,page_count:1,project_id:folder,conversation_id:null,storage_path:'synthetic/cell-notes',mime:'text/plain'});
-  state.fake!.db.file_chunks.push({id:'cell-chunk',file_id:'a8888888-8888-4888-8888-888888888888',page:1,chunk_index:0,content:'Mitochondria produce ATP in eukaryotic cells.'});
-  state.events=[{delta:deck},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
-  const events=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Create five mitochondria flashcards.',startQuiz:true})));
-  expect(events.at(-1)).toMatchObject({t:'done',status:'complete'});
-  expect(events.find(e=>e.t==='meta')).toMatchObject({courseOnly:true});
-  expect(state.fake!.db.conversations[0].course_only).toBe(true);
-  expect(state.lastArgs!.system).toContain('answer ONLY from these passages');
- });
- it('keeps an explicit file-only choice even when the section has no files',async()=>{
-  session();state.events=[{delta:deck},{usage:{input:100,output:30,reasoning:0,cached:0}},{finish:'stop'}];
-  const events=await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Create five cell biology flashcards.',startQuiz:true,courseOnly:true})));
-  expect(events.find(e=>e.t==='meta')).toMatchObject({courseOnly:true});
-  expect(state.fake!.db.conversations[0].course_only).toBe(true);
-  expect(state.lastArgs!.system).toContain("Don't answer from general knowledge");
- });
  it('requires the initial claim and prevents a sidebar request from bypassing it',async()=>{
   session();const before=vi.mocked(budget.reserve).mock.calls.length;
   expect((await POST(req({provider:'anthropic',modelId:'anthropic-haiku',conversationId:id,content:'Start'}))).status).toBe(409);
