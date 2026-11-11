@@ -3,6 +3,7 @@
 import { useContext, useEffect, useId, useRef, useState } from "react";
 import type { FlashcardsWidget, ShortAnswerQuizWidget } from "@/lib/widgets/schema";
 import { MultipleChoiceContext } from "./multiple-choice";
+import { StudyText } from "./study-text";
 
 type Widget = FlashcardsWidget | ShortAnswerQuizWidget;
 type Progress = { current: number; responses: string[]; revealed: boolean[]; marks: (boolean | null)[] };
@@ -132,12 +133,12 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
               <span className="study-flashcard-inner block h-full w-full">
                 <span className="study-flashcard-face study-flashcard-front" aria-hidden={flipped}>
                   <span className="text-xs font-semibold uppercase tracking-[.18em] text-ink-muted">Question</span>
-                  <span className="study-flashcard-copy">{card.front}</span>
+                  <span className="study-flashcard-copy"><StudyText text={card.front} /></span>
                   <span className="text-xs font-medium text-ink-muted">Click or tap to reveal answer</span>
                 </span>
                 <span className="study-flashcard-face study-flashcard-back" aria-hidden={!flipped}>
                   <span className="text-xs font-semibold uppercase tracking-[.18em] text-ink-muted">Answer</span>
-                  <span className="study-flashcard-copy">{card.back}</span>
+                  <span className="study-flashcard-copy"><StudyText text={card.back} /></span>
                   <span className="text-xs font-medium text-ink-muted">Click or tap to see question</span>
                 </span>
               </span>
@@ -178,7 +179,7 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
     {item ? <div key={`${index}:${progress.revealed[index]}`} className="study-card-enter">
       <div className="mt-5 rounded-2xl border border-line bg-surface-000 p-5 shadow-sm sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{flashcards ? progress.revealed[index] ? "Back" : "Front" : "Your prompt"}</p>
-        <h3 className="mt-2 text-base font-semibold leading-relaxed text-ink">{flashcards && progress.revealed[index] ? answer : prompt}</h3>
+        <h3 className="mt-2 text-base font-semibold leading-relaxed text-ink"><StudyText text={flashcards && progress.revealed[index] ? answer : prompt} /></h3>
       </div>
       {!flashcards && <div className="mt-4">
         <label htmlFor={`${fieldId}-${index}`} className="mb-2 block text-sm font-medium text-ink">Your answer</label>
@@ -191,8 +192,8 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
         {flashcards ? "Flip card" : "Reveal sample answer"}
       </button> : <>
         {!flashcards && <div role="status" className="study-card-enter mt-4 rounded-xl border border-brand/30 bg-surface-200 p-4 text-sm leading-relaxed text-ink">
-          <p className="font-semibold">Sample answer</p><p className="mt-1 whitespace-pre-wrap">{answer}</p>
-          {explanation && <p className="mt-2 text-ink-muted">{explanation}</p>}
+          <p className="font-semibold">Sample answer</p><div className="mt-1"><StudyText text={answer} /></div>
+          {explanation && <div className="mt-2 text-ink-muted"><StudyText text={explanation} /></div>}
         </div>}
         <p className="mt-4 text-sm text-ink-muted">{flashcards ? "How well did you know it?" : "Compare your answer and mark it yourself. Orbit does not automatically grade free-form answers."}</p>
         <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Self-check result">
