@@ -3,6 +3,7 @@
 import { useContext, useEffect, useState } from "react";
 import type { QuizWidget } from "@/lib/widgets/schema";
 import { MultipleChoiceContext } from "./multiple-choice";
+import { StudyText } from "./study-text";
 
 type Progress = { current: number; answers: (number | null)[] };
 const empty = (count: number): Progress => ({ current: 0, answers: Array(count).fill(null) });
@@ -68,7 +69,7 @@ export function QuizWidgetView({ widget }: { widget: QuizWidget }) {
       <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${answered / count * 100}%` }} />
     </div>
     {q ? <>
-      <h3 className="mt-5 text-base font-semibold leading-relaxed text-ink">{q.question}</h3>
+      <h3 className="mt-5 text-base font-semibold leading-relaxed text-ink"><StudyText text={q.question} /></h3>
       <div className="mt-4 space-y-2" role="group" aria-label="Choose an answer">
         {q.options.map((option, i) => {
           const picked = chosen === i;
@@ -80,14 +81,14 @@ export function QuizWidgetView({ widget }: { widget: QuizWidget }) {
             correct ? "border-success bg-success/10" : picked ? "border-danger bg-danger-surface" : "border-line bg-surface-100 hover:bg-surface-200"
           } disabled:cursor-default`}>
             <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-surface-200 font-semibold">{String.fromCharCode(65 + i)}</span>
-            <span className="min-w-0 flex-1 break-words">{option}</span>
+            <span className="min-w-0 flex-1 break-words"><StudyText text={option} /></span>
             {correct && <span className="shrink-0 font-semibold text-success" aria-label="Correct answer">✓</span>}
           </button>;
         })}
       </div>
       {chosen !== null && <div role="status" className={`mt-4 rounded-xl border p-3 text-sm leading-relaxed ${chosen === q.correct ? "border-success/40 bg-success/10" : "border-danger/40 bg-danger-surface"}`}>
         <p className={`font-semibold ${chosen === q.correct ? "text-success" : "text-danger"}`}>{chosen === q.correct ? "Correct" : "Not quite"}</p>
-        <p className="mt-1 text-ink">{q.explanation}</p>
+        <div className="mt-1 text-ink"><StudyText text={q.explanation} /></div>
       </div>}
       <div className="mt-5 flex items-center justify-between gap-3">
         <button type="button" disabled={progress.current === 0} onClick={() => update({ ...progress, current: progress.current - 1 })}

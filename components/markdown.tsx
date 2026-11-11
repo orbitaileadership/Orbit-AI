@@ -11,57 +11,13 @@ import { hideQuizMarkers } from "@/lib/chat/quiz";
 import { hideRememberMarkers } from "@/lib/profile/personal";
 import type { Source } from "./answer-text";
 import { parseWidget } from "@/lib/widgets/schema";
+import { prepareDollars } from "@/lib/widgets/math-text";
 import { MultipleChoiceContext, type MultipleChoiceInteraction } from "./multiple-choice";
 import { ChatWidget, WidgetPending } from "./chat-widgets";
 
 // Answers rendered the way ChatGPT / Claude / Gemini / Grok show them: headings, lists, tables, code blocks with a
 // language label and Copy, and LaTeX maths. Citation markers ([S1] course files, [W2] web) become small chips.
 const tagOf = (s: Pick<Source, "kind" | "n">) => `${s.kind === "web" ? "W" : "S"}${s.n}`;
-
-// remark-math treats even TeX's escaped dollar as a delimiter inside inline math.
-// Use an equivalent KaTeX character command there, leaving prose escapes intact.
-const mathCurrency = (body: string) => body.replace(/\\\$/g, String.raw`\text{\char36}`);
-
-function prepareDollars(text: string): string {
-  let result = "";
-  for (let i = 0; i < text.length;) {
-    if (text[i] === "\\") {
-      // Explicit math delimiters are unambiguous, including numeric expressions.
-      const close = text[i + 1] === "(" ? "\\)" : text[i + 1] === "[" ? "\\]" : null;
-      const end = close ? text.indexOf(close, i + 2) : -1;
-      if (end >= 0) {
-        const body = mathCurrency(text.slice(i + 2, end).trim());
-        result += close === "\\)" ? `$${body}$` : `\n$$\n${body}\n$$\n`;
-        i = end + 2;
-      } else { result += text.slice(i, i + 2); i += 2; }
-      continue;
-    }
-    if (text[i] !== "$") { result += text[i++]; continue; }
-    const delimiter = text[i + 1] === "$" ? "$$" : "$";
-    let end = i + delimiter.length;
-    let crossedLine = false;
-    for (; end < text.length; end++) {
-      // Inline math cannot use a later line's dollar sign as its closer.
-      if (delimiter === "$" && text[end] === "\n") { crossedLine = true; break; }
-      if (text[end] === "\\") { end++; continue; }
-      if (text.startsWith(delimiter, end)) break;
-    }
-    const body = text.slice(i + delimiter.length, end);
-    // A numeric currency opener must not consume the next price (or the opening
-    // dollar of a following formula). Keep ordinary $2x$ and $2 + 2 = 4$ math.
-    const currency = delimiter === "$" && ((crossedLine && /^[ \t]/.test(body)) ||
-      (/^[+-]?(?:\d|\.\d)/.test(body) &&
-        (end === text.length || crossedLine || /\d/.test(text[end + 1] ?? "") ||
-          (/\s$/.test(body) && /[A-Za-z\\]/.test(text[end + 1] ?? "")))));
-    if (currency) { result += "\\$"; i++; }
-    else if (!crossedLine && end < text.length) {
-      result += delimiter + mathCurrency(body) + delimiter;
-      i = end + delimiter.length;
-    } else if (crossedLine) { result += text[i++]; }
-    else { result += text.slice(i); break; }
-  }
-  return result;
-}
 
 /** Text → Markdown ready to render: hidden markers removed, \( \) / \[ \] maths turned into $ / $$, citations into
  *  `cite:` links (dropped when final and they point at nothing). Code is left untouched. Pure, for tests. */
