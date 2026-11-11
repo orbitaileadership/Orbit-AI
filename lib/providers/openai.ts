@@ -42,8 +42,15 @@ export const openai: ProviderAdapter = {
       signal,
     });
     let res = await call(Boolean(fast));
-    // A 400 can come from an optional setting this model doesn't accept: retry once with the plain request.
-    if (res.status === 400 && !thinkingLevel && (fast || cacheKey)) res = await call(false, false);
+    // Retry without optional settings only when the rejection could concern one of them.
+    // A named, unrelated invalid parameter cannot be repaired by sending the same input again.
+    if (res.status === 400 && !thinkingLevel && (fast || cacheKey)) {
+      const body = await res.clone().json().catch(() => null);
+      const param = typeof body?.error?.param === "string" ? body.error.param : null;
+      if (!param || param === "prompt_cache_key" || param === "reasoning" || param.startsWith("reasoning.")) {
+        res = await call(false, false);
+      }
+    }
     if (!res.ok || !res.body) throw errorForStatus(res.status);
 
     let finished = false;
