@@ -334,7 +334,7 @@ export async function POST(request: Request): Promise<Response> {
   const selectedMemories = relevantMemories(personal.memories, question);
   const promptBase = {
     modelLabel: model.label, personal: personalPrompt(personal.profile, selectedMemories), projectName: project?.name, projectInstructions: project?.instructions,
-    mode: conversation.mode as StudyMode, quiz: quizText, material: material.block, courseOnly: conversation.course_only,
+    mode: conversation.mode as StudyMode, quiz: quizText, quizFormat: activeStudyInstructions?.format, material: material.block, courseOnly: conversation.course_only,
     hasFiles: material.hasFiles, unreadable: material.unreadable, notes: [...material.notes, ...webNotes], web: webBlock,
     voice,
   };
