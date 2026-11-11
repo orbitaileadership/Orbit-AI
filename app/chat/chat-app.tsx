@@ -140,6 +140,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const [courseProjects, setCourseProjects] = useState<Project[]>([]);
   const [quizReadyIds, setQuizReadyIds] = useState<Set<string>>(() => new Set());
   const [activeIds, setActiveIds] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
+  const [courseOnlyTouched, setCourseOnlyTouched] = useState<Record<string, boolean>>({});
   const [projectFilter, setProjectFilter] = useState<Record<ProviderId, string | null>>(() => perProvider<string | null>(() => null));
   const [draftModels, setDraftModels] = useState<Record<ProviderId, string>>(() =>
     Object.fromEntries(PROVIDERS.map((p) => [p, defaultModelFor(p)])) as Record<ProviderId, string>,
@@ -791,7 +792,8 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const skills = activeSkills(extensions.ext);
     const firstQuizTurn = Boolean(convId && quizReadyIds.has(convId) && (!retry || readyQuizRetry));
     const quizTurn = firstQuizTurn || chatSettings.mode === "quiz";
-    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: quizTurn || chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
+    // The server chooses a file-aware default on the first quiz turn unless the student used the toggle.
+    const common = { provider: generationProvider, homeProvider: provider, modelId, mode: quizTurn ? "quiz" : chatSettings.mode, courseOnly: firstQuizTurn && !courseOnlyTouched[msgKey] ? undefined : chatSettings.courseOnly, web: quizTurn ? false : Boolean(chatSettings.web), code: quizTurn ? false : code, voice: opts.voice || undefined, folder: link ? { name: link.name } : undefined,
       plugins: !quizTurn && plugins.length ? plugins : undefined, skills: !quizTurn && skills.length ? skills : undefined,
       mentions: !quizTurn && mentions.filter((m) => plugins.includes(m)).length ? mentions.filter((m) => plugins.includes(m)) : undefined };
     let body: object = { ...common, content, retry: retry && !readyQuizRetry, startQuiz: firstQuizTurn, ...(opts.edit ? { edit: true } : {}), attachmentIds, conversationId: convId, projectId: active ? undefined : filter };
@@ -838,7 +840,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
               }
               if (ev.toolContextCompacted) patchReply((m) => ({ ...m, toolContextCompacted: true }));
               setDropped((prev) => ({ ...prev, [ev.conversationId]: ev.dropped }));
-              setSettings((prev)=>({...prev,[ev.conversationId]:{...(prev[ev.conversationId]??chatSettings),summaryIncomplete:Boolean(ev.summaryIncomplete)}}));
+              setSettings((prev)=>({...prev,[ev.conversationId]:{...(prev[ev.conversationId]??chatSettings),summaryIncomplete:Boolean(ev.summaryIncomplete),courseOnly:Boolean(ev.courseOnly)}}));
               if (ev.summarized) setSettings((prev) => ({ ...prev, [ev.conversationId]: { ...(prev[ev.conversationId] ?? chatSettings), summarized: true } }));
             } else if (ev.t === "delta") patchReply((m) => ({ ...m, content: m.content + ev.v }));
             else if (ev.t === "done") {
@@ -1263,7 +1265,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       onTogglePlugin={(id, on) => extensions.enablePlugin(id as PluginId, on)}
       imageLabel={imageModel?.label ?? null} imageMode={imageMode} onImageMode={setImageMode}
       mode={chatSettings.mode} onMode={(m) => setChatSettings({ mode: m })}
-      courseOnly={chatSettings.courseOnly} onCourseOnly={(v) => setChatSettings({ courseOnly: v, ...(v ? { web: false } : {}) })}
+      courseOnly={chatSettings.courseOnly} onCourseOnly={(v) => { setCourseOnlyTouched(prev => ({ ...prev, [msgKey]: true })); setChatSettings({ courseOnly: v, ...(v ? { web: false } : {}) }); }}
       web={Boolean(chatSettings.web)} onWeb={(v) => setChatSettings({ web: v, ...(v ? { courseOnly: false } : {}) })}
       folderName={folder?.name ?? null} folderOffline={Boolean(folder) && !folderOnline}
       onFolder={FOLDER_ACCESS[provider] ? () => setFolderDialog(true) : undefined}
