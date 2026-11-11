@@ -61,6 +61,7 @@ import type { ToolCall } from "@/lib/providers/types";
 // Chats, projects and usage live in Supabase (see app/api/*). Each AI app has its own chats and projects.
 type Message = {
   id: string;
+  serverReplyId?: string;
   role: "user" | "assistant";
   kind: "text" | "image";
   content: string;
@@ -836,6 +837,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                 adoptConversation(ev.conversationId, ev.title, key);
                 currentKey = convId = ev.conversationId;
               }
+              if (typeof ev.replyId === "string" && ev.replyId) patchReply((m) => ({ ...m, serverReplyId: ev.replyId }));
               if (ev.toolContextCompacted) patchReply((m) => ({ ...m, toolContextCompacted: true }));
               setDropped((prev) => ({ ...prev, [ev.conversationId]: ev.dropped }));
               setSettings((prev)=>({...prev,[ev.conversationId]:{...(prev[ev.conversationId]??chatSettings),summaryIncomplete:Boolean(ev.summaryIncomplete)}}));
@@ -1668,7 +1670,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                         ) : (
                           <div className={`${theme.replyClass} ${m.status === "streaming" ? "md-streaming" : ""}`} aria-busy={m.status === "streaming"}>
                             {m.content && !(m.status === "error" && m.content === STUDY_WIDGET_ERROR_TEXT) ? <Markdown text={m.content} sources={m.sources} final={m.status !== "streaming"} interaction={{
-                              storageScope: `${userId}:${activeId ?? "draft"}:${m.id}`,
+                              storageScope: `${userId}:${activeId ?? "draft"}:${m.serverReplyId ?? m.id}`,
                               legacyStorageScope: `${activeId ?? "draft"}:${idx}`,
                             }} /> : m.status === "streaming" && <PendingIndicator provider={provider} />}
                             {m.status === "partial" && <span className="ml-1 text-xs text-ink-subtle">{m.finishReason==="length"?"[Reply reached its output limit]":"[Incomplete reply]"}</span>}
