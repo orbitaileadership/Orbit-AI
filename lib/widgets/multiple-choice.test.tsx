@@ -66,6 +66,26 @@ describe("click-through quiz", () => {
 });
 
 describe("self-paced study widgets", () => {
+  it("typesets quiz and flashcard formulas while leaving prose prices readable", () => {
+    const quiz = { type: "quiz", questions: [{ question: String.raw`Find $SE=\sqrt{0.21/400}$.`, options: ["0.0229", "0.21"], correct: 0, explanation: "Use the sample proportion." }] };
+    const short = { type: "short_answer_quiz", questions: [{ question: String.raw`Compute $\hat p=120/400$ for a $5 survey.`, answer: "0.30" }] };
+    const cards = { type: "flashcards", cards: [{ front: String.raw`What is $1/\sqrt n$?`, back: "A scaling rule" }] };
+    const render = (widget: object) => renderToStaticMarkup(<Markdown text={`\`\`\`orbit-widget\n${JSON.stringify(widget)}\n\`\`\``} />);
+    expect(render(quiz)).toContain('class="katex"');
+    expect(render(short)).toContain('class="katex"');
+    expect(render(short)).toContain("$5 survey");
+    expect(render(cards)).toContain('class="katex"');
+    expect(render(short)).not.toContain("katex-error");
+    const mixed = { type: "flashcards", cards: [{ front: "Price $5. Use \\(x^2\\) and code `$6`.", back: "Check" }] };
+    const mixedHtml = render(mixed);
+    expect(mixedHtml).toContain("Price $5.");
+    expect(mixedHtml).toContain('class="katex"');
+    expect(mixedHtml).toContain("$6");
+    const external = { type: "quiz", questions: [{ question: "[read](https://example.com) ![remote](https://example.com/image.png)", options: ["A", "B"], correct: 0, explanation: "A" }] };
+    const externalHtml = render(external);
+    expect(externalHtml).not.toContain("<a ");
+    expect(externalHtml).not.toContain("<img ");
+  });
   it("validates short-answer sets and hides the sample answer until reveal", () => {
     const widget = { type: "short_answer_quiz", questions: [{ question: "Define ATP", answer: "Cellular energy carrier", explanation: "ATP stores energy in phosphate bonds." }] };
     expect(parseWidget(JSON.stringify(widget))).toEqual(widget);
