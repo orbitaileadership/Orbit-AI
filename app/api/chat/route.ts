@@ -227,16 +227,6 @@ export async function POST(request: Request): Promise<Response> {
     previousQuestion: rows.filter((m) => m.role === "user").at(-2)?.content,
   });
 
-  // The first saved quiz uses owned course material when available. An explicit
-  // My files only choice from the student always wins, including with no files.
-  if (body.startQuiz === true && !retry && typeof body.courseOnly !== "boolean") {
-    const defaultOnly = material.hasFiles;
-    if (conversation.course_only !== defaultOnly) {
-      const { error } = await supabase.from("conversations").update({ course_only: defaultOnly }).eq("id", conversation.id).eq("user_id", user.id);
-      if (error) return dbError(error, "save_failed");
-      conversation.course_only = defaultOnly;
-    }
-  }
   const live = liveFor(provider);
   const requestId = randomUUID();
   let apiKey: string | null = null;
@@ -353,7 +343,7 @@ export async function POST(request: Request): Promise<Response> {
   // Installed + connected plugins (Plugins page) and installed skills; the browser runs plugin tools with the student's sign-in.
   const pluginIds = FOLDER_ACCESS[provider] && Array.isArray(body.plugins) ? [...new Set(body.plugins.filter(isPluginId))] : [];
   const skillText = skillsPrompt(body.skills);
-  const automaticSearch = live && Boolean(searchKey()) && conversation.mode !== "quiz" && !conversation.course_only && !voice && !currentSearch && !searchCall;
+  const automaticSearch = live && Boolean(searchKey()) && !conversation.course_only && !voice && !currentSearch && !searchCall;
   const offered = [...(automaticSearch ? SEARCH_TOOLS : []), ...(codeOn ? CODE_TOOLS : []), ...(folderName ? FOLDER_TOOLS : []), ...pluginTools(pluginIds)];
   const tools = offered.length && stepsUsed < MAX_TOOL_STEPS && !voice ? offered : undefined;
   const folderText = [
