@@ -45,6 +45,7 @@ const ERRORS: Record<string,string> = {
   orbit_helper_limit:"This request exceeds Orbit's routing and collaboration allowance. Try a smaller task.",
   db_setup:"Orbit's database update has not been applied. Contact the team.",
   save_failed:"The answer could not be fully saved. Refresh to check your saved chat before continuing.",
+  orbit_postsave_failed:"Your answer is complete and saved, but related chat, practice, memory or attachment updates could not all be confirmed. Reopen the chat to check before sending another request.",
   reserve_failed:"Orbit couldn't check your allowance right now. Your message was not sent; try again shortly.",
   load_failed:"Orbit couldn't load this chat right now. Your message was not sent; try again shortly.",
   not_found:"This Orbit chat is no longer available. Start a new chat or reopen it from the sidebar.",
@@ -63,19 +64,21 @@ function orbitErrorText(code: unknown, phase: "start" | "finish") {
   return phase === "start" ? `Orbit could not start this turn${safeCode}. Your message was not sent; try again.` : `Orbit could not finish this turn${safeCode}. Completed calls may still use allowance.`;
 }
 
-/** "Answered by Claude · 3 of 4 votes" above each Orbit answer; opens the full ballot. */
-function LeadChip({ decision }: { decision: Decision }) {
+/** Routing selection is not proof of a completed answer or specialist contribution. */
+export function LeadChip({ decision, status, content }: { decision: Decision; status?: string; content: string }) {
   const [open, setOpen] = useState(false);
   const votes = decision.ballots.filter(b => b.nominee === decision.lead).length;
   const lead = getModel(decision.leadModelId)?.label;
+  const answered = !decision.demo && status === "complete" && Boolean(hideRememberMarkers(content).trim());
+  const attribution = decision.demo ? "Simulated lead" : answered ? "Answered by" : "Selected lead";
   return <div className="mb-3">
     <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open}
       className="inline-flex max-w-full items-center gap-2 rounded-full border border-line bg-surface-100 py-1 pl-1 pr-3 text-left text-xs text-ink-muted transition hover:border-line-strong hover:text-ink">
       <span className="flex shrink-0 -space-x-1.5">
         {PROVIDERS.filter(p => !decision.unavailableProviders?.includes(p)).map(p => <span key={p} className={`grid h-6 w-6 place-items-center rounded-full border-2 border-surface-100 bg-surface-200 ${p === decision.lead ? "relative z-10 ring-2 ring-brand" : "opacity-60"}`}><ProviderLogo provider={p} size={13} /></span>)}
       </span>
-      <span className="min-w-0 truncate">{decision.demo ? "Simulated · " : ""}Answered by <span className="font-medium text-ink">{THEMES[decision.lead].appName}</span>
-        {decision.specialist ? <> with <span className="font-medium text-ink">{THEMES[decision.specialist].appName}</span></> : null} · {votes} of {decision.ballots.length} votes{decision.tied ? " (tie-break)" : ""}</span>
+      <span className="min-w-0 truncate">{attribution} <span className="font-medium text-ink">{THEMES[decision.lead].appName}</span>
+        {decision.specialist ? <>{decision.demo ? " · simulated specialist selected: " : " · specialist selected: "}<span className="font-medium text-ink">{THEMES[decision.specialist].appName}</span></> : null} · {votes} of {decision.ballots.length} {decision.demo ? "simulated votes" : "votes"}{decision.tied ? " (tie-break)" : ""}</span>
       <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
     <OrbitAvailabilityNotice decision={decision} />
@@ -84,7 +87,7 @@ function LeadChip({ decision }: { decision: Decision }) {
         <ProviderLogo provider={b.voter} size={16} /><span className="text-ink">{THEMES[b.voter].appName}</span>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         <ProviderLogo provider={b.nominee} size={16} />{THEMES[b.nominee].appName}{b.collaborate ? " · wants a specialist" : ""}</li>)}</ul>
-      <p className="mt-3 leading-5">{lead ? `Lead model: ${lead}. ` : ""}{decision.thinkingLevel ? `Thinking level: ${decision.thinkingLevel}. ` : ""}{decision.tied ? "Tied vote: a stable tie-break selected the lead. " : ""}No AI can vote for itself; a specialist joins when three ask. The vote is a recommendation, not a guarantee of correctness.</p>
+      <p className="mt-3 leading-5">{lead ? `Selected lead model: ${lead}. ` : ""}{`${decision.demo ? "Simulated lead votes" : "Lead votes"}: ${votes} of ${decision.ballots.length}. `}{decision.specialist ? `Specialist selected: ${THEMES[decision.specialist].appName}. ` : ""}{decision.thinkingLevel ? `Thinking level: ${decision.thinkingLevel}. ` : ""}{decision.tied ? "Tied vote: a stable tie-break selected the lead. " : ""}{decision.demo ? "Selections and votes are simulated; no provider answered this demo. " : !answered ? "Selection does not confirm a completed answer or specialist contribution. " : ""}No AI can vote for itself; a specialist is selected when three ask. The vote is a recommendation, not a guarantee of correctness.</p>
     </div>}
   </div>;
 }
@@ -224,7 +227,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     if(files.some(f=>f.status==="queued"||f.status==="processing")){setError("A file is still being indexed. Wait until it is ready before sending it to Orbit.");return;}
     const attachmentIds=files.map(f=>f.id),sentFiles=files;
     setBusy(true);setError("");setInput("");setFiles([]);setDecision(null);setPhase("voting");
-    const userId=crypto.randomUUID(),localReply=crypto.randomUUID();let terminal=false,accepted=false,serverReply:string|undefined;
+    const userId=crypto.randomUUID(),localReply=crypto.randomUUID();let terminal=false,completed=false,accepted=false,serverReply:string|undefined;
     setMessages(prev=>[...prev,{id:userId,role:"user",content,attachments:sentFiles},{id:localReply,role:"assistant",content:"",status:"streaming"}]);
     const abort=new AbortController();controller.current=abort;
     const patch=(change:Partial<Message>)=>setMessages(prev=>prev.map(m=>m.id===localReply||m.id===serverReply?{...m,...change}:m));
@@ -241,7 +244,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
         else if(ev.t==="decision"){setDecision(ev.decision);patch({orbit_details:ev.decision});}
         else if(ev.t==="reply"){serverReply=ev.replyId;patch({id:ev.replyId,model_id:ev.modelId});}
         else if(ev.t==="delta"){text+=ev.v;patch({content:text});}
-        else if(ev.t==="done"){terminal=true;patch({content:ev.content,status:"complete"});}
+        else if(ev.t==="done"){terminal=true;completed=true;patch({content:ev.content,status:"complete"});if(ev.warning)setError(orbitErrorText(ev.warning,"finish"));}
         else if(ev.t==="error"){terminal=true;patch({status:ev.code==="study_widget_invalid"?"error":"partial",...(ev.code==="study_widget_invalid"?{content:STUDY_WIDGET_ERROR_TEXT}:{})});if(ev.code==="study_widget_invalid")setInput("Regenerate the interactive study set.");setFiles(sentFiles);setError(orbitErrorText(ev.code,"finish"));}
       };
       while(true){const {value,done}=await reader.read();if(done){buffer+=decoder.decode();break;}buffer+=decoder.decode(value,{stream:true});const lines=buffer.split("\n");buffer=lines.pop()??"";for(const line of lines)if(line.trim())event(line);}
@@ -249,8 +252,8 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       if(!terminal)throw new Error("The connection ended before Orbit finished. Refresh to check the saved answer before continuing.");
     } catch(e) {
       if(!accepted){setMessages(prev=>prev.filter(m=>m.id!==userId&&m.id!==localReply));setInput(content);setFiles(sentFiles);}
-      else{patch({status:"partial"});setFiles(sentFiles);}
-      setError(abort.signal.aborted?"Stopped locally. A dispatched answer may still finish and use allowance. Reopen the chat to check the saved result.":(e as Error).message);
+      else if(!completed){patch({status:"partial"});setFiles(sentFiles);}
+      setError(completed?"Your answer is complete and saved. The connection closed afterward; reopen the chat to check any other updates.":abort.signal.aborted?"Stopped locally. A dispatched answer may still finish and use allowance. Reopen the chat to check the saved result.":(e as Error).message);
     }
     finally{
       if(firstQuizTurn&&active){const checked=await fetch(`/api/orbit?conversationId=${active}`).catch(()=>null);if(checked?.ok){const status=await checked.json().catch(()=>null);setQuizReadyIds(previous=>{const next=new Set(previous);if(status?.quizStartReady)next.add(active);else next.delete(active);return next;});}}
@@ -370,7 +373,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
             {messages.map((m,idx)=>m.role==="user"
               ? <div key={m.id} className="group msg-in mb-8 flex flex-col items-end gap-1"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div>{m.attachments?.length ? <div className="flex max-w-[85%] flex-wrap justify-end gap-2">{m.attachments.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={fileNote(f)} onOpen={()=>setPreviewFileId(f.id)}/>)}</div> : null}<div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100"><CopyButton text={m.content}/></div></div>
               : <article key={m.id} className="msg-in mb-8">
-                {m.orbit_details&&<LeadChip decision={m.orbit_details}/>}
+                {m.orbit_details&&<LeadChip decision={m.orbit_details} status={m.status} content={m.content}/>}
                 {m.status==="error"&&m.content===STUDY_WIDGET_ERROR_TEXT
                   ? <div className="rounded-xl border border-warning/30 bg-surface-100 p-4 text-sm text-ink" role="alert">{STUDY_WIDGET_ERROR_TEXT} <button type="button" onClick={()=>setInput("Regenerate the interactive study set.")} className="font-semibold text-brand underline underline-offset-4">Prepare retry</button></div>
                   : m.status==="streaming"&&!m.content
