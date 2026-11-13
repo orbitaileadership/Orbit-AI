@@ -275,7 +275,7 @@ export async function POST(request: Request): Promise<Response> {
       const searchHex = createHash("sha256").update(`web-search:${user.id}:${userMessageId}`).digest("hex").slice(0,32);
       const searchId = `${searchHex.slice(0,8)}-${searchHex.slice(8,12)}-${searchHex.slice(12,16)}-${searchHex.slice(16,20)}-${searchHex.slice(20)}`;
       const cost = Math.ceil(WEB_SEARCH.pricePerSearch * 1_000_000);
-      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
+      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,userMessageId,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
       if (!r.ok) return json({ error: r.reason === "budget" ? "budget" : r.reason === "global_stop" ? "paused" : r.reason === "duplicate" ? "search_in_progress" : "reserve_failed", conversationId: conversation.id }, r.reason === "budget" ? 402 : r.reason === "duplicate" ? 409 : 503);
       try {
         const results = await webSearch(query, key, AbortSignal.any([request.signal,AbortSignal.timeout(20_000)]));
@@ -346,6 +346,9 @@ export async function POST(request: Request): Promise<Response> {
   const automaticSearch = live && Boolean(searchKey()) && !conversation.course_only && !voice && !currentSearch && !searchCall;
   const offered = [...(automaticSearch ? SEARCH_TOOLS : []), ...(codeOn ? CODE_TOOLS : []), ...(folderName ? FOLDER_TOOLS : []), ...pluginTools(pluginIds)];
   const tools = offered.length && stepsUsed < MAX_TOOL_STEPS && !voice ? offered : undefined;
+  const offeredToolSchemaTokens = tools ? estimateTokens(JSON.stringify(tools)) : 0;
+  const toolSafetyAllowanceTokens = tools ? 400 : 0;
+  const offeredToolAllowanceTokens = offeredToolSchemaTokens + toolSafetyAllowanceTokens;
   const folderText = [
     (automaticSearch && tools) || searchCall ? SEARCH_PROMPT + (searchCall ? " The search for this question has already been attempted. Do not request another search; use its results or disclose its failure." : "") : "",
     codeOn && tools ? codePrompt(material.dataFiles) : "",
@@ -354,7 +357,7 @@ export async function POST(request: Request): Promise<Response> {
     skillText,
   ].filter(Boolean).join("\n\n");
   const inputCeiling = Math.min(model.contextTokens - model.maxOutputTokens, CONTEXT.maximumInputTokens);
-  const fixedTokens = estimateTokens([systemPrompt(promptBase), activeStudyInstructions?.prompt, folderText].filter(Boolean).join("\n\n")) + imageCount * IMAGE_TOKENS + material.visualTokens + (tools ? estimateTokens(JSON.stringify(tools)) + 400 : 0);
+  const fixedTokens = estimateTokens([systemPrompt(promptBase), activeStudyInstructions?.prompt, folderText].filter(Boolean).join("\n\n")) + imageCount * IMAGE_TOKENS + material.visualTokens + offeredToolAllowanceTokens;
   // Tool evidence shares the same allowance as the question, instructions, summary and history.
   // Always protect the newest question; large tool results are excerpted automatically before history selection.
   const toolBudget = Math.max(0, Math.min(CONTEXT.toolInputTokens, inputCeiling - fixedTokens - estimateTokens(question) - SUMMARY_TOKENS - CONTEXT.retrievalTokens - CONTEXT.toolSafetyTokens));
@@ -382,7 +385,7 @@ export async function POST(request: Request): Promise<Response> {
         for (const x of f ?? []) names.set(x.id as string, x.name as string);
       }
       summary = await updateSummary({
-        supabase, userId: user.id, conversationId: conversation.id, provider, apiKey,
+        supabase, userId: user.id, conversationId: conversation.id, userMessageId, provider, apiKey,
         existing: conversation.summary, existingUpto: conversation.summary_upto,
         dropped: droppedRows.map((r) => ({ ...r, files: (r.attachment_ids ?? []).map((id) => names.get(id)).filter((n): n is string => Boolean(n)) })),
       });
@@ -390,7 +393,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const keptIds = new Set(rows.slice(rows.length-ctx.turns.length).map(r=>r.id));
-  const retrieval = live && (ctx.dropped || personal.memories.length>12) ? await retrieveRelevant({supabase,userId:user.id,conversationId:conversation.id,
+  const retrieval = live && (ctx.dropped || personal.memories.length>12) ? await retrieveRelevant({supabase,userId:user.id,conversationId:conversation.id,userMessageId,
     enabled:Boolean(personal.profile?.memory_enabled),query:question,excluded:new Set([...keptIds,...selectedMemories.map(m=>m.id)]),memories:personal.memories,
     sources:[...(summary ? [{id:conversation.id,kind:"summary" as const,content:summary}] : []),
       ...rows.filter(r=>!keptIds.has(r.id)).reverse().map(r=>({id:r.id,kind:"message" as const,content:r.content}))]}) : {block:"",count:0};
@@ -422,7 +425,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const system = [systemPrompt({ ...promptBase, summary, retrieved:retrieval.block }), activeStudyInstructions?.prompt, folderText].filter(Boolean).join("\n\n");
   // Tool definitions count as input too (~1.5k tokens for all of them).
-  let inputTokens = ctx.tokens + runTokens + (tools ? estimateTokens(JSON.stringify(tools)) + 400 : 0) + estimateTokens(system) + [...images.values()].flat().length * IMAGE_TOKENS + material.visualTokens;
+  let inputTokens = ctx.tokens + runTokens + offeredToolAllowanceTokens + estimateTokens(system) + [...images.values()].flat().length * IMAGE_TOKENS + material.visualTokens;
   // Video duration cannot be inferred from a URL. Count the complete request before paid generation;
   // fail closed on unavailable/malformed counts rather than fall back to a fixed-duration estimate.
   if (videos.length && live && apiKey) {
@@ -440,10 +443,11 @@ export async function POST(request: Request): Promise<Response> {
   if (inputTokens > Math.min(model.contextTokens-model.maxOutputTokens,CONTEXT.maximumInputTokens)) {
     return json({error: videos.length ? "video_too_large" : "context_too_large",conversationId:conversation.id},413);
   }
-  const callMetadata = {conversationId:conversation.id,provider,operation:"chat" as const,inputEstimate:inputTokens,
+  const callMetadata = {conversationId:conversation.id,userMessageId,provider,operation:"chat" as const,inputEstimate:inputTokens,
     contextTarget,historyDropped:ctx.dropped,retrievedCount:retrieval.count,
     usageContext:usageContext({userMessageId,question,turns:ctx.turns,system,
-      toolTokens:runTokens+(tools?estimateTokens(JSON.stringify(tools))+400:0),
+      toolTokens:runTokens+offeredToolAllowanceTokens,
+      offeredToolCount:tools?.length ?? 0,offeredToolSchemaTokens,toolSafetyAllowanceTokens,
       visualTokens:[...images.values()].flat().length*IMAGE_TOKENS+material.visualTokens,
       hasFiles:material.hasFiles,hasTools:Boolean(tools?.length||run?.steps.length),retry:Boolean(retry),continuation:Boolean(run)})};
 
@@ -563,7 +567,7 @@ export async function POST(request: Request): Promise<Response> {
       if (run) await supabase.from("messages").update({ tool_log: toolLog(run.steps, toolContextCompacted) }).eq("id", replyId);
 
       if (live) {
-        if (usage) await settle(requestId, "settled", costMicros(model, usage), usage, failure?.code, {latencyMs:Date.now()-startedAt,finishReason:finish,qualityVersion:RESPONSE_QUALITY_VERSION});
+        if (usage) await settle(requestId, "settled", costMicros(model, usage), usage, failure?.code, {latencyMs:Date.now()-startedAt,finishReason:finish,qualityVersion:RESPONSE_QUALITY_VERSION,invokedToolCount:calls.length});
         else if (failure && failureState(failure) === "released" && text.length === priorText.length) await settle(requestId, "released", 0, undefined, failure.code);
         else await settle(requestId, "uncertain", 0, undefined, failure?.code ?? "no_usage");
       }
