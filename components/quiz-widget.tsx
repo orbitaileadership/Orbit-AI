@@ -64,6 +64,12 @@ export function QuizWidgetView({ widget }: { widget: QuizWidget }) {
       <span>{widget.title ?? "Practice quiz"}</span>
       <span className="tabular-nums">{done ? "Results" : `Question ${progress.current + 1} of ${count}`}</span>
     </div>
+    <p className="mt-3 text-xs leading-relaxed text-ink-muted">
+      Practice feedback checks your choices against an AI-generated answer key, which may contain errors. This is not an official grade.
+    </p>
+    <p className="mt-1 text-xs leading-relaxed text-ink-muted">
+      {storageKey ? "Progress stays in this browser when storage is available; it does not sync across devices." : "Progress lasts for this open session."}
+    </p>
     <div role="progressbar" aria-label="Questions answered" aria-valuenow={answered} aria-valuemin={0} aria-valuemax={count}
       className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-300">
       <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${answered / count * 100}%` }} />
@@ -101,7 +107,7 @@ export function QuizWidgetView({ widget }: { widget: QuizWidget }) {
     </> : <div className="py-8 text-center">
       <p className="text-sm text-ink-muted">Quiz complete</p>
       <p className="mt-2 text-4xl font-semibold tabular-nums text-ink">{score} / {count}</p>
-      <p className="mt-2 text-sm text-ink-muted">Review your answers or try again at your own pace.</p>
+      <p className="mt-2 text-sm text-ink-muted">Matches to the AI-generated answer key, not an official grade.</p>
       <div className="mt-6 flex flex-wrap justify-center gap-2">
         <button type="button" onClick={() => update({ ...progress, current: 0 })} className="min-h-11 rounded-xl border border-line px-4 text-sm font-medium">Review answers</button>
         <button type="button" onClick={() => update(empty(count))} className="min-h-11 rounded-xl bg-brand px-4 text-sm font-medium text-on-brand">Try again</button>
