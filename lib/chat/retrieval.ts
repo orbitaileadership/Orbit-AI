@@ -25,12 +25,12 @@ export function selectRetrieval(hits: RetrievalHit[], excluded: Set<string>, tok
 }
 
 // Only after the student's memory opt-in. Every embedding call is reserved and reconciled, including query vectors.
-async function embed(userId: string, conversationId: string, texts: string[]): Promise<number[][] | null> {
+async function embed(userId: string, conversationId: string, texts: string[], userMessageId?: string): Promise<number[][] | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key || !texts.length || await isProviderDisabled("openai")) return null;
   const requestId = randomUUID();
   const bound = Math.ceil(texts.reduce((n,t) => n+estimateTokens(t),0)*1.15*S.inputPrice);
-  const r = await reserve(userId, requestId, S.model, "text", Math.max(1,bound), { provider: "openai", operation: "embedding", conversationId });
+  const r = await reserve(userId, requestId, S.model, "text", Math.max(1,bound), { provider: "openai", operation: "embedding", conversationId, ...(userMessageId ? { userMessageId } : {}) });
   if (!r.ok) return null;
   try {
     const res = await fetch("https://api.openai.com/v1/embeddings", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -49,7 +49,7 @@ async function embed(userId: string, conversationId: string, texts: string[]): P
   } catch { await settle(requestId,"uncertain",0,undefined,"embedding_failed"); return null; }
 }
 
-export async function retrieveRelevant(o: { supabase: SupabaseClient; userId: string; conversationId: string; enabled: boolean; query: string;
+export async function retrieveRelevant(o: { supabase: SupabaseClient; userId: string; conversationId: string; userMessageId?: string; enabled: boolean; query: string;
   sources: RetrievalSource[]; memories: Memory[]; excluded: Set<string> }) {
   const empty = { block: "", count: 0 };
   if (!o.enabled || process.env.SMART_MEMORY_ENABLED !== "on") return empty;
@@ -65,7 +65,7 @@ export async function retrieveRelevant(o: { supabase: SupabaseClient; userId: st
       .map(s=>({...s,content:s.content.slice(0,S.sourceChars)})).filter(s=>s.content.trim())
       .map(s=>({...s,hash:createHash("sha256").update(s.content).digest("hex")}))
       .filter(s=>hashes.get(s.id)!==s.hash).slice(0,S.indexBatch);
-    const vectors = await embed(o.userId,o.conversationId,[o.query.slice(0,S.sourceChars),...candidates.map(s=>s.content)]);
+    const vectors = await embed(o.userId,o.conversationId,[o.query.slice(0,S.sourceChars),...candidates.map(s=>s.content)],o.userMessageId);
     if (!vectors) return empty;
     if (candidates.length) {
       const { error: writeError } = await o.supabase.from("context_embeddings").upsert(candidates.map((s,i)=>({user_id:o.userId,source_id:s.id,source_kind:s.kind,
