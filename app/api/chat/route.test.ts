@@ -143,6 +143,7 @@ describe("POST /api/chat", () => {
     expect(captured).toMatchObject({version:1,phase:'initial',historyTokens:0,hasFiles:false,hasTools:false});
     expect(captured.promptTokens).toBeLessThan(100);
     expect(captured.userMessageId).toBe(state.fake!.db.messages[0].id);
+    expect(vi.mocked(budget.reserve).mock.calls[0][5]!.userMessageId).toBe(captured.userMessageId);
     expect(JSON.stringify(captured)).not.toMatch(/PRIVATE|DO NOT STORE|content/);
     await readEvents(await POST(req({provider:'anthropic',modelId:'anthropic-default',conversationId:first[0].conversationId,retry:true})));
     expect(vi.mocked(budget.reserve).mock.calls[1][5]!.usageContext).toMatchObject({userMessageId:captured.userMessageId,phase:'retry'});
@@ -629,6 +630,9 @@ describe("persistent chats and model switching", () => {
     const conv = state.fake!.db.conversations[0];
     expect(conv.summary).toBe("Goal: new summary");
     expect(conv.summary_upto as number).toBeGreaterThan(-1000);
+    const summaryCall=vi.mocked(budget.reserve).mock.calls.find(c=>c[5]?.operation==='summary');
+    const chatCall=vi.mocked(budget.reserve).mock.calls.find(c=>c[5]?.operation==='chat');
+    expect(summaryCall?.[5]?.userMessageId).toBe(chatCall?.[5]?.userMessageId);
 
     // A short chat with an old summary doesn't send it (everything fits).
     state.fake!.db.conversations.push({ id: "22222222-2222-4222-8222-222222222222", user_id: "user-1", provider: "anthropic", title: "s", project_id: null, mode: "chat", course_only: false, summary: "OLDER SUMMARY SHOULD NOT BE SENT", summary_upto: 1 });
@@ -669,6 +673,9 @@ describe("web search", () => {
     const first = await readEvents(await POST(req({ provider: "anthropic", modelId: "anthropic-default", content: "What is the Bank of Canada policy rate now?", web: true })));
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(budget.reserve).toHaveBeenCalledWith("user-1", expect.any(String), "web-search", "text", 8000, expect.objectContaining({operation:"search",provider:"tavily"}));
+    const searchCall=vi.mocked(budget.reserve).mock.calls.find(c=>c[5]?.operation==='search');
+    const chatCall=vi.mocked(budget.reserve).mock.calls.find(c=>c[5]?.operation==='chat');
+    expect(searchCall?.[5]?.userMessageId).toBe(chatCall?.[5]?.userMessageId);
     expect(budget.settle).toHaveBeenCalledWith(expect.any(String), "settled", 8000);
     expect(state.lastArgs!.system).toContain("[W1] Bank of Canada rate — https://www.bankofcanada.ca/rates/");
     const done = first.at(-1);

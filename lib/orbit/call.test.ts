@@ -9,6 +9,38 @@ import { orbitCall, orbitInputTokens } from "./call";
 import { costMicros, reservationMicros } from "@/lib/chat/context";
 const args=()=>({userId:"u",conversationId:"c",model:getModel("openai-luna")!,operation:"orbit_vote" as const,
  system:"Vote",history:[{role:"user" as const,content:"Synthetic question"}],maxOutput:100,signal:new AbortController().signal});
+
+describe("question attribution metadata",()=>{
+ it.each(["orbit_vote","orbit_specialist","orbit_answer"] as const)("groups %s by question without sending the identifier to the provider",async operation=>{
+  await orbitCall({...args(),operation,userMessageId:"synthetic-server-question"});
+  expect(state.reserve.mock.calls[0][5]).toMatchObject({userMessageId:"synthetic-server-question",operation});
+  expect(state.stream.mock.calls[0][0]).not.toHaveProperty("userMessageId");
+  expect(JSON.stringify(state.stream.mock.calls[0][0])).not.toContain("synthetic-server-question");
+ });
+ it("preserves the metadata shape of legacy callers without a question ID",async()=>{
+  await orbitCall(args());
+  expect(state.reserve.mock.calls[0][5]).not.toHaveProperty("userMessageId");
+ });
+ it("groups a failed attempt and retry while retaining independent reservations and uncertainty",async()=>{
+  const o={...args(),userMessageId:"synthetic-retried-question"};
+  state.stream.mockImplementationOnce(async function*(){throw new ProviderError("unavailable",503,false);});
+  await expect(orbitCall(o)).rejects.toMatchObject({retryableUnavailable:true});
+  await orbitCall(o);
+  expect(state.reserve).toHaveBeenCalledTimes(2);
+  expect(state.reserve.mock.calls[0][1]).not.toBe(state.reserve.mock.calls[1][1]);
+  for(const reserve of state.reserve.mock.calls)expect(reserve[5].userMessageId).toBe(o.userMessageId);
+  expect(state.settle.mock.calls.map(call=>call[1])).toEqual(["uncertain","settled"]);
+ });
+ it("keeps conversation cache scope and the complete provider payload unchanged across questions",async()=>{
+  const o={...args(),operation:"orbit_answer" as const};
+  await orbitCall({...o,userMessageId:"synthetic-question-one"});
+  const first=state.stream.mock.calls[0][0];
+  await orbitCall({...o,userMessageId:"synthetic-question-two"});
+  expect(state.stream.mock.calls[1][0]).toEqual(first);
+  expect(first.cacheKey).toMatch(/^orbit-[A-Za-z0-9_-]{32}$/);
+  expect(state.reserve.mock.calls.map(call=>call[5].userMessageId)).toEqual(["synthetic-question-one","synthetic-question-two"]);
+ });
+});
 afterEach(()=>vi.restoreAllMocks());
 beforeEach(()=>{vi.clearAllMocks();vi.spyOn(console,"error").mockImplementation(()=>{});state.disabled=false;state.reserve.mockResolvedValue({ok:true});state.settle.mockResolvedValue(undefined);
  state.stream.mockImplementation(async function*(){yield {delta:'{"nominee":"google"}'};yield {usage:{input:100,output:20,reasoning:0,cached:0}};yield {finish:"stop"};});});

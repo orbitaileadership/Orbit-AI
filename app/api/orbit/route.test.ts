@@ -18,6 +18,45 @@ const retryDelay=ORBIT.voteRetryDelayMs, helperCap=ORBIT.helperBudgetMicros;
 import { GET,POST } from "./route";
 import { updateSummary } from "@/lib/chat/summary";
 const req=(body:object)=>new Request("http://x/api/orbit",{method:"POST",body:JSON.stringify(body)});
+
+describe("question attribution route",()=>{
+ it("uses the saved server question ID rather than a client field and isolates the next turn",async()=>{
+  const first=await(await POST(req({content:"Synthetic first question",userMessageId:"forged-client-question"}))).text();
+  expect(first).toContain('"t":"done"');
+  const question=s.fake!.db.messages.find(row=>row.role==="user")!;
+  expect(question.id).not.toBe("forged-client-question");
+  expect(s.call).toHaveBeenCalledTimes(5);
+  for(const [call] of s.call.mock.calls)expect(call.userMessageId).toBe(question.id);
+  const offset=s.call.mock.calls.length;
+  const second=await(await POST(req({conversationId:question.conversation_id,content:"Synthetic second question",userMessageId:question.id}))).text();
+  expect(second).toContain('"t":"done"');
+  const next=s.fake!.db.messages.filter(row=>row.role==="user").at(-1)!;
+  expect(next.id).not.toBe(question.id);
+  expect(s.call.mock.calls.slice(offset)).toHaveLength(5);
+  for(const [call] of s.call.mock.calls.slice(offset))expect(call.userMessageId).toBe(next.id);
+ });
+ it("passes the current server question ID into an existing summary call",async()=>{
+  const id=crypto.randomUUID();s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:null,summary_upto:null});
+  for(let i=0;i<30;i++)s.fake!.db.messages.push({id:`old-${i}`,conversation_id:id,seq:i-30,role:i%2?"assistant":"user",content:"synthetic ".repeat(100),status:"complete",kind:"text"});
+  vi.mocked(updateSummary).mockResolvedValueOnce("Synthetic summary");
+  const response=await(await POST(req({conversationId:id,content:"Synthetic current question"}))).text();
+  expect(response).toContain('"t":"done"');
+  const current=s.fake!.db.messages.find(row=>row.role==="user"&&row.content==="Synthetic current question")!;
+  expect(updateSummary).toHaveBeenCalledTimes(1);
+  expect(updateSummary).toHaveBeenCalledWith(expect.objectContaining({userMessageId:current.id}));
+  for(const [call] of s.call.mock.calls)expect(call.userMessageId).toBe(current.id);
+ });
+ it("retains question attribution for failed final output without adding a retry",async()=>{
+  const normal=s.call.getMockImplementation()!;
+  s.call.mockImplementation(async o=>{if(o.operation==="orbit_answer"){o.delta?.("Synthetic partial output");throw new OrbitError("orbit_incomplete_response");}return normal(o);});
+  const response=await(await POST(req({content:"Synthetic failing question"}))).text();
+  expect(response).toContain("orbit_incomplete_response");
+  expect(s.call).toHaveBeenCalledTimes(5);
+  const current=s.fake!.db.messages.find(row=>row.role==="user")!;
+  for(const [call] of s.call.mock.calls)expect(call.userMessageId).toBe(current.id);
+  expect(s.fake!.db.messages.find(row=>row.role==="assistant")?.status).toBe("partial");
+ });
+});
 beforeEach(()=>{vi.clearAllMocks();ORBIT.voteRetryDelayMs=0;s.attach.mockResolvedValue({block:"",fileIds:[],names:[]});vi.stubEnv("ORBIT_MODE_ENABLED","on");s.fake=fakeSupabase();s.authError=null;s.live=true;s.disabled=false;s.key=true;s.claimed=true;
  s.rpc.mockImplementation(async(name:string)=>({data:name==="claim_orbit_turn"?s.claimed:null,error:null}));
  s.call.mockImplementation(async o=>{
@@ -26,6 +65,115 @@ beforeEach(()=>{vi.clearAllMocks();ORBIT.voteRetryDelayMs=0;s.attach.mockResolve
  });});
 afterEach(()=>{vi.unstubAllEnvs();ORBIT.voteRetryDelayMs=retryDelay;ORBIT.helperBudgetMicros=helperCap;});
 describe("Orbit endpoint",()=>{
+ it("rejects an oversized existing lead summary before buying any routing calls",async()=>{
+   const id=crypto.randomUUID();
+   s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:"Synthetic summary. ".repeat(300),summary_upto:2});
+   s.fake!.db.messages.push(
+     {id:"old-u",conversation_id:id,seq:1,role:"user",content:"old ".repeat(150),status:"complete",kind:"text"},
+     {id:"old-a",conversation_id:id,seq:2,role:"assistant",content:"earlier ".repeat(100),status:"complete",kind:"text"});
+   const success=s.call.getMockImplementation()!;
+   s.call.mockImplementation(async o=>{if(orbitInputTokens(o.system,o.history)>ORBIT.inputTokens)throw new OrbitError("context_too_large");return success(o);});
+   const text=await(await POST(req({content:"q".repeat(14_000),conversationId:id}))).text();
+   expect(text).toContain('"code":"context_too_large"');
+   expect(s.call).not.toHaveBeenCalled();expect(updateSummary).not.toHaveBeenCalled();
+   expect(s.fake!.db.messages.filter(m=>m.role==="assistant").map(m=>m.id)).toEqual(["old-a"]);
+   expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
+ it.each(["throw","returned"] as const)("keeps the saved answer and warns when attachment linking fails (%s)",async failure=>{
+   const fid=crypto.randomUUID();s.fake!.db.files=[{id:fid,user_id:"u",project_id:null,conversation_id:null}];
+   s.attach.mockResolvedValue({block:"<attached_files>Synthetic source excerpt</attached_files>",fileIds:[fid],names:["synthetic.txt"]});
+   const from=s.fake!.client.from.bind(s.fake!.client);
+   vi.spyOn(s.fake!.client,"from").mockImplementation(table=>{
+     const query=from(table);
+     if(table==="files")vi.spyOn(query,"update").mockImplementation(()=>{
+       if(failure==="throw")throw new Error("synthetic link failure");
+       Reflect.set(query,"then",(resolve:(value:unknown)=>unknown)=>Promise.resolve({data:null,error:{message:"synthetic link error"}}).then(resolve));
+       return query;
+     });
+     return query;
+   });
+   const events=(await(await POST(req({content:"Use this source",attachmentIds:[fid]}))).text()).trim().split("\n").map(line=>JSON.parse(line));
+   expect(s.fake!.db.messages.find(m=>m.role==="assistant")).toMatchObject({status:"complete",content:"Synthetic final answer"});
+   expect(s.fake!.db.files[0].conversation_id).toBeNull();
+   expect(events.filter(event=>event.t==="done")).toEqual([{t:"done",content:"Synthetic final answer",warning:"orbit_postsave_failed"}]);
+   expect(events.some(event=>event.t==="error")).toBe(false);expect(s.call).toHaveBeenCalledTimes(5);
+   expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
+ it("does not claim completion when the final assistant update returns no saved row",async()=>{
+   const from=s.fake!.client.from.bind(s.fake!.client);
+   vi.spyOn(s.fake!.client,"from").mockImplementation(table=>{
+     const query=from(table),update=query.update.bind(query);
+     if(table==="messages")vi.spyOn(query,"update").mockImplementation(value=>{
+       if(value.status==="complete"){
+         Reflect.set(query,"single",async()=>({data:null,error:null}));
+         return query;
+       }
+       return update(value);
+     });
+     return query;
+   });
+   const text=await(await POST(req({content:"Explain a synthetic fact"}))).text();
+   expect(text).toContain('"code":"save_failed"');expect(text).not.toContain('"t":"done"');
+   expect(s.fake!.db.messages.find(m=>m.role==="assistant")).toMatchObject({status:"partial"});
+   expect(s.call).toHaveBeenCalledTimes(5);
+ });
+ it("keeps a confirmed completed answer when a later conversation update throws",async()=>{
+   const from=s.fake!.client.from.bind(s.fake!.client);
+   vi.spyOn(s.fake!.client,"from").mockImplementation(table=>{
+     const query=from(table);
+     if(table==="conversations"){
+       const update=query.update.bind(query);
+       vi.spyOn(query,"update").mockImplementation(value=>{
+         if("updated_at" in value)throw new Error("synthetic ancillary persistence failure");
+         return update(value);
+       });
+     }
+     return query;
+   });
+   const events=(await(await POST(req({content:"Explain this synthetic result"}))).text()).trim().split("\n").map(line=>JSON.parse(line));
+   const reply=s.fake!.db.messages.find(m=>m.role==="assistant")!;
+   expect(reply).toMatchObject({status:"complete",content:"Synthetic final answer"});
+   expect(events.filter(event=>event.t==="done")).toEqual([{t:"done",content:"Synthetic final answer",warning:"orbit_postsave_failed"}]);
+   expect(events.some(event=>event.t==="error")).toBe(false);
+   expect(s.call).toHaveBeenCalledTimes(5);
+   expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
+ it("stops before the answer call when cancellation arrives during placeholder persistence",async()=>{
+   const abort=new AbortController(),from=s.fake!.client.from.bind(s.fake!.client);
+   vi.spyOn(s.fake!.client,"from").mockImplementation(table=>{
+     const query=from(table),insert=query.insert.bind(query);
+     if(table==="messages")vi.spyOn(query,"insert").mockImplementation(value=>{
+       const result=insert(value);
+       if(!Array.isArray(value)&&value.role==="assistant"){
+         const single=result.single.bind(result);
+         vi.spyOn(result,"single").mockImplementation(async()=>{const saved=await single();abort.abort();return saved;});
+       }
+       return result;
+     });
+     return query;
+   });
+   const request=new Request("http://x/api/orbit",{method:"POST",body:JSON.stringify({content:"Synthetic cancellation check"}),signal:abort.signal});
+   const text=await(await POST(request)).text();
+   expect(text).toContain('"code":"orbit_cancelled"');
+   expect(s.call.mock.calls.map(([o])=>o.operation)).toEqual(Array(4).fill("orbit_vote"));
+   expect(text).not.toContain('"t":"reply"');expect(text).not.toContain('"stage":"answering"');expect(text).not.toContain('"t":"done"');
+   expect(s.fake!.db.messages.find(m=>m.role==="assistant")).toMatchObject({status:"partial",content:""});
+   expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
+ it("still drains and saves an answer already started when the browser cancels",async()=>{
+   const abort=new AbortController(),success=s.call.getMockImplementation()!;
+   s.call.mockImplementation(async o=>{
+     if(o.operation==="orbit_answer"){
+       abort.abort();expect(o.signal.aborted).toBe(false);
+     }
+     return success(o);
+   });
+   const request=new Request("http://x/api/orbit",{method:"POST",body:JSON.stringify({content:"Synthetic dispatched answer check"}),signal:abort.signal});
+   const text=await(await POST(request)).text();
+   expect(text).toContain('"t":"done"');expect(s.call).toHaveBeenCalledTimes(5);
+   expect(s.fake!.db.messages.find(m=>m.role==="assistant")).toMatchObject({status:"complete",content:"Synthetic final answer"});
+   expect(s.rpc).toHaveBeenLastCalledWith("release_orbit_turn",expect.any(Object));
+ });
  it("rechecks the lead's disable switch after voting before summarization",async()=>{
    const id=crypto.randomUUID();s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:null,summary_upto:null});
    for(let i=0;i<30;i++)s.fake!.db.messages.push({id:`old-${i}`,conversation_id:id,seq:i-30,role:i%2?"assistant":"user",content:"synthetic ".repeat(100),status:"complete",kind:"text"});
@@ -34,6 +182,33 @@ describe("Orbit endpoint",()=>{
      return {text:JSON.stringify({nominee:PROVIDERS[(i+1)%4],collaborate:false,specialist:null}),finish:"stop"};});
    const text=await(await POST(req({content:"A new question",conversationId:id}))).text();
    expect(text).toContain("orbit_provider_unavailable");expect(updateSummary).not.toHaveBeenCalled();expect(s.call).toHaveBeenCalledTimes(4);
+ });
+ it("rechecks a newly enlarged summary before purchasing a specialist",async()=>{
+   const id=crypto.randomUUID();s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:null,summary_upto:null});
+   for(let i=0;i<30;i++)s.fake!.db.messages.push({id:`old-${i}`,conversation_id:id,seq:i-30,role:i%2?"assistant":"user",content:"synthetic ".repeat(100),status:"complete",kind:"text"});
+   vi.mocked(updateSummary).mockResolvedValueOnce("Synthetic summary. ".repeat(1_500));
+   s.call.mockImplementation(async o=>{
+     const voter=o.model.provider;
+     return {text:JSON.stringify({nominee:voter==="anthropic"?"openai":"anthropic",collaborate:true,specialist:voter==="google"?"xai":"google"}),finish:"stop"};
+   });
+   const text=await(await POST(req({content:"Check the argument",conversationId:id}))).text();
+   expect(text).toContain('"code":"context_too_large"');expect(updateSummary).toHaveBeenCalledTimes(1);
+   expect(s.call.mock.calls.map(([o])=>o.operation)).toEqual(Array(4).fill("orbit_vote"));
+   expect(s.fake!.db.messages.some(m=>m.role==="assistant"&&m.status==="partial")).toBe(false);
+ });
+ it("rejects an oversized specialist contribution before creating an empty assistant reply",async()=>{
+   s.call.mockImplementation(async o=>{
+     if(o.operation==="orbit_vote"){
+       const voter=o.model.provider;
+       return {text:JSON.stringify({nominee:voter==="anthropic"?"openai":"anthropic",collaborate:true,specialist:voter==="google"?"xai":"google"}),finish:"stop"};
+     }
+     return {text:"Synthetic contribution. ".repeat(1_500),finish:"stop"};
+   });
+   const text=await(await POST(req({content:"Check the argument"}))).text();
+   expect(text).toContain('"code":"context_too_large"');expect(s.call).toHaveBeenCalledTimes(5);
+   expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_answer")).toHaveLength(0);
+   expect(s.fake!.db.messages.filter(m=>m.role==="assistant")).toHaveLength(0);
+   expect(text).not.toContain('"t":"reply"');
  });
  it("requires app access before any other work",async()=>{
    s.authError=new Response(null,{status:403});expect((await POST(req({content:"question"}))).status).toBe(403);expect(s.rpc).not.toHaveBeenCalled();expect(s.call).not.toHaveBeenCalled();
@@ -81,6 +256,8 @@ describe("Orbit endpoint",()=>{
    });
    const text=await(await POST(req({content:"Analyze and check this argument"}))).text();expect(text).toContain('"t":"done"');expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_specialist")).toHaveLength(1);expect(s.call).toHaveBeenCalledTimes(6);
    expect(s.call.mock.calls.find(([o])=>o.operation==="orbit_answer")![0].system).toContain("Independent specialist notes");
+   const question=s.fake!.db.messages.find(row=>row.role==="user")!;
+   for(const [call] of s.call.mock.calls)expect(call.userMessageId).toBe(question.id);
  });
  it("clearly simulates demo routing without any paid model calls",async()=>{
    s.live=false;const text=await(await POST(req({content:"question"}))).text();expect(text).toContain('"demo":true');expect(text).toContain("simulated votes");expect(s.call).not.toHaveBeenCalled();
@@ -147,6 +324,8 @@ describe("bounded Google availability recovery",()=>{
   expect(text).toContain('"stage":"retrying_google"');expect(text).toContain('"t":"done"');
   expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_vote")).toHaveLength(5);
   const google=s.call.mock.calls.filter(([o])=>o.operation==="orbit_vote"&&o.model.provider==="google");
+  const question=s.fake!.db.messages.find(row=>row.role==="user")!;
+  for(const [call] of s.call.mock.calls)expect(call.userMessageId).toBe(question.id);
   expect(google[0][0].signal).toBe(google[1][0].signal); // the retry cannot extend the voter deadline
   for(const p of ["openai","anthropic","xai"])expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_vote"&&o.model.provider===p)).toHaveLength(1);
   expect(s.call.mock.calls.filter(([o])=>o.operation==="orbit_answer")).toHaveLength(1);
@@ -162,6 +341,8 @@ describe("bounded Google availability recovery",()=>{
   expect(event.decision.unavailableProviders).toEqual(["google"]);expect(event.decision.ballots).toHaveLength(3);
   expect(event.decision.lead).not.toBe("google");expect(text).toContain('"t":"done"');expect(text).toContain('"stage":"voting_without_google"');
   expect(s.call).toHaveBeenCalledTimes(6);
+  const question=s.fake!.db.messages.find(row=>row.role==="user")!;
+  for(const [call] of s.call.mock.calls)expect(call.userMessageId).toBe(question.id);
   expect(s.fake!.db.messages.find(m=>m.role==="assistant")!.orbit_details).toMatchObject({unavailableProviders:["google"]});
   for(const [o] of s.call.mock.calls.filter(([o])=>o.operation==="orbit_vote"&&o.model.provider!=="google"))expect(o.system).not.toContain('"openai|anthropic|google|xai"');
   expect(s.call.mock.calls.find(([o])=>o.operation==="orbit_answer")![0].system).toContain("only three providers voted");
