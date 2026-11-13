@@ -3,6 +3,7 @@ import { addDays,calendarIcs,calendarRange,validateEvent,browserLocalTime,localT
 import { cardsTsv,hideStudyCards,parseStudyCards,studyConfig } from './quiz';
 import { studyPrompt as scopePrompt } from './study-prompt';
 import { RESPONSE_QUALITY_QUIZ_PROMPT } from '@/config/quality';
+import { COURSE_WORKSPACE } from '@/config/course-workspace';
 const studyPrompt=(...args:Parameters<typeof scopePrompt>)=>RESPONSE_QUALITY_QUIZ_PROMPT+'\n'+scopePrompt(...args);
 import { validateDraft,mergeRevision } from './parse';
 const event=()=>({title:'Lab meeting',start_value:'2026-11-01T05:30:00.000Z',end_value:'2026-11-01T06:30:00.000Z',all_day:false,time_zone:'America/Toronto',course_id:null,location:'Room 2',meeting_url:'https://teams.microsoft.com/l/meetup',notes:'Review materials'});
@@ -29,6 +30,30 @@ describe('quiz setup and source preservation',()=>{
   const widget='```orbit-widget\n{"type":"flashcards","cards":[{"front":"ATP?","back":"Energy carrier"}]}\n```';
   expect(parseStudyCards(widget).cards).toEqual([{front:'ATP?',back:'Energy carrier'}]);
   expect(parseStudyCards(widget).clean).toBe(widget);
+ });
+ it.each(['orbit-widget','json','bare'])('exports the visible deck instead of conflicting hidden cards (%s)',fence=>{
+  const visible=[{front:'Contribution per unit?',back:'Selling price minus variable cost.'},{front:'Break-even volume?',back:'Fixed costs divided by positive contribution per unit.'}];
+  const json=JSON.stringify({type:'flashcards',cards:visible});
+  const block=fence==='bare'?json:`\`\`\`${fence}\n${json}\n\`\`\``;
+  const parsed=parseStudyCards(`[[card: {"front":"Contribution per unit?","back":"Selling price minus fixed costs."}]]\n${block}`);
+  expect(parsed.cards).toEqual(visible);expect(parsed.clean).toBe(`\n${block}`);
+  expect(cardsTsv(parsed.cards)).not.toContain('minus fixed costs');
+ });
+ it('does not let a full legacy metadata cap crowd out the visible deck',()=>{
+  const markers=Array.from({length:COURSE_WORKSPACE.maxCards},(_,i)=>`[[card: {"front":"Legacy ${i}","back":"Legacy answer"}]]`).join('\n');
+  const visible=[{front:'Visible prompt',back:'Visible answer'}];
+  expect(parseStudyCards(`${markers}\n\`\`\`orbit-widget\n${JSON.stringify({type:'flashcards',cards:visible})}\n\`\`\``).cards).toEqual(visible);
+ });
+ it('keeps all valid visible decks in order and preserves repeated visible cards within the existing cap',()=>{
+  const decks=Array.from({length:4},(_,deck)=>Array.from({length:30},(_,i)=>({front:`Deck ${deck} prompt ${i}`,back:`Answer ${i}`})));
+  decks[0][1]={...decks[0][0]};
+  const output=decks.map(cards=>`\`\`\`orbit-widget\n${JSON.stringify({type:'flashcards',cards})}\n\`\`\``).join('\n');
+  expect(parseStudyCards(output).cards).toEqual(decks.flat().slice(0,COURSE_WORKSPACE.maxCards));
+ });
+ it.each([{type:'flashcards',cards:[]},{type:'quiz',questions:[{question:'Practice?',options:['A','B'],correct:0,explanation:'A is correct.'}]},{type:'short_answer_quiz',questions:[{question:'Practice?',answer:'Reference answer.'}]}])('keeps legacy fallback when there is no validated visible flashcard deck: $type',widget=>{
+  const marker='[[card: {"front":"Legacy prompt","back":"Legacy answer"}]]';
+  const output=`${marker}\n\`\`\`orbit-widget\n${JSON.stringify(widget)}\n\`\`\``;
+  const parsed=parseStudyCards(output);expect(parsed.cards).toEqual([{front:'Legacy prompt',back:'Legacy answer'}]);expect(parsed.clean).not.toContain('[[card:');
  });
  it('exports text fields without breaking rows or injecting HTML',()=>{expect(cardsTsv([{front:'What\t now?\n<script>',back:'A\nB'}])).toBe('What now? ‹script›\tA B');});
  it('keeps graded subtype, folder and completed records through revision merge',()=>{const item={id:'11111111-1111-4111-8111-111111111111',title:'Midterm',kind:'exam',due:null,weight:'20%',details:'original',sourceId:null,status:'doing',eventType:'midterm',folderId:'22222222-2222-4222-8222-222222222222'};const raw={name:'Bio',term:'Fall',instructor:'',schedule:'',officeHours:'',items:[item]};const current=validateDraft(raw),incoming=validateDraft({...raw,items:[{...item,details:'revision',folderId:undefined,eventType:undefined}]});expect(mergeRevision(current,incoming).items[0]).toMatchObject({id:item.id,eventType:'midterm',folderId:item.folderId,status:'doing'});});
