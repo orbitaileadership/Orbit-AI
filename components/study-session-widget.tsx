@@ -86,6 +86,14 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
     const revealed = [...progress.revealed]; revealed[index] = true;
     update({ ...progress, revealed });
   };
+  const retryQuestion = () => {
+    const current = progressRef.current;
+    if (current.current >= count) return;
+    const responses = [...current.responses]; responses[current.current] = "";
+    const revealed = [...current.revealed]; revealed[current.current] = false;
+    const marks = [...current.marks]; marks[current.current] = null;
+    update({ ...current, responses, revealed, marks });
+  };
   const response = progress.responses[index] ?? "";
 
   if (flashcards) {
@@ -172,6 +180,10 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
       <span>{widget.title ?? (flashcards ? "Flashcards" : "Short-answer practice")}</span>
       <span className="tabular-nums">{done ? "Results" : `${flashcards ? "Card" : "Question"} ${index + 1} of ${count}`}</span>
     </div>
+    <p className="mt-3 text-xs leading-relaxed text-ink-muted">
+      {storageKey ? "Self-check progress stays in this browser when storage is available; it does not sync across devices. " : "Self-check progress lasts for this open session. "}
+      Written answers are cleared when you reopen. You grade your own answers against the sample.
+    </p>
     <div role="progressbar" aria-label="Items reviewed" aria-valuenow={marked} aria-valuemin={0} aria-valuemax={count}
       className="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-300">
       <div className="h-full rounded-full bg-brand transition-[width] duration-300" style={{ width: `${marked / count * 100}%` }} />
@@ -202,6 +214,10 @@ export function StudySessionWidget({ widget }: { widget: Widget }) {
           <button type="button" onClick={() => mark(true)} aria-pressed={progress.marks[index] === true}
             className={`min-h-11 rounded-xl border px-4 text-sm font-medium transition-colors ${progress.marks[index] === true ? "border-success bg-success/10 text-ink" : "border-line hover:bg-surface-200"}`}>Got it</button>
         </div>
+        <button type="button" onClick={retryQuestion}
+          className="mt-3 min-h-11 rounded-xl border border-line px-4 text-sm font-medium text-ink hover:bg-surface-200">
+          Try this question again
+        </button>
       </>}
       <div className="mt-5 flex items-center justify-between gap-3">
         <button type="button" disabled={index === 0} onClick={() => update({ ...progress, current: index - 1 })}

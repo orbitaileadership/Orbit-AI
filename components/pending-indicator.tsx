@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import type { ProviderId } from "@/config/models";
 
 // The "waiting for the first words" state, styled after each app's own: ChatGPT a pulsing dot that becomes
@@ -20,6 +20,7 @@ function useStage() {
 
 export function PendingIndicator({ provider }: { provider: ProviderId }) {
   const stage = useStage();
+  const gradientId = `gem-pending-${useId().replace(/:/g, "")}`;
   const label = <span key={stage} className="pending-label orbit-shimmer">{LABELS[stage]}…</span>;
 
   if (provider === "anthropic") {
@@ -37,8 +38,8 @@ export function PendingIndicator({ provider }: { provider: ProviderId }) {
       <span role="status" aria-label={LABELS[stage]} className="block w-full max-w-md">
         <span className="flex items-center gap-2.5">
           <svg aria-hidden viewBox="0 0 24 24" width="22" height="22" className="pending-spin lg:hidden">
-            <defs><linearGradient id="gem-pending" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#4285f4" /><stop offset=".55" stopColor="#9b72cb" /><stop offset="1" stopColor="#d96570" /></linearGradient></defs>
-            <path d="M12 1c.6 5.8 5.2 10.4 11 11-5.8.6-10.4 5.2-11 11-.6-5.8-5.2-10.4-11-11 5.8-.6 10.4-5.2 11-11z" fill="url(#gem-pending)" />
+            <defs><linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#4285f4" /><stop offset=".55" stopColor="#9b72cb" /><stop offset="1" stopColor="#d96570" /></linearGradient></defs>
+            <path d="M12 1c.6 5.8 5.2 10.4 11 11-5.8.6-10.4 5.2-11 11-.6-5.8-5.2-10.4-11-11 5.8-.6 10.4-5.2 11-11z" fill={`url(#${gradientId})`} />
           </svg>
           {stage > 0 && <span className="text-sm">{label}</span>}
         </span>
