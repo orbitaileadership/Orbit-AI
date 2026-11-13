@@ -296,6 +296,23 @@ describe("openai optional settings", () => {
     expect(body(0).prompt_cache_key).toHaveLength(64);
     expect(body(1).prompt_cache_key).toBeUndefined();
   });
+  it("does not repeat a clearly unrelated invalid request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: { type: "invalid_request_error", param: "input" } }), { status: 400 }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(collect(openai.stream({ ...args(), cacheKey: "chat-cache" }))).rejects.toBeDefined();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("retries a rejected cache key with the same selected model and input", async () => {
+    const ok = sseResponse([`data: ${JSON.stringify({ type: "response.output_text.delta", delta: "ok" })}`, `data: ${JSON.stringify({ type: "response.completed", response: {} })}`]);
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ error: { type: "invalid_request_error", param: "prompt_cache_key" } }), { status: 400 })).mockResolvedValueOnce(ok);
+    vi.stubGlobal("fetch", fetchMock);
+    expect((await collect(openai.stream({ ...args(), cacheKey: "chat-cache" }))).text).toBe("ok");
+    const body = (i: number) => JSON.parse((fetchMock.mock.calls[i] as unknown as [string, RequestInit])[1].body as string);
+    expect(body(0).model).toBe(body(1).model);
+    expect(body(0).input).toEqual(body(1).input);
+    expect(body(0).prompt_cache_key).toBe("chat-cache");
+    expect(body(1).prompt_cache_key).toBeUndefined();
+  });
 });
 
 
