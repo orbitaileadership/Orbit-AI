@@ -9,7 +9,7 @@ function client(enabled=true){
  then:(resolve:(value:unknown)=>unknown)=>Promise.resolve({data:[],error:null}).then(resolve),upsert:state.writes};
  return {from:()=>query,rpc:async()=>({data:[{source_id:'old',source_kind:'message',content:'0.15 M saline',similarity:0.9}],error:null})} as unknown as SupabaseClient;
 }
-const options=()=>({supabase:client(),userId:U,conversationId:C,enabled:true,query:'Which concentration?',sources:[{id:'old',kind:'message' as const,content:'0.15 M saline'}],memories:[],excluded:new Set<string>()});
+const options=()=>({supabase:client(),userId:U,conversationId:C,userMessageId:'33333333-3333-4333-8333-333333333333',enabled:true,query:'Which concentration?',sources:[{id:'old',kind:'message' as const,content:'0.15 M saline'}],memories:[],excluded:new Set<string>()});
 // Never read the machine's real flag or key (a developer shell may have them set).
 beforeEach(()=>{vi.clearAllMocks();vi.unstubAllEnvs();vi.unstubAllGlobals();vi.stubEnv('SMART_MEMORY_ENABLED','');vi.stubEnv('OPENAI_API_KEY','');});
 it('never embeds or reserves without both feature flag and user opt-in',async()=>{
@@ -25,7 +25,7 @@ it('reserves and records embedding expenses then retrieves only scoped sources',
  vi.stubGlobal('fetch',vi.fn(async()=>Response.json({usage:{prompt_tokens:100},data:[0,1].map(index=>({index,embedding:Array(1536).fill(0.1)}))})));
  const r=await retrieveRelevant(options());
  expect(r.count).toBe(1);expect(r.block).toContain('0.15 M');
- expect(state.reserve).toHaveBeenCalledWith(U,expect.any(String),'text-embedding-3-small','text',expect.any(Number),{provider:'openai',operation:'embedding',conversationId:C});
+ expect(state.reserve).toHaveBeenCalledWith(U,expect.any(String),'text-embedding-3-small','text',expect.any(Number),{provider:'openai',operation:'embedding',conversationId:C,userMessageId:options().userMessageId});
  expect(state.settle).toHaveBeenCalledWith(expect.any(String),'settled',2,{input:100,output:0,reasoning:0,cached:0});
 });
 it('leaves unknown embedding provider outcomes uncertain and falls back without breaking the chat',async()=>{
