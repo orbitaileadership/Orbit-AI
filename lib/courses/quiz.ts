@@ -16,8 +16,10 @@ const CARD=/\[\[card:\s*(\{[^\n]*?\})\s*\]\]/g;
 export function parseStudyCards(text:string){const cards:StudyCard[]=[];const clean=text.replace(CARD,(_,raw:string)=>{try{const c=JSON.parse(raw);if(typeof c.front==='string'&&typeof c.back==='string'&&c.front.trim()&&c.back.trim()&&c.front.length<=2000&&c.back.length<=4000&&cards.length<COURSE_WORKSPACE.maxCards)cards.push({front:c.front.trim(),back:c.back.trim()});}catch{}return '';});
  const blocks=[...clean.matchAll(/```(?:orbit-widget|json)\s*\n([\s\S]*?)\n```/gi)].map(match=>match[1]);
  if(!blocks.length)blocks.push(clean.trim());
- for(const block of blocks){const widget=parseWidget(block.trim());if(widget?.type==='flashcards')for(const card of widget.cards){if(cards.length<COURSE_WORKSPACE.maxCards)cards.push(card);}}
- return {clean,cards};}
+ const visibleCards:StudyCard[]=[];
+ for(const block of blocks){const widget=parseWidget(block.trim());if(widget?.type==='flashcards')for(const card of widget.cards){if(visibleCards.length<COURSE_WORKSPACE.maxCards)visibleCards.push(card);}}
+ // A validated visible deck owns its exports; hidden legacy metadata is only a fallback.
+ return {clean,cards:visibleCards.length?visibleCards:cards};}
 export function hideStudyCards(text:string){return parseStudyCards(text).clean.replace(/\[\[card:[\s\S]*$/,'');}
 export function cardsTsv(cards:StudyCard[]){return cards.map(c=>[c.front,c.back].map(s=>s.replace(/[\t\r\n]+/g,' ').replace(/ {2,}/g,' ').replace(/</g,'‹').replace(/>/g,'›')).join('\t')).join('\n');}
 
