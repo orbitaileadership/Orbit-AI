@@ -275,7 +275,7 @@ export async function POST(request: Request): Promise<Response> {
       const searchHex = createHash("sha256").update(`web-search:${user.id}:${userMessageId}`).digest("hex").slice(0,32);
       const searchId = `${searchHex.slice(0,8)}-${searchHex.slice(8,12)}-${searchHex.slice(12,16)}-${searchHex.slice(16,20)}-${searchHex.slice(20)}`;
       const cost = Math.ceil(WEB_SEARCH.pricePerSearch * 1_000_000);
-      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
+      const r = await reserve(user.id, searchId, "web-search", "text", cost, {conversationId:conversation.id,userMessageId,provider:"tavily",operation:"search",unitCostUsdMicros:cost,apiModel:"basic",unitType:"request",units:1,costBasis:"estimated"});
       if (!r.ok) return json({ error: r.reason === "budget" ? "budget" : r.reason === "global_stop" ? "paused" : r.reason === "duplicate" ? "search_in_progress" : "reserve_failed", conversationId: conversation.id }, r.reason === "budget" ? 402 : r.reason === "duplicate" ? 409 : 503);
       try {
         const results = await webSearch(query, key, AbortSignal.any([request.signal,AbortSignal.timeout(20_000)]));
@@ -382,7 +382,7 @@ export async function POST(request: Request): Promise<Response> {
         for (const x of f ?? []) names.set(x.id as string, x.name as string);
       }
       summary = await updateSummary({
-        supabase, userId: user.id, conversationId: conversation.id, provider, apiKey,
+        supabase, userId: user.id, conversationId: conversation.id, userMessageId, provider, apiKey,
         existing: conversation.summary, existingUpto: conversation.summary_upto,
         dropped: droppedRows.map((r) => ({ ...r, files: (r.attachment_ids ?? []).map((id) => names.get(id)).filter((n): n is string => Boolean(n)) })),
       });
@@ -390,7 +390,7 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const keptIds = new Set(rows.slice(rows.length-ctx.turns.length).map(r=>r.id));
-  const retrieval = live && (ctx.dropped || personal.memories.length>12) ? await retrieveRelevant({supabase,userId:user.id,conversationId:conversation.id,
+  const retrieval = live && (ctx.dropped || personal.memories.length>12) ? await retrieveRelevant({supabase,userId:user.id,conversationId:conversation.id,userMessageId,
     enabled:Boolean(personal.profile?.memory_enabled),query:question,excluded:new Set([...keptIds,...selectedMemories.map(m=>m.id)]),memories:personal.memories,
     sources:[...(summary ? [{id:conversation.id,kind:"summary" as const,content:summary}] : []),
       ...rows.filter(r=>!keptIds.has(r.id)).reverse().map(r=>({id:r.id,kind:"message" as const,content:r.content}))]}) : {block:"",count:0};
@@ -440,7 +440,7 @@ export async function POST(request: Request): Promise<Response> {
   if (inputTokens > Math.min(model.contextTokens-model.maxOutputTokens,CONTEXT.maximumInputTokens)) {
     return json({error: videos.length ? "video_too_large" : "context_too_large",conversationId:conversation.id},413);
   }
-  const callMetadata = {conversationId:conversation.id,provider,operation:"chat" as const,inputEstimate:inputTokens,
+  const callMetadata = {conversationId:conversation.id,userMessageId,provider,operation:"chat" as const,inputEstimate:inputTokens,
     contextTarget,historyDropped:ctx.dropped,retrievedCount:retrieval.count,
     usageContext:usageContext({userMessageId,question,turns:ctx.turns,system,
       toolTokens:runTokens+(tools?estimateTokens(JSON.stringify(tools))+400:0),
