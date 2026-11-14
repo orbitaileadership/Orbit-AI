@@ -29,10 +29,13 @@ describe("private file previews", () => {
     expect((await preview()).body).toMatchObject({ status: "ready", mime: "application/pdf", url: expect.stringContaining("example.invalid") });
   });
 
-  it("waits for a private Office rendition then signs it", async () => {
+  it("does not promise queued Office conversion but preserves an existing rendition", async () => {
     const row = { id, user_id: "user-1", name: "slides.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", kind: "document", status: "ready", storage_path: "original", preview_status: "queued", preview_path: null as string | null };
     state.fake!.db.files.push(row);
-    expect((await preview()).body.status).toBe("processing");
+    const unavailable = (await preview()).body;
+    expect(unavailable.status).toBe("failed");
+    expect(unavailable.message).toContain("Download the original");
+    expect(unavailable).not.toHaveProperty("url");
     row.preview_status = "ready";
     row.preview_path = `user-1/${id}/orbit-preview.pdf`;
     state.fake!.storage[row.preview_path] = { bytes: new Uint8Array([1]), type: "application/pdf" };
