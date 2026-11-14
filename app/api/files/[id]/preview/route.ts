@@ -19,9 +19,10 @@ export async function GET(_: Request, ctx: RouteContext<"/api/files/[id]/preview
     message: "In-app preview isn't available for this format. Download the original file.",
   });
   const path = native ? file.storage_path : file.preview_status === "ready" ? file.preview_path : null;
+  // Existing private renditions remain usable; do not promise an unverified worker is running.
   if (!path) return json({
-    name: file.name, indexStatus: file.status, status: file.preview_status === "failed" || file.status === "failed" ? "failed" : "processing",
-    message: file.preview_status === "failed" ? "Orbit couldn't render this file. You can still download the original." : "Preparing the document preview…",
+    name: file.name, indexStatus: file.status, status: "failed",
+    message: "In-app preview is not available for this file. Download the original or upload a PDF.",
   });
   const { data, error: signedError } = await auth.supabase.storage.from("uploads").createSignedUrl(path, 60 * 60);
   if (signedError || !data) return json({ error: "preview_unavailable" }, 500);

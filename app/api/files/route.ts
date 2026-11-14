@@ -79,7 +79,7 @@ async function handleUpload(request: Request): Promise<Response> {
     return json({ error: code, message }, 400);
   };
   if (size > (isImage ? MAX_IMAGE_BYTES : MAX_DOCUMENT_UPLOAD_BYTES)) {
-    return reject("too_large", isImage ? "That image is over 5 MB." : "Files can be up to 512 MB.");
+    return reject("too_large", isImage ? "That image is over 5 MB." : "Files can be up to 20 MB. Try splitting it or exporting a smaller PDF.");
   }
   const large = size > INLINE_INDEX_BYTES;
   // A large document must never be downloaded through this request-time function.
@@ -133,9 +133,9 @@ async function handleUpload(request: Request): Promise<Response> {
     kind: isImage ? "image" : "document", status, page_count: pageCount, char_count: charCount, error: errorText,
     project_id: isUuid(body.projectId) ? body.projectId : null,
   };
-  const officePreview = ["docx", "pptx", "sheet"].includes(DOC_TYPES[mime] ?? "");
+  // Office text is indexed inline; do not queue conversion until the hosted worker is verified.
   const insert = (withNew: boolean) =>
-    supabase.from("files").insert(withNew ? { ...base, visual_pages: visualPages, image_count: imageCount, preview_status: officePreview ? status === "failed" ? "failed" : "queued" : null } : base).select(withNew ? COLS + NEW_COLS : COLS).single();
+    supabase.from("files").insert(withNew ? { ...base, visual_pages: visualPages, image_count: imageCount, preview_status: null } : base).select(withNew ? COLS + NEW_COLS : COLS).single();
   let { data: row, error } = (await insert(true)) as unknown as { data: Record<string, unknown> | null; error: { code?: string } | null };
   if (!large && (error?.code === "PGRST204" || error?.code === "42703")) ({ data: row, error } = (await insert(false)) as unknown as { data: Record<string, unknown> | null; error: { code?: string } | null });
   if (error || !row) {

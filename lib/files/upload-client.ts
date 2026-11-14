@@ -14,7 +14,7 @@ export type UploadedFile = {
 /** One line under a file chip: what was read, and what the AI will look at as images or can't read. */
 export function fileNote(f: UploadedFile): string | undefined {
   if (f.status === "failed") return f.error ?? undefined;
-  if (f.status === "queued" || f.status === "processing") return "Reading in the background · AI can use it when ready";
+  if (f.status === "queued" || f.status === "processing") return "This file is not ready - AI cannot use it yet";
   if (f.status === "needs_ocr") return `Scanned${f.pageCount ? ` · ${f.pageCount} pages` : ""} · read as page images`;
   const ext = f.name.toLowerCase().split(".").pop() ?? "";
   const n = f.pageCount;
@@ -45,7 +45,7 @@ const HINTS: Record<string, string> = {
 export function checkFile(file: File): string | null {
   const ext = file.name.toLowerCase().split(".").pop() ?? "";
   if (HINTS[ext]) return HINTS[ext];
-  if (!IMAGE_EXT.includes(ext) && file.size > MAX_DOCUMENT_UPLOAD_BYTES) return "Files can be up to 512 MB.";
+  if (!IMAGE_EXT.includes(ext) && file.size > MAX_DOCUMENT_UPLOAD_BYTES) return "Files can be up to 20 MB. Try splitting it or exporting a smaller PDF.";
   return null;
 }
 
@@ -139,7 +139,7 @@ export async function uploadFile(original: File, userId: string, projectId?: str
     // A missing bucket or storage policy means migration 0002 hasn't been run.
     const setup = /bucket|policy|row-level|not found/i.test(uploadError);
     const limit = /too large|payload too large|exceeded.*limit|file size/i.test(uploadError);
-    return { error: setup ? "File storage isn't set up yet." : limit ? "This deployment's storage limit is below 512 MB. Ask an admin to update it." : "Upload failed. Check your connection and try again." };
+    return { error: setup ? "File storage isn't set up yet." : limit ? "This deployment's storage limit is below 20 MB. Ask an admin to check it." : "Upload failed. Check your connection and try again." };
   }
   return register();
 }

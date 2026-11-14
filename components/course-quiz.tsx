@@ -26,7 +26,8 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
   onLaunch: (launch: CourseLaunch) => void; onSessionSaved: () => void; active?: boolean;
 }) {
   const sections = (course.course_data?.items ?? []).filter(item => item.kind !== 'topic' && item.id);
-  const [sectionId, setSectionId] = useState(sections[0]?.id ?? '');
+  const [selectedSectionId, setSectionId] = useState(sections[0]?.id ?? '');
+  const sectionId = sections.some(section => section.id === selectedSectionId) ? selectedSectionId : sections[0]?.id ?? '';
   const [format, setFormat] = useState<QuizFormat>('mcq');
   const [count, setCount] = useState(10);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -35,6 +36,7 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
   const [busy, setBusy] = useState(false);
   const [revision, setRevision] = useState(0);
   const launchId = useRef(crypto.randomUUID());
+  const launchSectionId = useRef(sectionId);
   const locked = useRef(false);
   const base = `/api/courses/${course.id}/quiz`;
 
@@ -56,10 +58,15 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
   async function start() {
     if (locked.current || !sectionId) return;
     locked.current = true; setBusy(true); setError('');
+    if (launchSectionId.current !== sectionId) {
+      launchId.current = crypto.randomUUID();
+      launchSectionId.current = sectionId;
+    }
+    const requestLaunchId = launchId.current;
     try {
       const workspace = await api(`/api/courses/${course.id}/assignments/${sectionId}`, {});
       if (workspace.course) onCourse(workspace.course);
-      const saved = await api(base, { launchId: launchId.current, sectionId, format, count, provider: ai });
+      const saved = await api(base, { launchId: requestLaunchId, sectionId, format, count, provider: ai });
       launchId.current = crypto.randomUUID();
       onSessionSaved();
       handoff(saved.conversation, saved.prompt, saved.folder);
@@ -82,6 +89,7 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
   async function showExports(session: Session) {
     if (locked.current) return;
     locked.current = true; setBusy(true); setError('');
+    setCards(null);
     try {
       const saved = await api(`${base}?conversationId=${session.id}`);
       const values = [...new Map((saved.messages as SavedMessage[]).filter(m => m.role === 'assistant' && m.status === 'complete')

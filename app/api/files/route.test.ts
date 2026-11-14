@@ -47,22 +47,36 @@ describe("POST /api/files", () => {
     expect(state.fake!.storage[path]).toBeUndefined();
   });
 
-  it("queues a large PDF without downloading it in the request", async () => {
-    const { body, row } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", INLINE_INDEX_BYTES + 1);
-    expect(body.file).toMatchObject({ status: "queued" });
-    expect(row!.size_bytes).toBe(INLINE_INDEX_BYTES + 1);
+  it("rejects documents above the inline limit without queuing or downloading", async () => {
+    const { res, body, row } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", INLINE_INDEX_BYTES + 1);
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("too_large");
+    expect(row).toBeUndefined();
     expect(state.fake!.storageCalls.downloads).toBe(0);
     expect(state.fake!.db.file_chunks).toHaveLength(0);
   });
 
-  it("accepts exactly 512 MiB for background indexing", async () => {
-    const { res, body } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", MAX_DOCUMENT_UPLOAD_BYTES);
+  it("accepts exactly 20 MiB for inline indexing without a worker job", async () => {
+    expect(MAX_DOCUMENT_UPLOAD_BYTES).toBe(20 * 1024 * 1024);
+    expect(MAX_DOCUMENT_UPLOAD_BYTES).toBeLessThanOrEqual(INLINE_INDEX_BYTES);
+    const bytes = new Uint8Array(MAX_DOCUMENT_UPLOAD_BYTES);
+    bytes.set(new TextEncoder().encode("Boundary document"));
+    const { res, body, row } = await upload("boundary.txt", bytes, "text/plain");
     expect(res.status).toBe(200);
-    expect(body.file.status).toBe("queued");
+    expect(body.file.status).toBe("ready");
+    expect(row!.preview_status).toBeNull();
+  });
+
+  it("indexes small Office files without queuing preview conversion", async () => {
+    const { res, body, row } = await upload("assignment.docx", fixture("assignment.docx"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    expect(res.status).toBe(200);
+    expect(body.file.status).toBe("ready");
+    expect(row!.preview_status).toBeNull();
+    expect(state.fake!.db.file_chunks.length).toBeGreaterThan(0);
   });
 
   it("retries registration idempotently after a completed upload", async () => {
-    const { row, path } = await upload("lecture.pdf", new Uint8Array([1]), "application/pdf", INLINE_INDEX_BYTES + 1);
+    const { row, path } = await upload("lecture.pdf", fixture("lecture.pdf"), "application/pdf");
     const response = await POST(new Request("http://x/api/files", { method: "POST", body: JSON.stringify({ id: row!.id, path, name: "lecture.pdf" }) }));
     expect(response.status).toBe(200);
     expect(state.fake!.db.files).toHaveLength(1);
