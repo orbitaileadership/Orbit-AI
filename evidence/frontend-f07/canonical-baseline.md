@@ -1,0 +1,5 @@
+# F07 canonical baseline
+
+This is the public synthetic fixture only, revalidated by a fresh Student context against canonical frontend commit 0a70fd1cba381bbb5c6cb9b7d1cebfbd7dfa340e. Historical baseline metadata in copied student/public-task.md refers to the preserved preparation checkpoint; this note supersedes that baseline for this run. AnswerTextBefore.tsx is an exact source-byte copy from the canonical baseline. No private evaluator questions, answers or criteria belong in this directory. All pages and screenshots are MOCK/OFFLINE. No actual Orbit answer, cost saving or product acceptance is implied.
+
+F07 repairs: 0/2 before runtime baseline. F02 remains frozen2/2. Existing source content, citation parsing, toggle semantics, links, tokens and shared styles must remain intact. Current task is solely SourceGroup passage/label wrapping, subject to baseline reproduction and independent review. Actual answer70 and cost30 UNSCORED.

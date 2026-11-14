@@ -1,0 +1,42 @@
+{
+  "label": "MOCK/OFFLINE; synthetic sources only",
+  "baseline": "0a70fd1cba381bbb5c6cb9b7d1cebfbd7dfa340e",
+  "phone": {
+    "viewport": "375x812",
+    "baselinePageWidths": [
+      375,
+      531,
+      791,
+      791
+    ],
+    "candidatePageWidths": [
+      375,
+      375,
+      375,
+      360
+    ],
+    "baselineQuoteClient": 299,
+    "baselineLongLabQuoteScroll": 492,
+    "baselineLongBusinessQuoteScroll": 753,
+    "candidateAllQuotes": "scrollWidth equals clientWidth (299, or284 with vertical scrollbar)"
+  },
+  "desktop": {
+    "viewport": "1440x900",
+    "baselineBusinessQuote": "client692 scroll753",
+    "candidateAllQuotes": "client692 scroll692",
+    "pageWidth": 1440
+  },
+  "preservation": "Actual DOM observations contain identical source text and web href/target=_blank/rel=noreferrer across baseline/candidate; no links followed",
+  "screenshots": "Phone baseline/candidate and desktop captured in CUA memory/tool output. Attempt to persist screenshots returned EPERM; no screenshot files claimed. Independent reviewer separately inspects UI.",
+  "repairCounter": {
+    "product": 0,
+    "supportingHarness": 1,
+    "maximum": 2
+  },
+  "quality70": "UNSCORED; no authorized real answer",
+  "cost30": "UNSCORED; no actual all-call quality-matched cost baseline",
+  "limitations": [
+    "Synthetic isolated SourceList; no signed-in site, provider, real touch, real font fidelity or assistive-technology test",
+    "Phone pageWidth360 reflects scrollbar; does not indicate clipping"
+  ]
+}
