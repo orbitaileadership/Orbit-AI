@@ -861,7 +861,16 @@ describe("model-directed public search",()=>{
     const context=vi.mocked(budget.reserve).mock.calls.find(c=>c[5]?.operation==="chat")?.[5]?.usageContext;
     expect(context).toMatchObject({offeredToolCount:1,toolSafetyAllowanceTokens:400});
     expect(context?.offeredToolSchemaTokens).toBeGreaterThan(0);
-    expect(vi.mocked(budget.settle).mock.calls.find(c=>c[5]?.invokedToolCount===1)).toBeDefined();
+    expect(vi.mocked(budget.settle).mock.calls.find(c=>c[5]?.requestedToolCount===1)).toBeDefined();
+  });
+  it("records requested tools, not executed tools, when the provider blocks the turn",async()=>{
+    state.events=[{toolCall:call},{finish:"blocked"},{usage}];
+    const events=await readEvents(await POST(req({provider:"anthropic",modelId:"anthropic-default",content:"Synthetic search request"})));
+    expect(events.some(e=>e.t==="tool_calls")).toBe(false);
+    expect(searchFetch).not.toHaveBeenCalled();
+    const settled=vi.mocked(budget.settle).mock.calls.find(c=>c[5]?.requestedToolCount===1);
+    expect(settled).toBeDefined();
+    expect(settled?.[5]).not.toHaveProperty("invokedToolCount");
   });
   it("executes the model query through accounting, replaces browser evidence, and saves cited sources",async()=>{
     const continuation=await start();

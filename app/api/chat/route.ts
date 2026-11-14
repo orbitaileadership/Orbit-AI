@@ -334,7 +334,7 @@ export async function POST(request: Request): Promise<Response> {
   const selectedMemories = relevantMemories(personal.memories, question);
   const promptBase = {
     modelLabel: model.label, personal: personalPrompt(personal.profile, selectedMemories), projectName: project?.name, projectInstructions: project?.instructions,
-    mode: conversation.mode as StudyMode, quiz: quizText, material: material.block, courseOnly: conversation.course_only,
+    mode: conversation.mode as StudyMode, quiz: quizText, quizFormat: activeStudyInstructions?.format, material: material.block, courseOnly: conversation.course_only,
     hasFiles: material.hasFiles, unreadable: material.unreadable, notes: [...material.notes, ...webNotes], web: webBlock,
     voice,
   };
@@ -567,7 +567,7 @@ export async function POST(request: Request): Promise<Response> {
       if (run) await supabase.from("messages").update({ tool_log: toolLog(run.steps, toolContextCompacted) }).eq("id", replyId);
 
       if (live) {
-        if (usage) await settle(requestId, "settled", costMicros(model, usage), usage, failure?.code, {latencyMs:Date.now()-startedAt,finishReason:finish,qualityVersion:RESPONSE_QUALITY_VERSION,invokedToolCount:calls.length});
+        if (usage) await settle(requestId, "settled", costMicros(model, usage), usage, failure?.code, {latencyMs:Date.now()-startedAt,finishReason:finish,qualityVersion:RESPONSE_QUALITY_VERSION,requestedToolCount:calls.length});
         else if (failure && failureState(failure) === "released" && text.length === priorText.length) await settle(requestId, "released", 0, undefined, failure.code);
         else await settle(requestId, "uncertain", 0, undefined, failure?.code ?? "no_usage");
       }
