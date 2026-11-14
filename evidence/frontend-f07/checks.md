@@ -1,0 +1,11 @@
+# F07 checks and limits
+
+Baseline canonical frontend/main0a70fd1cba381bbb5c6cb9b7d1cebfbd7dfa340e. Source candidate SHA256FF6FB2AE378E3E8FB984232C8241973E615D126D0535A5A324B19998F72FEDBF; baselineSHA256034930F47C8ED5AA29728754DBD83FCE60B27EDADA2C535BB4CDDA36F964EBFA. Public fixtureSHA2566246C12698D86F0CB82E77F5ACF1387E8046C7D0763CC68FAD69FE6116BD6DC5.
+
+Executed: npm ci --offline --ignore-scripts --no-audit --no-fund restored666lockfile packages; npm run lint PASS; npm run typecheck PASS and rerun after transient fixture loader PASS; final npx --no-install eslint components/answer-text.tsx evidence/frontend-f07/preview/main.tsx PASS; npm test -- --maxWorkers=2 lib/chat/quiz.test.ts lib/files/preview.test.ts PASS4tests/1file. The preview.test.ts selector did not exist; only the actual quiz.test.ts file ran. No preview unit test or fullsuite pass is claimed. npm run build -- --webpack PASS using LIVE_MODELS=off, synthetic Supabase values and local font response fixture; output is validation-only and must not be deployed. No real provider, DB, website or font-service test. git diff --check PASS.
+
+Runtime: loopback-only Vite4317, actual SourceList. Parent observed four sources at desktop1440x900 and phone375x812; public measurements in runtime-public.json. Browser screenshots captured and visually inspected in tool output but filesystem persistence was denied EPERM; no screenshot files claimed. Build log retained locally. Screenshots are mock and not an Orbit answer. Real touch, assistive technology, signed-in application and actual font fidelity remain unverified. Independent reviewer result separately recorded when complete.
+
+Candidate repair counter: product0, supporting harness1 of maximum2. Harness repair provides only transient in-memory synthetic JSON loader requested by Reviewer. No private task/answer/evaluator content is written or committed. Historical F07 source/evidence unchanged. F02 remains exhausted2/2 and untouched.
+
+Actual answer quality/70 and cost efficiency/30 UNSCORED; no overall score or measured savings.

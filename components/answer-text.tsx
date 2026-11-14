@@ -79,7 +79,7 @@ function SourceGroup({ title, sources }: { title: string; sources: Source[] }) {
         ))}
       </div>
       {shown && (
-        <blockquote className="mt-2 rounded-xl border-l-2 border-brand bg-surface-200 px-3 py-2 text-xs leading-relaxed text-ink-muted">
+        <blockquote className="mt-2 rounded-xl border-l-2 border-brand bg-surface-200 px-3 py-2 text-xs leading-relaxed text-ink-muted [overflow-wrap:anywhere]">
           <span className="mb-1 block font-medium text-ink">{shown.label}</span>
           {shown.excerpt.startsWith("(") ? shown.excerpt : `“${shown.excerpt}${shown.excerpt.length >= 600 ? "…" : ""}”`}
           {shown.url && (
