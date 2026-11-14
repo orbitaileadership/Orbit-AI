@@ -17,7 +17,7 @@ export type CallMetadata = {
   units?: number; parentRequestId?: string; providerRequestId?: string; userMessageId?: string;
   environment?: "evaluation"; providerCostUsdMicros?: number; costInUsdTicks?: string;
   conversationId?: string; provider?: ProviderId | "tavily" | "elevenlabs" | "wolfram"; operation?: "evaluation" | "wolfram" | "syllabus" | "chat" | "summary" | "embedding" | "search" | "image" | "transcription" | "speech" | "orbit_vote" | "orbit_specialist" | "orbit_answer";
-  inputEstimate?: number; contextTarget?: number; historyDropped?: boolean; retrievedCount?: number; latencyMs?: number; finishReason?: string; qualityVersion?: string; unitCostUsdMicros?: number; invokedToolCount?: number;
+  inputEstimate?: number; contextTarget?: number; historyDropped?: boolean; retrievedCount?: number; latencyMs?: number; finishReason?: string; qualityVersion?: string; unitCostUsdMicros?: number; requestedToolCount?: number;
 };
 export async function reserve(userId: string, requestId: string, modelId: string, kind: "text" | "image", boundMicros: number, metadata: CallMetadata = {}): Promise<ReserveResult> {
   if (!Number.isFinite(boundMicros) || boundMicros <= 0 || !Number.isSafeInteger(Math.ceil(boundMicros))) return { ok: false, reason: "error" };
