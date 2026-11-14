@@ -1,0 +1,9 @@
+# Safe combined release - document worker separation
+
+- Date: 2026-11-14. Status: candidate only, not released.
+- Baseline: combined PR83 head `1b7c939667a3302a3a5351ea2abf9b76c25e2174`; preserve the four workstreams while avoiding activation of unverified hosted document processing.
+- Scope: `config/files.ts`, upload API/client and tests, private preview API and tests. No provider, billing, course-context, database, worker-host or deployment changes.
+- Behavior: document upload cap is 20 MiB in client and server. Larger stored documents are rejected before download or insertion. Accepted documents remain bounded inline indexing; Office text extraction remains supported but no conversion job is queued. Existing original PDFs/images and ready private Office renditions remain usable under existing owner checks. Other Office previews explicitly offer original download/PDF upload instead of claiming conversion is running. Existing queued-file copy no longer promises active background work.
+- Preserved: resumable transfers for accepted files, idempotent registration, metadata size validation, image handling, source downloads, existing queued records, worker implementation and migrations. No source records or branches deleted. Larger uploads and hosted conversion remain deferred, not removed from history.
+- Evidence: Node24.21.0, LIVE_MODELS=off, focused Vitest passed 3 files/14 tests (upload API, preview API, upload client). Tests cover exact20MiB, one-byte-over rejection without download/job, small Office inline extraction without queue, registration retry, existing ready rendition, native PDF, owner denial, HTML/text non-framing and client cap/copy. `git diff --check` passed.
+- Validation limits: no live provider calls, database mutations, worker processing or signed-in browser acceptance. Parent coordinates full combined tests/review and exact release decision. This patch alone does not clear release HOLD.
