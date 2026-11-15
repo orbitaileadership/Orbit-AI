@@ -1,0 +1,131 @@
+{
+  "mode": "MOCK",
+  "source": "working-tree",
+  "total": 15,
+  "passed": 15,
+  "failed": 0,
+  "byFormat": {
+    "mcq": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "short-answer": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    },
+    "flashcards": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "id": "public-circuits-one-set",
+      "format": "mcq",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-circuits-duplicate",
+      "format": "mcq",
+      "expectedAccept": false,
+      "actualAccept": false,
+      "pass": true
+    },
+    {
+      "id": "public-circuits-extra-other-format",
+      "format": "mcq",
+      "expectedAccept": false,
+      "actualAccept": false,
+      "pass": true
+    },
+    {
+      "id": "public-circuits-nonstudy-chart",
+      "format": "mcq",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-circuits-json-one-set",
+      "format": "mcq",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-accounting-one-set",
+      "format": "short-answer",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-accounting-duplicate",
+      "format": "short-answer",
+      "expectedAccept": false,
+      "actualAccept": false,
+      "pass": true
+    },
+    {
+      "id": "public-accounting-extra-other-format",
+      "format": "short-answer",
+      "expectedAccept": false,
+      "actualAccept": false,
+      "pass": true
+    },
+    {
+      "id": "public-accounting-nonstudy-chart",
+      "format": "short-answer",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-accounting-json-one-set",
+      "format": "short-answer",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-biology-one-set",
+      "format": "flashcards",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-biology-duplicate",
+      "format": "flashcards",
+      "expectedAccept": false,
+      "actualAccept": false,
+      "pass": true
+    },
+    {
+      "id": "public-biology-extra-other-format",
+      "format": "flashcards",
+      "expectedAccept": false,
+      "actualAccept": false,
+      "pass": true
+    },
+    {
+      "id": "public-biology-nonstudy-chart",
+      "format": "flashcards",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    },
+    {
+      "id": "public-biology-json-one-set",
+      "format": "flashcards",
+      "expectedAccept": true,
+      "actualAccept": true,
+      "pass": true
+    }
+  ]
+}

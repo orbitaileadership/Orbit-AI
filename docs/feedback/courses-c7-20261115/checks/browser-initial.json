@@ -1,0 +1,652 @@
+{
+  "mode": "OFFLINE/MOCK",
+  "baseline": "0a70fd1cba381bbb5c6cb9b7d1cebfbd7dfa340e",
+  "results": [
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-circuits-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-circuits-duplicate",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-circuits-extra-other-format",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-circuits-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-circuits-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-accounting-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-accounting-duplicate",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-accounting-extra-other-format",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-accounting-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-accounting-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-biology-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-biology-duplicate",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-biology-extra-other-format",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-biology-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 1440,
+      "case": "public-biology-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-circuits-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-circuits-duplicate",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-circuits-extra-other-format",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-circuits-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-circuits-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-accounting-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-accounting-duplicate",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-accounting-extra-other-format",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-accounting-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-accounting-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-biology-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-biology-duplicate",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-biology-extra-other-format",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-biology-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 1440,
+      "case": "public-biology-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-circuits-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-circuits-duplicate",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-circuits-extra-other-format",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-circuits-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-circuits-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-accounting-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-accounting-duplicate",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-accounting-extra-other-format",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-accounting-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-accounting-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-biology-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-biology-duplicate",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-biology-extra-other-format",
+      "accepted": true,
+      "expected": false,
+      "taskPass": false,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-biology-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "baseline",
+      "width": 375,
+      "case": "public-biology-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-circuits-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-circuits-duplicate",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-circuits-extra-other-format",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-circuits-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-circuits-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-accounting-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-accounting-duplicate",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-accounting-extra-other-format",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-accounting-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-accounting-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-biology-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-biology-duplicate",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-biology-extra-other-format",
+      "accepted": false,
+      "expected": false,
+      "taskPass": true,
+      "widgetCount": 0,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-biology-nonstudy-chart",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 2,
+      "overflow": false
+    },
+    {
+      "mode": "candidate",
+      "width": 375,
+      "case": "public-biology-json-one-set",
+      "accepted": true,
+      "expected": true,
+      "taskPass": true,
+      "widgetCount": 1,
+      "overflow": false
+    }
+  ],
+  "storageChecks": [
+    {
+      "width": 1440,
+      "format": "mcq",
+      "scope": "same-browser synthetic localStorage reload",
+      "storedCheck": true,
+      "writtenTextStored": false
+    },
+    {
+      "width": 1440,
+      "format": "short-answer",
+      "scope": "same-browser synthetic localStorage reload",
+      "storedCheck": true,
+      "writtenTextStored": false
+    },
+    {
+      "width": 1440,
+      "format": "flashcards",
+      "scope": "same-browser synthetic localStorage reload",
+      "storedCheck": true,
+      "writtenTextStored": false
+    },
+    {
+      "width": 375,
+      "format": "mcq",
+      "scope": "same-browser synthetic localStorage reload",
+      "storedCheck": true,
+      "writtenTextStored": false
+    },
+    {
+      "width": 375,
+      "format": "short-answer",
+      "scope": "same-browser synthetic localStorage reload",
+      "storedCheck": true,
+      "writtenTextStored": false
+    },
+    {
+      "width": 375,
+      "format": "flashcards",
+      "scope": "same-browser synthetic localStorage reload",
+      "storedCheck": true,
+      "writtenTextStored": false
+    }
+  ],
+  "screenshotFailures": [],
+  "limits": "Actual widgets and validator with fixture-driven completion display, not dispatched generation/save routes; no provider/database/real website/cross-device or actual grading proof."
+}

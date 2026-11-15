@@ -1,0 +1,65 @@
+{
+  "mode": "OFFLINE/MOCK",
+  "baseline": "0a70fd1cba381bbb5c6cb9b7d1cebfbd7dfa340e",
+  "candidateSourceSha256": "79EAB05F5F9E83C7314961E83451BD831B039C4DBDB43187C450A28483D2D8BE",
+  "candidateTestSha256": "942EB2FDF36F39B739F9A8206FDAB9977E7C4DB0C7C7668490BE4160008E9DB6",
+  "public": {
+    "baselinePassed": 9,
+    "candidatePassed": 15,
+    "total": 15
+  },
+  "heldOut": {
+    "frozenSha256": "fb1adb07039e48dca49ea543de506c6e361c1fbd0063fe245aacdf9990e5ae41",
+    "baselinePassed": 15,
+    "candidatePassed": 27,
+    "total": 27,
+    "privateContentsCommitted": false
+  },
+  "lint": {
+    "exit": 0,
+    "warnings": 0
+  },
+  "typecheck": {
+    "exit": 0
+  },
+  "unit": {
+    "exit": 0,
+    "tests": 985,
+    "files": 111,
+    "seconds": 109.44
+  },
+  "feedback": {
+    "exit": 0,
+    "tests": 64
+  },
+  "build": {
+    "exit": 0,
+    "mode": "Mocked fonts + synthetic public Supabase config + LIVE_MODELS=off; validation only, never deploy"
+  },
+  "browser": {
+    "exit": 0,
+    "journeys": 60,
+    "candidateTaskPass": 30,
+    "baselineTaskFailures": 12,
+    "desktopWidth": 1440,
+    "phoneWidth": 375,
+    "storageAndResultsChecks": 6,
+    "pageErrors": 0,
+    "nonlocalRequests": 0,
+    "overflowCases": 0,
+    "fixtureOnly": true
+  },
+  "attempts": {
+    "applicationAndPublicTest": 2,
+    "applicationPredicateEdits": 1,
+    "testControlCorrection": 1,
+    "supportingHarness": "selector refined before browser reached it; public evaluator local identifier renamed after lint failure; expected cases/frozen heldout unchanged"
+  },
+  "limits": [
+    "Real academic answer /70 UNSCORED",
+    "All-call cost /30 UNSCORED including development/eval/auxiliary/retry/tool costs",
+    "Mock terminal-display gate; generation/save POST routes not dispatched",
+    "Same browser synthetic reload only; no cross-device persistence or automatic grading",
+    "Initial sandbox helper6 failures EPERM/EACCES, browser pipe failure and build mkdir EPERM resolved by guarded local elevation; no app fix for environment"
+  ]
+}

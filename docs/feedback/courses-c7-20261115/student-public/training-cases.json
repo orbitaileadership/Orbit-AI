@@ -1,0 +1,126 @@
+{
+  "mode": "MOCK",
+  "criteriaOrigin": "Explicit student task and supplied synthetic course notes; fixed before candidate edits.",
+  "cases": [
+    {
+      "id": "public-circuits-one-set",
+      "taskId": "public-circuits",
+      "format": "mcq",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"quiz\",\"title\":\"ENGR 1200 circuits review\",\"questions\":[{\"question\":\"What is the current through the resistor?\",\"options\":[\"2 A\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"2 A\"},{\"question\":\"What is the power dissipated?\",\"options\":[\"24 W\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"24 W\"}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-circuits-duplicate",
+      "taskId": "public-circuits",
+      "format": "mcq",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"quiz\",\"title\":\"ENGR 1200 circuits review\",\"questions\":[{\"question\":\"What is the current through the resistor?\",\"options\":[\"2 A\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"2 A\"},{\"question\":\"What is the power dissipated?\",\"options\":[\"24 W\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"24 W\"}]}\n```\n```orbit-widget\n{\"type\":\"quiz\",\"title\":\"ENGR 1200 circuits review\",\"questions\":[{\"question\":\"What is the current through the resistor?\",\"options\":[\"2 A\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"2 A\"},{\"question\":\"What is the power dissipated?\",\"options\":[\"24 W\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"24 W\"}]}\n```",
+      "expectedAccept": false
+    },
+    {
+      "id": "public-circuits-extra-other-format",
+      "taskId": "public-circuits",
+      "format": "mcq",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"quiz\",\"title\":\"ENGR 1200 circuits review\",\"questions\":[{\"question\":\"What is the current through the resistor?\",\"options\":[\"2 A\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"2 A\"},{\"question\":\"What is the power dissipated?\",\"options\":[\"24 W\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"24 W\"}]}\n```\n```orbit-widget\n{\"type\":\"flashcards\",\"title\":\"ENGR 1200 circuits review\",\"cards\":[{\"front\":\"What is the current through the resistor?\",\"back\":\"2 A\"},{\"front\":\"What is the power dissipated?\",\"back\":\"24 W\"}]}\n```",
+      "expectedAccept": false
+    },
+    {
+      "id": "public-circuits-nonstudy-chart",
+      "taskId": "public-circuits",
+      "format": "mcq",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"quiz\",\"title\":\"ENGR 1200 circuits review\",\"questions\":[{\"question\":\"What is the current through the resistor?\",\"options\":[\"2 A\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"2 A\"},{\"question\":\"What is the power dissipated?\",\"options\":[\"24 W\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"24 W\"}]}\n```\n```orbit-widget\n{\"type\":\"chart\",\"kind\":\"bar\",\"title\":\"Study minutes\",\"labels\":[\"Mon\",\"Tue\"],\"series\":[{\"name\":\"Minutes\",\"values\":[20,30]}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-circuits-json-one-set",
+      "taskId": "public-circuits",
+      "format": "mcq",
+      "count": 2,
+      "output": "```json\n{\"type\":\"quiz\",\"title\":\"ENGR 1200 circuits review\",\"questions\":[{\"question\":\"What is the current through the resistor?\",\"options\":[\"2 A\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"2 A\"},{\"question\":\"What is the power dissipated?\",\"options\":[\"24 W\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"24 W\"}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-accounting-one-set",
+      "taskId": "public-accounting",
+      "format": "short-answer",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"short_answer_quiz\",\"title\":\"BUS 1220 contribution margin\",\"questions\":[{\"question\":\"What is the contribution margin per mug?\",\"answer\":\"$11\"},{\"question\":\"How many mugs must be sold to break even?\",\"answer\":\"20 mugs\"}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-accounting-duplicate",
+      "taskId": "public-accounting",
+      "format": "short-answer",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"short_answer_quiz\",\"title\":\"BUS 1220 contribution margin\",\"questions\":[{\"question\":\"What is the contribution margin per mug?\",\"answer\":\"$11\"},{\"question\":\"How many mugs must be sold to break even?\",\"answer\":\"20 mugs\"}]}\n```\n```orbit-widget\n{\"type\":\"short_answer_quiz\",\"title\":\"BUS 1220 contribution margin\",\"questions\":[{\"question\":\"What is the contribution margin per mug?\",\"answer\":\"$11\"},{\"question\":\"How many mugs must be sold to break even?\",\"answer\":\"20 mugs\"}]}\n```",
+      "expectedAccept": false
+    },
+    {
+      "id": "public-accounting-extra-other-format",
+      "taskId": "public-accounting",
+      "format": "short-answer",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"short_answer_quiz\",\"title\":\"BUS 1220 contribution margin\",\"questions\":[{\"question\":\"What is the contribution margin per mug?\",\"answer\":\"$11\"},{\"question\":\"How many mugs must be sold to break even?\",\"answer\":\"20 mugs\"}]}\n```\n```orbit-widget\n{\"type\":\"quiz\",\"title\":\"BUS 1220 contribution margin\",\"questions\":[{\"question\":\"What is the contribution margin per mug?\",\"options\":[\"$11\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"$11\"},{\"question\":\"How many mugs must be sold to break even?\",\"options\":[\"20 mugs\",\"Insufficient information in the supplied notes\"],\"correct\":0,\"explanation\":\"20 mugs\"}]}\n```",
+      "expectedAccept": false
+    },
+    {
+      "id": "public-accounting-nonstudy-chart",
+      "taskId": "public-accounting",
+      "format": "short-answer",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"short_answer_quiz\",\"title\":\"BUS 1220 contribution margin\",\"questions\":[{\"question\":\"What is the contribution margin per mug?\",\"answer\":\"$11\"},{\"question\":\"How many mugs must be sold to break even?\",\"answer\":\"20 mugs\"}]}\n```\n```orbit-widget\n{\"type\":\"chart\",\"kind\":\"bar\",\"title\":\"Study minutes\",\"labels\":[\"Mon\",\"Tue\"],\"series\":[{\"name\":\"Minutes\",\"values\":[20,30]}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-accounting-json-one-set",
+      "taskId": "public-accounting",
+      "format": "short-answer",
+      "count": 2,
+      "output": "```json\n{\"type\":\"short_answer_quiz\",\"title\":\"BUS 1220 contribution margin\",\"questions\":[{\"question\":\"What is the contribution margin per mug?\",\"answer\":\"$11\"},{\"question\":\"How many mugs must be sold to break even?\",\"answer\":\"20 mugs\"}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-biology-one-set",
+      "taskId": "public-biology",
+      "format": "flashcards",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"flashcards\",\"title\":\"BIO 1001 membrane transport\",\"cards\":[{\"front\":\"What is diffusion?\",\"back\":\"Net movement from higher to lower concentration.\"},{\"front\":\"What distinguishes active transport here?\",\"back\":\"It uses energy to move material against its concentration gradient.\"}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-biology-duplicate",
+      "taskId": "public-biology",
+      "format": "flashcards",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"flashcards\",\"title\":\"BIO 1001 membrane transport\",\"cards\":[{\"front\":\"What is diffusion?\",\"back\":\"Net movement from higher to lower concentration.\"},{\"front\":\"What distinguishes active transport here?\",\"back\":\"It uses energy to move material against its concentration gradient.\"}]}\n```\n```orbit-widget\n{\"type\":\"flashcards\",\"title\":\"BIO 1001 membrane transport\",\"cards\":[{\"front\":\"What is diffusion?\",\"back\":\"Net movement from higher to lower concentration.\"},{\"front\":\"What distinguishes active transport here?\",\"back\":\"It uses energy to move material against its concentration gradient.\"}]}\n```",
+      "expectedAccept": false
+    },
+    {
+      "id": "public-biology-extra-other-format",
+      "taskId": "public-biology",
+      "format": "flashcards",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"flashcards\",\"title\":\"BIO 1001 membrane transport\",\"cards\":[{\"front\":\"What is diffusion?\",\"back\":\"Net movement from higher to lower concentration.\"},{\"front\":\"What distinguishes active transport here?\",\"back\":\"It uses energy to move material against its concentration gradient.\"}]}\n```\n```orbit-widget\n{\"type\":\"short_answer_quiz\",\"title\":\"BIO 1001 membrane transport\",\"questions\":[{\"question\":\"What is diffusion?\",\"answer\":\"Net movement from higher to lower concentration.\"},{\"question\":\"What distinguishes active transport here?\",\"answer\":\"It uses energy to move material against its concentration gradient.\"}]}\n```",
+      "expectedAccept": false
+    },
+    {
+      "id": "public-biology-nonstudy-chart",
+      "taskId": "public-biology",
+      "format": "flashcards",
+      "count": 2,
+      "output": "```orbit-widget\n{\"type\":\"flashcards\",\"title\":\"BIO 1001 membrane transport\",\"cards\":[{\"front\":\"What is diffusion?\",\"back\":\"Net movement from higher to lower concentration.\"},{\"front\":\"What distinguishes active transport here?\",\"back\":\"It uses energy to move material against its concentration gradient.\"}]}\n```\n```orbit-widget\n{\"type\":\"chart\",\"kind\":\"bar\",\"title\":\"Study minutes\",\"labels\":[\"Mon\",\"Tue\"],\"series\":[{\"name\":\"Minutes\",\"values\":[20,30]}]}\n```",
+      "expectedAccept": true
+    },
+    {
+      "id": "public-biology-json-one-set",
+      "taskId": "public-biology",
+      "format": "flashcards",
+      "count": 2,
+      "output": "```json\n{\"type\":\"flashcards\",\"title\":\"BIO 1001 membrane transport\",\"cards\":[{\"front\":\"What is diffusion?\",\"back\":\"Net movement from higher to lower concentration.\"},{\"front\":\"What distinguishes active transport here?\",\"back\":\"It uses energy to move material against its concentration gradient.\"}]}\n```",
+      "expectedAccept": true
+    }
+  ]
+}

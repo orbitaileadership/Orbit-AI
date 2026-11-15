@@ -1,0 +1,32 @@
+[
+  {
+    "phase": "feedback",
+    "rawIgnoredPath": ".feedback-runs\\courses-c7\\feedback.log",
+    "sha256": "717DAC924F26E09031C8EBBE3A46A3033B84D03D6F03D3AF1704C6D3310D41A0"
+  },
+  {
+    "phase": "build",
+    "rawIgnoredPath": ".feedback-runs\\courses-c7\\build-final.log",
+    "sha256": "2E5196DC1BC3C76AEE1400D988D23B43D859B84105CF8C6A59CC52A993575522"
+  },
+  {
+    "phase": "browser",
+    "rawIgnoredPath": ".feedback-runs\\courses-c7\\browser-final.log",
+    "sha256": "A14362F672E0583FD91B3F7BBEDE39BD3907E6EC9659BC057669A76D2D2487D0"
+  },
+  {
+    "phase": "lint",
+    "rawIgnoredPath": ".feedback-runs\\courses-c7\\lint-final.log",
+    "sha256": "01AE1FE72B072B93D961F7D22CBC4ED6D5AC6D156FEA0074764FC1E7A329DA34"
+  },
+  {
+    "phase": "typecheck",
+    "rawIgnoredPath": ".feedback-runs\\courses-c7\\typecheck.log",
+    "sha256": "B12FF78A274D977CB265E6000C3893D7D908858E2C2A319A9F88DA875EF40EB1"
+  },
+  {
+    "phase": "unit",
+    "rawIgnoredPath": ".feedback-runs\\courses-c7\\unit-final.log",
+    "sha256": "2AD758AA9D31C1269D6FFAEF2DA4F50DF146957304433BD6B12833F4A4F7ADE8"
+  }
+]
