@@ -1,0 +1,28 @@
+{
+  "loop": 7,
+  "mode": "OFFLINE/MOCK",
+  "branch": "courses",
+  "baseline": "0a70fd1cba381bbb5c6cb9b7d1cebfbd7dfa340e",
+  "sourceEvidenceCommit": "0bf4fc3679241edc5b7c0350ed6332b57c24a719",
+  "sourceSha256": "79EAB05F5F9E83C7314961E83451BD831B039C4DBDB43187C450A28483D2D8BE",
+  "testSha256": "942EB2FDF36F39B739F9A8206FDAB9977E7C4DB0C7C7668490BE4160008E9DB6",
+  "review": {
+    "mockOutcome": 68,
+    "outOf": 70,
+    "correctness": 20,
+    "completeness": 14,
+    "relevance": 10,
+    "clarity": 14,
+    "sources": 10,
+    "scopedPass": true,
+    "seriousScopedError": false,
+    "actualAcademicQuality": "UNSCORED /70",
+    "allCallCost": "UNSCORED /30",
+    "reason": "No real website answer or same-quality paired all-call baseline/candidate data including retries/tools/auxiliary/evaluation/development agents"
+  },
+  "repairsConsumed": 2,
+  "privateContentsCommitted": false,
+  "release": "HOLD: review candidate only; no main merge/push, deploy, tracking/alias/hold/lock change",
+  "publication": "Ready for authorized courses-only push and one review PR to main; no publication receipt yet",
+  "report": "Not sent yet; save returned receipt after actual completed-loop report"
+}
