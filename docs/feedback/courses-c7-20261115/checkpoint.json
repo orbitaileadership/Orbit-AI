@@ -23,6 +23,6 @@
   "repairsConsumed": 2,
   "privateContentsCommitted": false,
   "release": "HOLD: review candidate only; no main merge/push, deploy, tracking/alias/hold/lock change",
-  "publication": "Ready for authorized courses-only push and one review PR to main; no publication receipt yet",
-  "report": "Not sent yet; save returned receipt after actual completed-loop report"
+  "publication": "Verified courses push7aa2c87; draft PR86 courses to main. See publication.json for receipt.",
+  "report": "SENT confirmed ts1794763045.981669 in C0CGSMAM5N1; exactly four lines in slack-report.txt. Never resend."
 }

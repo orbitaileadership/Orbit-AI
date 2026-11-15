@@ -1,0 +1,17 @@
+{
+  "loop": 7,
+  "mode": "OFFLINE/MOCK",
+  "sourceEvidenceCommit": "0bf4fc3679241edc5b7c0350ed6332b57c24a719",
+  "publishedHeadAtReport": "7aa2c87c787f0119a4fed6699b7eae984950f105",
+  "branch": "courses",
+  "pr": "https://github.com/orbitaileadership/Orbit-AI/pull/86",
+  "slack": {
+    "state": "SENT_CONFIRMED_DO_NOT_RESEND",
+    "channel": "C0CGSMAM5N1",
+    "ts": "1794763045.981669",
+    "url": "https://orbit-ai-global.slack.com/archives/C0CGSMAM5N1/p1794763045981669",
+    "physicalLines": 4
+  },
+  "release": "HOLD; review PR only; no main push/merge or deployment",
+  "metadata": "This receipt-only commit changes no tested source/fixture hashes; final branch head is available from Git/PR."
+}
