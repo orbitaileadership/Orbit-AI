@@ -1,0 +1,11 @@
+
+ RUN  v5.0.3 C:/Western University/Computer Science/projects/AI Projects/Orbit AI/worktrees/courses-canonical-20261114
+
+
+ Test Files  111 passed (111)
+      Tests  985 passed (985)
+   Start at  12:09:51
+   Duration  109.44s (tests 61%, import 23%, transform 14%, worker 2%)
+
+    Isolate  111 workers spawned · ~757ms startup each (spawn + environment, per file)
+             at least ~83.30s faster with isolate: false — reuses workers across files instead of one per file

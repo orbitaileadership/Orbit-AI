@@ -1,0 +1,11 @@
+# Courses C7 — one complete study set
+
+- Date/owner: November15,2026 / Courses Mode with four independent Student/Prompt/Backend/Reviewer roles.
+- Outcome: bounded OFFLINE/MOCK completion validation candidate. A requested exact-size set plus another valid study widget used to pass; now exactly one selected-format/count set is required. Nonstudy content and supported JSON forms remain compatible. Real answer quality and all-call cost remain unscored.
+- Branch/baseline: canonical `courses` tracking origin/courses, baseline0a70fd1cba381bbb5c6cb9b7d1cebfbd7dfa340e in separate worktrees/courses-canonical-20261114. PR84 already merged/deployed per fresh GitHub/coordinator evidence. No held patches copied; C1-C6 checkpoints/C5 exhaustion preserved.
+- Source: lib/courses/quiz-output.ts and its focused tests only. No route, auth/RLS, prompt/provider, scoring, export parser, accounting, migration or shared style change.
+- Checks: public9/15→15/15; private15/27→27/27 (ignored frozen packet, Student→Reviewer only); actual-component desktop/phone60gate journeys + six same-browser storage/results checks; final lint/typecheck,985tests/111files,64feedbackchecks and offline webpack build pass. Sandbox/cache failures and supporting harness corrections are disclosed in [evidence](../feedback/courses-c7-20261115/README.md).
+- Limits: simulated terminal display, no generation/save POST dispatch or signed-in database test; browser-local progress only; MCQ key matching and free-form/flashcard self-checks are distinct. No paid/provider/real-site test, academic-quality score or measured savings. Validation-font build must never deploy.
+- Attempts:2application/test attempts consumed conservatively; no additional app/test repair permitted for this candidate. [Attempt history](../feedback/courses-c7-20261115/repairs.md).
+- Review/publication: exact source/evidence commit and one courses→main review PR recorded in checkpoint metadata after review. Frontend receives exact tested commit/checks/PR for authorized serialized integration. Release HOLD; this chat cannot merge/push main, deploy or alter release settings/holds/locks. Main merge can deploy production.
+- Reporting: one exact four-line C7 report after completion; saved receipt prevents duplicates. Historical C3-C6 receipts were already reconciled; no test report.

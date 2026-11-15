@@ -1,0 +1,38 @@
+[
+  {
+    "path": "lib/courses/quiz-output.ts",
+    "sha256": "79EAB05F5F9E83C7314961E83451BD831B039C4DBDB43187C450A28483D2D8BE"
+  },
+  {
+    "path": "lib/courses/quiz-output.test.ts",
+    "sha256": "942EB2FDF36F39B739F9A8206FDAB9977E7C4DB0C7C7668490BE4160008E9DB6"
+  },
+  {
+    "path": "docs/feedback/courses-c7-20261115/student-public/sources-tasks.json",
+    "sha256": "6438BFE302728C62F34566CF71A63D2A487C8A4CB61EE1F7A0FCA50FE79D8152"
+  },
+  {
+    "path": "docs/feedback/courses-c7-20261115/student-public/training-cases.json",
+    "sha256": "4B5FE5B6AF211FD10DAD2FB21927F2D68931036DF36567BB9F358AE2953FA9A0"
+  },
+  {
+    "path": "docs/feedback/courses-c7-20261115/student-public/evaluate.mjs",
+    "sha256": "C1F499FE87DE048423695E3EA448916C4610508322C503A43BC6603C204FC579"
+  },
+  {
+    "path": "scripts/feedback/courses-c7/index.html",
+    "sha256": "DEF672CB07E19604456FCB55EF6ABA6BD19AB078E9317269A85C6DFEA11652CE"
+  },
+  {
+    "path": "scripts/feedback/courses-c7/main.jsx",
+    "sha256": "FFBFEC933EDA28E3E71F4C657163003FB0858674E73D2C788766E537349310FF"
+  },
+  {
+    "path": "scripts/feedback/courses-c7/browser.mjs",
+    "sha256": "B33CF2E881855D1FA1812D030B78748674C4EB04B429E27E59DFC366747E1851"
+  },
+  {
+    "path": "scripts/feedback/courses-c7/baseline-validator.mjs",
+    "sha256": "88F264589F085651705D88120F475ADBE9CA243A66A56EAFAAB27C082B295744"
+  }
+]

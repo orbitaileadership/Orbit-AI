@@ -1,0 +1,80 @@
+
+> orbit-ai@0.1.0 build
+> next build --webpack
+
+▲ Next.js 16.3.8 (webpack)
+✓ Running next.config.ts took 24ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 7.6s
+  Running TypeScript ...
+  Finished TypeScript in 25.9s ...
+  Collecting page data using 5 workers ...
+  Generating static pages using 5 workers (0/43) ...
+  Generating static pages using 5 workers (10/43)
+  Generating static pages using 5 workers (21/43)
+  Generating static pages using 5 workers (32/43)
+✓ Generating static pages using 5 workers (43/43) in 4.7s
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ƒ /admin/analytics
+├ ƒ /admin/feedback
+├ ƒ /api/admin/analytics
+├ ƒ /api/admin/feedback
+├ ƒ /api/chat
+├ ƒ /api/conversations
+├ ƒ /api/conversations/[id]
+├ ƒ /api/course-calendar
+├ ƒ /api/courses
+├ ƒ /api/courses/[id]
+├ ƒ /api/courses/[id]/assignments/[itemId]
+├ ƒ /api/courses/[id]/quiz
+├ ƒ /api/courses/confirm
+├ ƒ /api/courses/import
+├ ƒ /api/courses/source
+├ ƒ /api/extensions
+├ ƒ /api/feedback
+├ ƒ /api/files
+├ ƒ /api/files/[id]
+├ ƒ /api/files/[id]/preview
+├ ƒ /api/github/device
+├ ƒ /api/github/oauth
+├ ƒ /api/images
+├ ƒ /api/import
+├ ƒ /api/memories
+├ ƒ /api/memories/[id]
+├ ƒ /api/notion
+├ ƒ /api/orbit
+├ ƒ /api/plugins/public
+├ ƒ /api/plugins/read
+├ ƒ /api/profile
+├ ƒ /api/projects
+├ ƒ /api/projects/[id]
+├ ƒ /api/speak
+├ ƒ /api/transcribe
+├ ƒ /api/usage
+├ ƒ /api/waitlist
+├ ○ /apple-icon.png
+├ ƒ /auth/callback
+├ ○ /auth/github
+├ ○ /auth/microsoft
+├ ○ /auth/notion
+├ ○ /contact
+├ ƒ /feedback
+├ ○ /icon.png
+├ ƒ /login
+├ ○ /privacy
+├ ○ /reset
+├ ƒ /signup
+├ ○ /terms
+└ ƒ /waitlist
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand

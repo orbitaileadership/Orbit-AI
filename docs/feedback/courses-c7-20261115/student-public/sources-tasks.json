@@ -1,0 +1,60 @@
+{
+  "mode": "MOCK",
+  "synthetic": true,
+  "tasks": [
+    {
+      "id": "public-circuits",
+      "course": "ENGR 1200 circuits review",
+      "source": "Synthetic laboratory handout: An ideal 12 V source is connected across a 6 ohm resistor. Ohm's law is V=IR. Electrical power is P=VI.",
+      "requestedCount": 2,
+      "answerKey": [
+        {
+          "question": "What is the current through the resistor?",
+          "answer": "2 A"
+        },
+        {
+          "question": "What is the power dissipated?",
+          "answer": "24 W"
+        }
+      ],
+      "format": "mcq",
+      "task": "Using only the supplied notes, create exactly one interactive mcq study set with exactly 2 items. Do not add a second study set. A contextual chart is allowed."
+    },
+    {
+      "id": "public-accounting",
+      "course": "BUS 1220 contribution margin",
+      "source": "Synthetic workshop notes: A campus mug sells for $18. Variable cost is $7 per mug. Monthly fixed costs are $220. Contribution margin is selling price less unit variable cost. Break-even units equal fixed costs divided by unit contribution margin.",
+      "requestedCount": 2,
+      "answerKey": [
+        {
+          "question": "What is the contribution margin per mug?",
+          "answer": "$11"
+        },
+        {
+          "question": "How many mugs must be sold to break even?",
+          "answer": "20 mugs"
+        }
+      ],
+      "format": "short-answer",
+      "task": "Using only the supplied notes, create exactly one interactive short-answer study set with exactly 2 items. Do not add a second study set. A contextual chart is allowed."
+    },
+    {
+      "id": "public-biology",
+      "course": "BIO 1001 membrane transport",
+      "source": "Synthetic tutorial notes: Diffusion is net movement from higher to lower concentration. Osmosis is diffusion of water across a selectively permeable membrane. Active transport uses energy to move material against its concentration gradient.",
+      "requestedCount": 2,
+      "answerKey": [
+        {
+          "question": "What is diffusion?",
+          "answer": "Net movement from higher to lower concentration."
+        },
+        {
+          "question": "What distinguishes active transport here?",
+          "answer": "It uses energy to move material against its concentration gradient."
+        }
+      ],
+      "format": "flashcards",
+      "task": "Using only the supplied notes, create exactly one interactive flashcards study set with exactly 2 items. Do not add a second study set. A contextual chart is allowed."
+    }
+  ]
+}
