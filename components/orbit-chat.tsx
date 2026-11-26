@@ -122,6 +122,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   const [chats,setChats]=useState<Chat[]>([]), [active,setActive]=useState<string|null>(null);
   const [messages,setMessages]=useState<Message[]>([]), [input,setInput]=useState("");
   const [busy,setBusy]=useState(false), [loading,setLoading]=useState(false), [phase,setPhase]=useState(""), [error,setError]=useState("");
+  const [retryQuiz,setRetryQuiz]=useState<{conversationId:string;prompt:string}|null>(null);
   const [decision,setDecision]=useState<Decision|null>(null), [dropped,setDropped]=useState(false), [sidebar,setSidebar]=useState(false);
   const [firstName,setFirstName]=useState("");
   const [files,setFiles]=useState<UploadedFile[]>([]), [uploading,setUploading]=useState(false), picker=useRef<HTMLInputElement>(null);
@@ -240,7 +241,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     const content=(prompt??input).trim();if(!content||busy||loading||uploading||controller.current)return;
     if(files.some(f=>f.status==="queued"||f.status==="processing")){setError("A file is still being indexed. Wait until it is ready before sending it to Orbit.");return;}
     const attachmentIds=files.map(f=>f.id),sentFiles=files;
-    setBusy(true);setError("");setInput("");setFiles([]);setDecision(null);setPhase("voting");
+    setBusy(true);setError("");setRetryQuiz(null);setInput("");setFiles([]);setDecision(null);setPhase("voting");
     const userId=crypto.randomUUID(),localReply=crypto.randomUUID();let terminal=false,completed=false,accepted=false,serverReply:string|undefined;
     setMessages(prev=>[...prev,{id:userId,role:"user",content,attachments:sentFiles,studyLaunch:Boolean(active&&quizReadyIds.has(active))},{id:localReply,role:"assistant",content:"",status:"streaming"}]);
     const abort=new AbortController();controller.current=abort;
@@ -270,7 +271,17 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       setError(completed?"Your answer is complete and saved. The connection closed afterward; reopen the chat to check any other updates.":abort.signal.aborted?"Stopped locally. A dispatched answer may still finish and use allowance. Reopen the chat to check the saved result.":(e as Error).message);
     }
     finally{
-      if(firstQuizTurn&&active){const checked=await fetch(`/api/orbit?conversationId=${active}`).catch(()=>null);if(checked?.ok){const status=await checked.json().catch(()=>null);setQuizReadyIds(previous=>{const next=new Set(previous);if(status?.quizStartReady)next.add(active);else next.delete(active);return next;});}}
+      if(firstQuizTurn&&active){
+        const checked=await fetch(`/api/orbit?conversationId=${active}`).catch(()=>null);
+        const status=checked?.ok?await checked.json().catch(()=>null):null;
+        if(status)setQuizReadyIds(previous=>{const next=new Set(previous);if(status.quizStartReady)next.add(active);else next.delete(active);return next;});
+        // A lost response may hide an accepted launch. Retry only after the server
+        // confirms no first turn started; otherwise inspect the saved quiz.
+        if(!accepted&&prompt){
+          if(status?.quizStartReady===true)setRetryQuiz({conversationId:active,prompt:content});
+          else setError(current=>current+" Reopen the saved quiz to check its progress.");
+        }
+      }
       controller.current=null;setBusy(false);setPhase("");await refresh().catch(()=>{});
     }
   }
@@ -278,10 +289,10 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
   const sendCourseQuiz=useEffectEvent((prompt:string)=>{void send(prompt);});
   useEffect(()=>{
     if(!visible||!courseLaunch?.autoStartQuiz||!courseLaunch.prompt.trim()||!active||
-       active!==courseLaunch.conversationId||!quizReadyIds.has(active)||busy||loading||autoQuizKey.current===courseLaunch.key)return;
+       active!==courseLaunch.conversationId||!quizReadyIds.has(active)||busy||loading||uploading||autoQuizKey.current===courseLaunch.key)return;
     autoQuizKey.current=courseLaunch.key;
     sendCourseQuiz(courseLaunch.prompt);
-  },[visible,courseLaunch,active,quizReadyIds,busy,loading]);
+  },[visible,courseLaunch,active,quizReadyIds,busy,loading,uploading]);
   const empty=!messages.length&&!loading;
   const openFolder=(folder:{id:string;name:string;parent_course_id?:string|null})=>{view.current++;setSidebar(false);setLoading(false);setError("");setFolderFilter({id:folder.parent_course_id??folder.id,name:courseGroups.find(c=>c.id===folder.parent_course_id)?.name??folder.name});setCourse({id:folder.id,name:folder.name});setDraftFolder(folder.parent_course_id?{id:folder.id,name:folder.name}:null);setActive(null);setMessages([]);setInput("");setDecision(null);setDropped(false);setFiles([]);};
   const folderIcon=<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden className="shrink-0"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>;
@@ -327,6 +338,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     </form>
   );
 
+  const errorNotice=error&&<p role="alert" className="w-full max-w-3xl rounded-xl border border-line-strong bg-surface-100 p-4 text-sm">{error}{retryQuiz?.conversationId===active&&<button type="button" disabled={busy||loading} onClick={()=>void send(retryQuiz.prompt)} className="ml-2 font-medium underline underline-offset-4">Retry quiz</button>}</p>;
   return <div className="flex h-dvh bg-surface-000 font-ui text-ink">
     {archivesOpen&&<ArchivedChats provider="orbit" onClose={()=>setArchivesOpen(false)} onRestored={()=>{void refresh().catch(()=>setError("Could not refresh chats. Reload to see your restored chat."));}}/>}
     <AppRail active="orbit" dots={dots} onOrbit={()=>{}} onProvider={onSelectProvider} account={account?.(true)}/>
@@ -388,7 +400,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
             className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-line px-3.5 py-2 text-sm text-ink-muted transition hover:border-line-strong hover:bg-surface-100 hover:text-ink">
             <span aria-hidden className="text-[15px] leading-none">{st.icon}</span>{st.label}</button>)}
         </div>}
-        {error&&<p role="alert" className="mt-5 w-full max-w-3xl rounded-xl border border-line-strong bg-surface-100 p-4 text-sm">{error}</p>}
+        {errorNotice&&<div className="mt-5 w-full max-w-3xl">{errorNotice}</div>}
       </div> : <>
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="chat-column chat-transcript mx-auto max-w-3xl px-4 py-6">
@@ -406,7 +418,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
                 {m.status==="partial"&&<p className="mt-2 text-xs text-ink-subtle">[Incomplete answer]</p>}
                 {m.status!=="streaming"&&m.content.trim()&&<div className="mt-1.5 -ml-1.5 flex items-center gap-0.5"><CopyButton text={hideRememberMarkers(m.content)}/><SpeakButton compact id={m.id} text={hideRememberMarkers(m.content)}/></div>}
               </article>)}
-            {error&&<p role="alert" className="mb-4 rounded-xl border border-line-strong bg-surface-100 p-4 text-sm">{error}</p>}
+            {errorNotice&&<div className="mb-4">{errorNotice}</div>}
             <div ref={bottom}/>
           </div>
         </div>

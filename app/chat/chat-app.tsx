@@ -1154,11 +1154,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const offerCheaper = cheapest && currentModel && cheapest.id !== modelId &&
     typicalAnswerMicros(cheapest, usage?.typical) < typicalAnswerMicros(currentModel, usage?.typical) &&
     remainingNow >= typicalAnswerMicros(cheapest, usage?.typical);
-  const lowBalance = usage?.live && currentModel && remainingNow < typicalAnswerMicros(currentModel, usage.typical) && (
-    <div role="status" className="mx-auto mb-2 max-w-3xl rounded-2xl border border-line bg-surface-200 px-4 py-2.5 text-sm">
-      Not enough usage left for {currentModel.short}.
-    </div>
-  );
 
   // Quiz progress for this chat: score kept by the server, and the concepts to come back to.
   const quiz = chatSettings.mode === "quiz" ? chatSettings.quiz : null;
@@ -1312,7 +1307,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) attachFiles(Array.from(e.dataTransfer.files)); }}
       onPaste={(e) => { const imgs = Array.from(e.clipboardData.files); if (imgs.length) { e.preventDefault(); attachFiles(imgs); } }}>
       <input ref={fileInput} type="file" multiple accept={ACCEPT_ATTR} hidden onChange={(e) => { attachFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-      {lowBalance}
       {quizPanel}
       {theme.inlineComposer ? (
         <div className={`chat-column relative mx-auto max-w-3xl py-2.5 pl-3 pr-3 transition ${theme.composerClass}`}>

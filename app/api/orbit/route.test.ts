@@ -80,6 +80,19 @@ beforeEach(()=>{vi.clearAllMocks();ORBIT.voteRetryDelayMs=0;s.attach.mockResolve
  });});
 afterEach(()=>{vi.unstubAllEnvs();ORBIT.voteRetryDelayMs=retryDelay;ORBIT.helperBudgetMicros=helperCap;});
 describe("Orbit endpoint",()=>{
+ it("rejects screenshot plus summary overflow before paid voting while the same text-only request fits",async()=>{
+   const run=async(withImage:boolean)=>{
+     const id=crypto.randomUUID(),fid=crypto.randomUUID();
+     s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:"s".repeat(18000),summary_upto:1});
+     s.attach.mockResolvedValue({block:"",fileIds:withImage?[fid]:[],names:withImage?["shot.png"]:[],images:withImage?[{mime:"image/png",data:"synthetic-image"}]:[]});
+     return (await POST(req({content:"Explain the evidence",conversationId:id,...(withImage?{attachmentIds:[fid]}:{})}))).text();
+   };
+   expect(await run(true)).toContain('"code":"context_too_large"');
+   expect(s.call).not.toHaveBeenCalled();
+   expect(updateSummary).not.toHaveBeenCalled();
+   expect(await run(false)).toContain('"t":"done"');
+   expect(s.call).toHaveBeenCalledTimes(5);
+ });
  it("rejects an oversized existing lead summary before buying any routing calls",async()=>{
    const id=crypto.randomUUID();
    s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:"Synthetic summary. ".repeat(300),summary_upto:2});

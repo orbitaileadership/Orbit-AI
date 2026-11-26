@@ -165,7 +165,7 @@ export async function POST(request: Request) {
           for(const b of allPlans)checkInput(b.system,voteInput);
           checkInput(specialistSystem,ctx.turns);
           for(const id of Object.values(ORBIT.candidates)){
-            for(const withoutGoogle of [false,true])checkInput(leadSystem(getModel(id)!.label,conversation.summary,withoutGoogle),ctx.turns);
+            for(const withoutGoogle of [false,true])checkInput(leadSystem(getModel(id)!.label,conversation.summary,withoutGoogle),leadTurns);
           }
         }
         if(allPlans.reduce((n,b)=>n+b.bound,0)>ORBIT.helperBudgetMicros) throw new OrbitError("orbit_helper_limit");
