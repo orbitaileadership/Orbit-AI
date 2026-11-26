@@ -283,6 +283,15 @@ describe("Orbit endpoint",()=>{
    expect(s.call.mock.calls.find(([o])=>o.operation==="orbit_answer")![0].system).toContain("Midterm 30%");
    expect(s.fake!.db.messages.find(m=>m.role==="user")).toMatchObject({attachment_ids:[fid]});
  });
+ it("sends screenshot bytes only to the final answering model",async()=>{
+   const fid=crypto.randomUUID(), images=[{mime:"image/png",data:"synthetic-image"}];
+   s.attach.mockResolvedValue({block:"",fileIds:[fid],names:["shot.png"],images});
+   const text=await(await POST(req({content:"Read this screenshot",attachmentIds:[fid]}))).text();
+   expect(text).toContain('"t":"done"');
+   const calls=s.call.mock.calls.map(([args])=>args);
+   expect(calls.find(args=>args.operation==="orbit_answer")?.history.at(-1)?.images).toEqual(images);
+   expect(calls.filter(args=>args.operation!=="orbit_answer").every(args=>!args.history.some((turn:{ images?: unknown })=>turn.images))).toBe(true);
+ });
  it("rejects unavailable attachments before any provider call and releases the lease",async()=>{
    s.attach.mockRejectedValue(new AttachmentError("unavailable"));
    const res=await POST(req({content:"question",attachmentIds:[crypto.randomUUID()]}));

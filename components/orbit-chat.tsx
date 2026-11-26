@@ -3,7 +3,7 @@
 import { DEFAULT_THINKING_LEVEL, THINKING_LEVELS, type ThinkingLevel } from "@/config/thinking";
 import { ArchivedChats } from "./archived-chats";
 import { FolderBrowser } from "./folder-browser";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import { PROVIDERS, getModel, type ProviderId } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
 import { THEMES } from "@/config/themes";
@@ -34,6 +34,8 @@ const ERRORS: Record<string,string> = {
   orbit_google_unavailable:"Google could not join the vote (503). Completed calls may still use allowance.",
   orbit_call_timeout:"A model timed out before Orbit could complete the answer. Completed calls may still use allowance.",
   orbit_vote_failed:"Orbit’s vote could not be completed. No answer was generated. Completed routing calls may still use allowance.",
+  screenshot_limit:"Attach one screenshot per message.",
+  screenshot_invalid:"Could not read that screenshot. Try a smaller PNG or JPEG.",
   attachment_unavailable:"An attached file is no longer available. Remove it and attach it again.",
   bad_request:"That message could not be sent. Check the attached files (up to 3) and try again.",
   orbit_busy:"Another Orbit turn is running on your account. Wait for it to finish.",
@@ -67,8 +69,6 @@ function orbitErrorText(code: unknown, phase: "start" | "finish") {
 /** Routing selection is not proof of a completed answer or specialist contribution. */
 export function LeadChip({ decision, status, content }: { decision: Decision; status?: string; content: string }) {
   const [open, setOpen] = useState(false);
-  const votes = decision.ballots.filter(b => b.nominee === decision.lead).length;
-  const lead = getModel(decision.leadModelId)?.label;
   const answered = !decision.demo && status === "complete" && Boolean(hideRememberMarkers(content).trim());
   const attribution = decision.demo ? "Simulated lead" : answered ? "Answered by" : "Selected lead";
   return <div className="mb-3">
@@ -78,7 +78,7 @@ export function LeadChip({ decision, status, content }: { decision: Decision; st
         {PROVIDERS.filter(p => !decision.unavailableProviders?.includes(p)).map(p => <span key={p} className={`grid h-6 w-6 place-items-center rounded-full border-2 border-surface-100 bg-surface-200 ${p === decision.lead ? "relative z-10 ring-2 ring-brand" : "opacity-60"}`}><ProviderLogo provider={p} size={13} /></span>)}
       </span>
       <span className="min-w-0 truncate">{attribution} <span className="font-medium text-ink">{THEMES[decision.lead].appName}</span>
-        {decision.specialist ? <>{decision.demo ? " · simulated specialist selected: " : " · specialist selected: "}<span className="font-medium text-ink">{THEMES[decision.specialist].appName}</span></> : null} · {votes} of {decision.ballots.length} {decision.demo ? "simulated votes" : "votes"}{decision.tied ? " (tie-break)" : ""}</span>
+</span>
       <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden className={`shrink-0 transition-transform ${open ? "rotate-180" : ""}`}><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
     </button>
     <OrbitAvailabilityNotice decision={decision} />
@@ -87,7 +87,7 @@ export function LeadChip({ decision, status, content }: { decision: Decision; st
         <ProviderLogo provider={b.voter} size={16} /><span className="text-ink">{THEMES[b.voter].appName}</span>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden><path d="M3 8h10M9 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         <ProviderLogo provider={b.nominee} size={16} />{THEMES[b.nominee].appName}{b.collaborate ? " · wants a specialist" : ""}</li>)}</ul>
-      <p className="mt-3 leading-5">{lead ? `Selected lead model: ${lead}. ` : ""}{`${decision.demo ? "Simulated lead votes" : "Lead votes"}: ${votes} of ${decision.ballots.length}. `}{decision.specialist ? `Specialist selected: ${THEMES[decision.specialist].appName}. ` : ""}{decision.thinkingLevel ? `Thinking level: ${decision.thinkingLevel}. ` : ""}{decision.tied ? "Tied vote: a stable tie-break selected the lead. " : ""}{decision.demo ? "Selections and votes are simulated; no provider answered this demo. " : !answered ? "Selection does not confirm a completed answer or specialist contribution. " : ""}No AI can vote for itself; a specialist is selected when three ask. The vote is a recommendation, not a guarantee of correctness.</p>
+
     </div>}
   </div>;
 }
@@ -169,14 +169,14 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     else if(!seen.current)onActivity?.("done");
   },[busy,visible,onActivity]);
   useEffect(()=>{fetch("/api/profile").then(r=>r.ok?r.json():null).then((j:{profile?:{display_name?:string}}|null)=>{if(j)setFirstName((j.profile?.display_name??"").trim().split(/\s+/)[0]??"");}).catch(()=>{});},[]);
-  async function openChat(id:string,preserveInput=false) {
+  async function openChat(id:string,preserveInput=false,autoStart=false) {
     const token=++view.current;setFiles([]);setLoading(true);setSidebar(false);setError("");if(!preserveInput)setInput("");
     try {
       const res=await fetch(`/api/orbit?conversationId=${id}`);if(!res.ok)throw new Error();
       const data=await res.json();if(token!==view.current)return;
       setCourse(data.course??null);setActive(id);setMessages(data.messages);setDropped(data.olderMessages);setDecision(null);
       setQuizReadyIds(previous=>{const next=new Set(previous);if(data.quizStartReady)next.add(id);else next.delete(id);return next;});
-      if(data.quizStartReady&&data.course?.id)void fetch(`/api/courses/${data.course.id}/quiz?conversationId=${id}`)
+      if(!autoStart&&data.quizStartReady&&data.course?.id)void fetch(`/api/courses/${data.course.id}/quiz?conversationId=${id}`)
         .then(r=>r.ok?r.json():null).then(saved=>{if(saved?.prompt&&token===view.current)setInput(current=>current||saved.prompt);}).catch(()=>{});
     } catch {if(token===view.current)setError("Could not open this chat. Try again.");}
     finally{if(token===view.current)setLoading(false);}
@@ -187,9 +187,9 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
     setCourse({id:courseLaunch.folder?.id??courseLaunch.course.id,name:courseLaunch.folder?.name??courseLaunch.course.name}); // eslint-disable-line react-hooks/set-state-in-effect
     setFolderFilter({id:courseLaunch.course.id,name:courseLaunch.course.name});
     setDraftFolder(courseLaunch.folder??null);
-    setInput(courseLaunch.prompt+(courseLaunch.startQuiz?'':courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
+    setInput(courseLaunch.autoStartQuiz ? "" : courseLaunch.prompt+(courseLaunch.startQuiz?'':courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
     if(courseLaunch.conversationId)setQuizReadyIds(previous=>{const next=new Set(previous);if(courseLaunch.startQuiz)next.add(courseLaunch.conversationId!);else next.delete(courseLaunch.conversationId!);return next;});
-    if(courseLaunch.conversationId){void openChat(courseLaunch.conversationId,true);return;}
+    if(courseLaunch.conversationId){void openChat(courseLaunch.conversationId,true,courseLaunch.autoStartQuiz);return;}
     view.current++;setActive(null);setMessages([]);setDecision(null);setDropped(false);setLoading(false);
   },[courseLaunch]);
   function newChat(){setFiles([]);setCourse(draftFolder??folderFilter);view.current++;setLoading(false);setActive(null);setMessages([]);setDecision(null);setDropped(false);setError("");setSidebar(false);}
@@ -211,19 +211,25 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       newChat();await refresh();}
     catch{setError("Could not delete this chat. Try again.");}finally{setLoading(false);}
   }
-  async function attach(list:FileList|null){
-    if(!list?.length)return;setError("");setUploading(true);
+  async function attach(list:FileList|File[]|null){
+    if(!list?.length||uploading||busy||loading)return;setError("");setUploading(true);
+    let hasScreenshot=files.some(f=>f.kind==="image");
     const room=ORBIT.maxAttachments-files.length;
-    if(list.length>room)setError(`Orbit accepts up to ${ORBIT.maxAttachments} text documents per message.`);
+    if(list.length>room)setError(`Orbit accepts up to ${ORBIT.maxAttachments} files per message.`);
     try{for(const file of Array.from(list).slice(0,Math.max(0,room))){
       const up=await uploadFile(file,userId);
       if(!("id" in up)){setError(up.error);continue;}
-      if(up.kind!=="document"||up.status==="failed"){setError("Orbit can read indexed text documents. Images and scanned files work in the single-AI chats.");continue;}
+      if(up.status==="failed"||up.status==="needs_ocr"){setError(up.error??"Orbit needs a searchable document or a PNG/JPEG screenshot.");continue;}
+      if(up.kind==="image"){
+        if(!["image/png","image/jpeg"].includes(up.mime)){setError("Attach a PNG or JPEG screenshot.");continue;}
+        if(hasScreenshot){setError("Attach one screenshot per message.");continue;}
+        hasScreenshot=true;
+      }
       setFiles(prev=>[...prev,up]);
     }}finally{setUploading(false);if(picker.current)picker.current.value="";}
   }
-  async function send() {
-    const content=input.trim();if(!content||busy||loading)return;
+  async function send(prompt?: string) {
+    const content=(prompt??input).trim();if(!content||busy||loading||uploading||controller.current)return;
     if(files.some(f=>f.status==="queued"||f.status==="processing")){setError("A file is still being indexed. Wait until it is ready before sending it to Orbit.");return;}
     const attachmentIds=files.map(f=>f.id),sentFiles=files;
     setBusy(true);setError("");setInput("");setFiles([]);setDecision(null);setPhase("voting");
@@ -251,7 +257,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       if(buffer.trim())event(buffer);
       if(!terminal)throw new Error("The connection ended before Orbit finished. Refresh to check the saved answer before continuing.");
     } catch(e) {
-      if(!accepted){setMessages(prev=>prev.filter(m=>m.id!==userId&&m.id!==localReply));setInput(content);setFiles(sentFiles);}
+      if(!accepted){setMessages(prev=>prev.filter(m=>m.id!==userId&&m.id!==localReply));setInput(prompt ? "" : content);setFiles(sentFiles);}
       else if(!completed){patch({status:"partial"});setFiles(sentFiles);}
       setError(completed?"Your answer is complete and saved. The connection closed afterward; reopen the chat to check any other updates.":abort.signal.aborted?"Stopped locally. A dispatched answer may still finish and use allowance. Reopen the chat to check the saved result.":(e as Error).message);
     }
@@ -260,6 +266,14 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       controller.current=null;setBusy(false);setPhase("");await refresh().catch(()=>{});
     }
   }
+  const autoQuizKey=useRef<number|null>(null);
+  const sendCourseQuiz=useEffectEvent((prompt:string)=>{void send(prompt);});
+  useEffect(()=>{
+    if(!visible||!courseLaunch?.autoStartQuiz||!courseLaunch.prompt.trim()||!active||
+       active!==courseLaunch.conversationId||!quizReadyIds.has(active)||busy||loading||autoQuizKey.current===courseLaunch.key)return;
+    autoQuizKey.current=courseLaunch.key;
+    sendCourseQuiz(courseLaunch.prompt);
+  },[visible,courseLaunch,active,quizReadyIds,busy,loading]);
   const empty=!messages.length&&!loading;
   const openFolder=(folder:{id:string;name:string;parent_course_id?:string|null})=>{view.current++;setSidebar(false);setLoading(false);setError("");setFolderFilter({id:folder.parent_course_id??folder.id,name:courseGroups.find(c=>c.id===folder.parent_course_id)?.name??folder.name});setCourse({id:folder.id,name:folder.name});setDraftFolder(folder.parent_course_id?{id:folder.id,name:folder.name}:null);setActive(null);setMessages([]);setInput("");setDecision(null);setDropped(false);setFiles([]);};
   const folderIcon=<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden className="shrink-0"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>;
@@ -268,22 +282,23 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       {course&&<div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 px-2 text-xs text-ink-muted">{folderIcon}<span className="font-medium text-ink">{course.name}</span><span>· relevant course text goes to all four AIs</span></div>}
       <div className="orbit-composer chat-column relative mx-auto max-w-3xl rounded-[28px] border border-line bg-surface-100 p-2.5 pl-4 shadow-composer transition focus-within:border-line-strong">
         {(files.length>0||uploading)&&<div className="mb-2 flex flex-wrap gap-2 pt-1">
-          {files.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={[fileNote(f),"excerpts go to all four AIs"].filter(Boolean).join(" · ")} onOpen={()=>setPreviewFileId(f.id)} onRemove={busy?undefined:()=>setFiles(prev=>prev.filter(x=>x.id!==f.id))}/>)}
+          {files.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={[fileNote(f),f.kind==="image"?"Answering AI only":"Text shared with voting AIs"].filter(Boolean).join(" · ")} onOpen={()=>setPreviewFileId(f.id)} onRemove={busy?undefined:()=>setFiles(prev=>prev.filter(x=>x.id!==f.id))}/>)}
           {uploading&&<FileChip name="Uploading" state="uploading"/>}
         </div>}
         <textarea aria-label="Message Orbit" placeholder={empty?"Ask all four AIs anything":"Reply to Orbit…"} maxLength={24000} rows={empty?2:1} value={input} disabled={busy||loading}
           onChange={e=>setInput(e.target.value)} onInput={e=>{const t=e.currentTarget;t.style.height="auto";t.style.height=`${Math.min(t.scrollHeight,200)}px`;}}
+          onPaste={e=>{const images=Array.from(e.clipboardData.files).filter(f=>f.type.startsWith("image/"));if(images.length){if(!e.clipboardData.getData("text/plain"))e.preventDefault();void attach(images);}}}
           onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}}
           className="max-h-52 w-full resize-none bg-transparent py-1.5 text-base text-ink outline-none placeholder:text-ink-subtle disabled:opacity-60"/>
         <div className="mt-1 flex items-center gap-1.5">
           <input ref={picker} type="file" multiple hidden onChange={e=>void attach(e.target.files)}/>
-          <button type="button" aria-label="Attach documents" title={`Attach up to ${ORBIT.maxAttachments} text documents (excerpts go to all four AIs)`} disabled={busy||loading||uploading||files.length>=ORBIT.maxAttachments} onClick={()=>picker.current?.click()}
+          <button type="button" aria-label="Attach files" title={`Attach up to ${ORBIT.maxAttachments} files, including one PNG/JPEG screenshot`} disabled={busy||loading||uploading||files.length>=ORBIT.maxAttachments} onClick={()=>picker.current?.click()}
             className="grid h-9 w-9 place-items-center rounded-full border border-line text-ink-muted transition hover:bg-surface-200 hover:text-ink disabled:opacity-40">
             <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden><path d="M10 4v12M4 10h12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
           </button>
           <span title="Orbit tries four voters. Google may be retried once; if unavailable, the other three vote without it. At most one specialist helps and one lead answers." className="flex items-center gap-1.5 rounded-full px-2 py-1.5 text-xs text-ink-muted">
             <span className="flex -space-x-1">{PROVIDERS.map(p=><span key={p} className="grid h-5 w-5 place-items-center rounded-full border border-surface-100 bg-surface-200"><ProviderLogo provider={p} size={11}/></span>)}</span>
-            <span className="hidden sm:inline">Up to 4 AIs vote · one answers</span>
+
           </span>
           <span className="flex-1"/>
           <label className="relative shrink-0" title="Lead answer thinking level. Higher effort may take longer and use more allowance; voting stays unchanged.">
@@ -299,7 +314,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
               </button>}
         </div>
       </div>
-      <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] leading-4 text-ink-subtle">Orbit can make mistakes. Your message and selected context go to all four AIs; routing adds time and uses more allowance.</p>
+      <p className="mx-auto mt-2 max-w-3xl text-center text-[11px] leading-4 text-ink-subtle">Text goes to voting AIs. Screenshots go only to the answering AI. Routing uses allowance.</p>
     </form>
   );
 
@@ -357,7 +372,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
       {empty ? <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-[8vh]">
         <OrbitHero size={168}/>
         <h1 className="mt-6 text-center text-[30px] font-medium tracking-tight sm:text-[40px]"><span className="orbit-gradient-text">{greetingFor(firstName)}</span></h1>
-        <p className="mb-7 mt-2 max-w-md text-center text-sm leading-6 text-ink-muted">ChatGPT, Claude, Gemini and Grok vote on which of them should answer. Ask anything, or bring in a course folder.</p>
+        <div className="mb-5" />
         {composer}
         {!input.trim()&&<div className="no-scrollbar -mx-4 mt-5 flex min-w-0 max-w-[100vw] gap-2 self-stretch overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0">
           {STARTERS.map(st=><button key={st.label} type="button" onClick={()=>{setInput(st.text);requestAnimationFrame(()=>{const el=document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Message Orbit"]');el?.focus();el?.setSelectionRange(st.text.length,st.text.length);});}}
@@ -370,7 +385,7 @@ export function OrbitChat({ onSelectProvider, onCourses, courseLaunch, userId, a
           <div className="chat-column chat-transcript mx-auto max-w-3xl px-4 py-6">
             {loading&&<p role="status" className="orbit-shimmer text-sm">Opening chat…</p>}
             {dropped&&<p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">Recent messages and any available summary are used. Older history may be left out or partly summarized. This view shows the latest {ORBIT.contextRows} saved messages.</p>}
-            {messages.map((m,idx)=>m.role==="user"
+            {messages.map((m,idx)=>m.role==="user" && idx===0 && active===courseLaunch?.conversationId && courseLaunch?.prompt===m.content && courseLaunch.startQuiz ? null : m.role==="user"
               ? <div key={m.id} className="group msg-in mb-8 flex flex-col items-end gap-1"><div className="max-w-[85%] whitespace-pre-wrap rounded-3xl bg-surface-200 px-5 py-2.5 text-[16px] leading-7">{m.content}</div>{m.attachments?.length ? <div className="flex max-w-[85%] flex-wrap justify-end gap-2">{m.attachments.map(f=><FileChip key={f.id} name={f.name} kind={f.kind} state={f.status} detail={fileNote(f)} onOpen={()=>setPreviewFileId(f.id)}/>)}</div> : null}<div className="opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 max-md:opacity-100"><CopyButton text={m.content}/></div></div>
               : <article key={m.id} className="msg-in mb-8">
                 {m.orbit_details&&<LeadChip decision={m.orbit_details} status={m.status} content={m.content}/>}

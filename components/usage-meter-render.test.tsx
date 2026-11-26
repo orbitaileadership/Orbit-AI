@@ -22,6 +22,6 @@ it('does not round a nearly exhausted allowance up to a full percent', () => {
 });
 it('explains entitlement exhaustion and unavailable limits instead of showing false availability', () => {
   const render = (data: UsageData) => renderToStaticMarkup(createElement(UsageMeter, { usage: data }));
-  expect(render({ ...usage, spent: 1000 })).toContain('account allowance is exhausted');
+  expect(render({ ...usage, spent: 1000 })).toContain('Account limit reached.');
   expect(render({ ...usage, windows: undefined })).toContain('temporarily unavailable');
 });

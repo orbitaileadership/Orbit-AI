@@ -47,12 +47,13 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
     return () => { alive = false; };
   }, [active, base, revision]);
 
-  function handoff(conversation: Session, prompt: string, folder: { id: string; name: string }) {
+  function handoff(conversation: Session, prompt: string, folder: { id: string; name: string }, autoStart = false) {
     const item = sections.find(section => section.id === conversation.study_config.section_id);
     if (!item) throw new Error('This graded section is no longer available.');
     onLaunch({ course, item, folder, provider: conversation.orbit_mode ? 'orbit' : conversation.provider,
       conversationId: conversation.id, prompt: conversation.study_config.start_state === 'ready' ? prompt : '',
-      startQuiz: conversation.study_config.start_state === 'ready' });
+      startQuiz: conversation.study_config.start_state === 'ready',
+      autoStartQuiz: autoStart && conversation.study_config.start_state === 'ready' });
   }
 
   async function start() {
@@ -69,7 +70,7 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
       const saved = await api(base, { launchId: requestLaunchId, sectionId, format, count, provider: ai });
       launchId.current = crypto.randomUUID();
       onSessionSaved();
-      handoff(saved.conversation, saved.prompt, saved.folder);
+      handoff(saved.conversation, saved.prompt, saved.folder, true);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not create the quiz.'); }
     finally { locked.current = false; setBusy(false); setRevision(v => v + 1); }
   }
@@ -111,7 +112,7 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
       <div className="workspace-quiz-options"><label>Questions<select value={count} onChange={e => { setCount(Number(e.target.value)); launchId.current = crypto.randomUUID(); }}>{[5, 10, 15, 20, 30].map(n => <option key={n}>{n}</option>)}</select></label>
         <div><span className="workspace-quiz-choice-label">Study with</span><div className="section-ai-choices" role="group" aria-label="Choose quiz AI">{(['orbit', ...PROVIDERS] as const).map(choice => <button key={choice} type="button" className="section-ai-choice" title={choice === 'orbit' ? 'Orbit' : THEMES[choice].appName} aria-label={choice === 'orbit' ? 'Orbit' : THEMES[choice].appName} aria-pressed={ai === choice} onClick={() => { onAi(choice); launchId.current = crypto.randomUUID(); }}>{choice === 'orbit' ? <OrbitGlyph size={20} /> : <ProviderLogo provider={choice} size={21} />}</button>)}</div></div>
       </div>
-      <footer><span className="text-xs text-ink-muted">One AI reply builds the set; practice runs here without extra calls.</span><button type="button" className="hub-primary" disabled={busy || !sectionId} onClick={() => void start()}>{busy ? 'Saving…' : 'Start in selected AI'}<HubIcon name="arrow" size={17} /></button></footer>
+      <footer><button type="button" className="hub-primary" disabled={busy || !sectionId} onClick={() => void start()}>{busy ? 'Saving…' : 'Start practice'}<HubIcon name="arrow" size={17} /></button></footer>
     </div>
     <div className="hub-panel"><h3>Saved quizzes</h3>{sessions.length ? <div className="workspace-saved-quizzes">{sessions.map(session => {
       const item = sections.find(section => section.id === session.study_config.section_id);

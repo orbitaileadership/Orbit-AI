@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { failureState } from "@/lib/billing/outcome";
 import type { ModelOption } from "@/config/models";
 import { ORBIT } from "@/config/orbit";
+import { IMAGE_TOKENS } from "@/lib/chat/material";
 import { isProviderDisabled, reserve, settle } from "@/lib/billing/budget";
 import { costMicros, estimateTokens, reservationMicros } from "@/lib/chat/context";
 import { ADAPTERS, apiKeyFor } from "@/lib/providers";
@@ -13,7 +14,7 @@ export class OrbitError extends Error {
 }
 
 export function orbitInputTokens(system: string, history: ChatTurn[]): number {
-  return estimateTokens(system) + history.reduce((n,t) => n + estimateTokens(t.content) + 8,0);
+  return estimateTokens(system) + history.reduce((n,t) => n + estimateTokens(t.content) + 8 + (t.images?.length ?? 0) * IMAGE_TOKENS,0);
 }
 
 /** Match direct chat's short opaque cache scope without exposing account identifiers. */
