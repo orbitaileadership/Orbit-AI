@@ -36,6 +36,8 @@ export async function GET(_: Request, ctx: RouteContext<"/api/conversations/[id]
     for (const x of f ?? []) files.set(x.id, x);
   }
 
+  const studyLaunchId = conv.mode === "quiz" && conv.study_config
+    ? rows?.find(m => m.role === "user")?.id : undefined;
   return json({
     mode: conv.mode,
     quizStartReady: conv.mode === "quiz" && (conv.study_config as { start_state?: string } | null)?.start_state === "ready",
@@ -49,6 +51,7 @@ export async function GET(_: Request, ctx: RouteContext<"/api/conversations/[id]
       role: m.role,
       kind: m.kind,
       content: m.content,
+      studyLaunch: m.id === studyLaunchId,
       imageUrl: m.image_path ? urls.get(m.image_path as string) ?? null : undefined,
       modelId: m.model_id ?? undefined,
       status: m.status,

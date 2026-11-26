@@ -66,6 +66,7 @@ type Message = {
   role: "user" | "assistant";
   kind: "text" | "image";
   content: string;
+  studyLaunch?: boolean;
   imageUrl?: string | null;
   modelId?: string;
   finishReason?: string;
@@ -745,7 +746,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const attachmentIds = readyQuizRetry ? (priorQuestion?.attachments ?? []).map(a => a.id) : retry || imageMode ? [] : ready.map((p) => p.file!.id);
     if (!retry) {
       const attachments = imageMode ? [] : ready.map((p) => ({ id: p.file!.id, name: p.file!.name, kind: p.file!.kind, status: p.file!.status, error: p.file!.error }));
-      patchMessages(key, (m) => [...m, { id: tmpId(), role: "user", kind: "text", content, status: "complete", attachments }]);
+      patchMessages(key, (m) => [...m, { id: tmpId(), role: "user", kind: "text", content, status: "complete", attachments, studyLaunch: Boolean(active?.id && quizReadyIds.has(active.id)) }]);
       setInput("");
       setMentions([]);
       setMention(null);
@@ -1535,19 +1536,13 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                 <div className="flex flex-wrap items-center gap-2">
                   <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="shrink-0 text-ink-muted"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
                   <span className="font-medium">{activeProject.name}</span>
-                  <span className="text-xs text-ink-subtle">
+                  <span className="text-sm text-ink-subtle">
                     {courseFiles[activeProject.id] ? `${courseFiles[activeProject.id].length} ${activeProjectIsFolder ? "folder" : "course"} file${courseFiles[activeProject.id].length === 1 ? "" : "s"}` : "Loading files…"}
-                    {activeProject.instructions.trim() ? " · has instructions" : ""}
                   </span>
                   <button onClick={() => openCourse(activeProject)} className="ml-auto rounded-full border border-line-strong px-3 py-1 text-xs font-medium hover:bg-surface-300">
                     {!activeProjectIsFolder ? "Open course workspace" : courseFiles[activeProject.id]?.length ? "Manage files" : "Add folder files"}
                   </button>
                 </div>
-                {courseFiles[activeProject.id]?.length ? (
-                  <p className="mt-1.5 truncate text-xs text-ink-subtle">Answers can cite: {courseFiles[activeProject.id].map((f) => f.name).join(", ")}</p>
-                ) : (
-                  <p className="mt-1.5 text-xs text-ink-subtle">Add lecture slides, readings or assignment specs and every chat in this {activeProjectIsFolder ? "folder" : "course"} can quote them by page.</p>
-                )}
               </div>
             )}
             <h1 className={`mb-8 flex items-center justify-center gap-3 text-center ${theme.greetingClass}`}>
@@ -1581,10 +1576,10 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             <div ref={scrollRef} onScroll={onThreadScroll} className="relative flex-1 overflow-y-auto">
               <div className="chat-column chat-transcript mx-auto max-w-3xl px-4 py-6">
                 {active && (dropped[active.id] || chatSettings.summarized) && (
-                  <p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">
-                    {chatSettings.summaryIncomplete ? "Some earlier messages have not been summarized yet. Full history is saved; ask again or restate any important details." : chatSettings.summarized
-                      ? `This chat is long: ${currentModel?.label ?? "the model"} gets a summary of older messages plus the recent ones.`
-                      : `Older messages not included — this chat is longer than ${currentModel?.label ?? "the model"} is sent at once.`}
+                  <p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-sm text-ink-muted">
+                    {chatSettings.summaryIncomplete ? "Some earlier context is missing. Restate key details." : chatSettings.summarized
+                      ? "Using recent messages and a summary of older context."
+                      : "Older messages are outside the current context."}
                   </p>
                 )}
                 <ul className="space-y-8">
@@ -1594,7 +1589,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                     const prevReply = thread.slice(0, idx).reverse().find((x) => x.role === "assistant" && x.kind === "text" && x.modelId);
                     const switched = m.role === "assistant" && m.kind === "text" && model && prevReply?.modelId && prevReply.modelId !== m.modelId;
                     if (m.role === "user") {
-                      if (idx === 0 && active?.id === courseLaunch?.conversationId && courseLaunch?.prompt === m.content && courseLaunch.startQuiz) return null;
+                      if (m.studyLaunch) return null;
                       return (
                         <li key={m.id} className="group flex flex-col items-end gap-2">
                           {m.attachments && m.attachments.length > 0 && (
@@ -1737,10 +1732,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             </div>
           </>
         )}
-        <p className="px-4 pb-3 pt-2 text-center text-xs text-ink-muted">
-          {theme.disclaimer}
-          {usage && !usage.liveProviders?.includes(generationProvider) && <span className="text-ink-subtle"> Demo mode: {currentModel?.providerLabel} replies are fake until its API key is added.</span>}
-        </p>
+        {usage && !usage.liveProviders?.includes(generationProvider) && <p role="status" className="px-4 pb-3 pt-2 text-center text-sm text-ink-muted">Demo · Sample answers</p>}
         </>)}
       </main>
 

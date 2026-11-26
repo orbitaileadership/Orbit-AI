@@ -20,6 +20,21 @@ import { updateSummary } from "@/lib/chat/summary";
 const req=(body:object)=>new Request("http://x/api/orbit",{method:"POST",body:JSON.stringify(body)});
 
 describe("question attribution route",()=>{
+ it("marks the actual quiz launch rather than a later user message in a truncated history",async()=>{
+  const from=s.fake!.client.from.bind(s.fake!.client);
+  vi.spyOn(s.fake!.client,"from").mockImplementation(table=>{const query=from(table);Reflect.set(query,"limit",(count:number)=>query.range(0,count-1));return query;});
+  const id=crypto.randomUUID();
+  s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,mode:"quiz",study_config:{start_state:"started"}});
+  s.fake!.db.messages.push({id:"launch",conversation_id:id,seq:1,role:"user",content:"Create synthetic flashcards"});
+  for(let i=2;i<=ORBIT.contextRows+3;i++)s.fake!.db.messages.push({id:`message-${i}`,conversation_id:id,seq:i,role:i%2?"user":"assistant",content:"Synthetic follow-up"});
+  const out=await(await GET(new Request(`http://x/api/orbit?conversationId=${id}`))).json();
+  expect(out.olderMessages).toBe(true);
+  expect(out.messages).toHaveLength(ORBIT.contextRows);
+  expect(out.messages.every((m:{studyLaunch:boolean})=>!m.studyLaunch)).toBe(true);
+  s.fake!.db.messages=s.fake!.db.messages.slice(0,3);
+  const short=await(await GET(new Request(`http://x/api/orbit?conversationId=${id}`))).json();
+  expect(short.messages.map((m:{studyLaunch:boolean})=>m.studyLaunch)).toEqual([true,false,false]);
+ });
  it("uses the saved server question ID rather than a client field and isolates the next turn",async()=>{
   const first=await(await POST(req({content:"Synthetic first question",userMessageId:"forged-client-question"}))).text();
   expect(first).toContain('"t":"done"');

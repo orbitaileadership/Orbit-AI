@@ -51,8 +51,7 @@ export function UsageMeter({ usage, size = "compact", children }: { usage: Usage
   if (!usage.live) {
     return (
       <div className={`rounded-2xl border border-line bg-surface-100 ${large ? "p-5" : "p-3.5"}`}>
-        <p className="text-xs text-ink-muted">Usage limits · Demo mode</p>
-        <p className="mt-1.5 text-sm text-ink-muted">Replies are sample answers right now, so nothing is used.</p>
+        <p className="text-sm text-ink-muted">Demo · No allowance used</p>
       </div>
     );
   }
@@ -63,7 +62,7 @@ export function UsageMeter({ usage, size = "compact", children }: { usage: Usage
   return <div className={`rounded-2xl border border-line bg-surface-100 ${large ? 'p-5' : 'p-3.5'}`}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className={`${large ? 'text-base' : 'text-sm'} font-medium`}>Usage limits</h3>
-      {trial && <span className="rounded-full bg-surface-200 px-2 py-1 text-[11px] text-ink-muted">Free trial</span>}
+      {trial && <span className="rounded-full bg-surface-200 px-2 py-1 text-sm text-ink-muted">Free trial</span>}
     </div>
     {usage.expired ? <p role="status" className="mt-3 rounded-xl bg-danger-surface p-3 text-xs text-danger">Your trial has ended.</p> : accountLeft <= 0 ? <p role="status" className="mt-3 rounded-xl bg-danger-surface p-3 text-xs text-danger">Account limit reached.</p> : null}
     <div className={large ? 'mt-6 space-y-6' : 'mt-4 space-y-4'}>
@@ -78,13 +77,14 @@ export function UsageMeter({ usage, size = "compact", children }: { usage: Usage
             <div className="h-full rounded-full transition-[width,background-color] duration-500 motion-reduce:transition-none" style={{ width: `${left}%`, background: TONE[tone] }} />
           </div>
           {left <= 0 && <p className="mt-1 text-xs text-danger">Limit reached{window.nextReleaseAt ? ` · Usage frees up ${new Date(window.nextReleaseAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>}
-          {large && usage.canViewCosts && window.costs && <details className="mt-1 text-xs text-ink-muted"><summary className="cursor-pointer">Cost details</summary>
+          {large && usage.canViewCosts && window.costs && <details className="mt-2 text-sm text-ink-muted"><summary className="cursor-pointer">Cost details</summary>
             <p>US${((window.costs.spent + window.costs.reserved) / 1e6).toFixed(2)} used or held of US${(window.costs.limit / 1e6).toFixed(2)}</p>
           </details>}
         </section>;
       })}
     </div>
-    <p className="mt-2 text-[11px] leading-relaxed text-ink-muted">{trial ? 'Trial' : 'Account'} allowance: {Math.floor(accountLeft)}% left. {usage.expiresAt ? endsLabel(usage.expiresAt) + '.' : ''}</p>
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted"><span>{trial ? 'Trial' : 'Account'}</span><span className="tabular-nums">{Math.floor(accountLeft)}% left</span></div>
+    {usage.expiresAt && <p className="mt-2 text-sm text-ink-muted">{endsLabel(usage.expiresAt)}</p>}
     {children}
   </div>;
 }

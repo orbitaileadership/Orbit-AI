@@ -82,7 +82,7 @@ export function CourseQuiz({ course, ai, onAi, onCourse, onLaunch, onSessionSave
       const saved = await api(`${base}?conversationId=${session.id}`);
       const item = sections.find(section => section.id === session.study_config.section_id);
       if (!item?.folderId) throw new Error('This graded section is no longer available.');
-      handoff(saved.conversation, saved.prompt, { id: item.folderId, name: item.title });
+      handoff(saved.conversation, saved.prompt, { id: item.folderId, name: item.title }, true);
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not open the quiz.'); }
     finally { locked.current = false; setBusy(false); }
   }

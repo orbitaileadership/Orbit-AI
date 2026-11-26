@@ -42,7 +42,13 @@ export async function GET(request: Request) {
   if(attachedError)return dbError(attachedError,"load_failed");
   const byId=new Map((attached??[]).map(file=>[file.id,file]));
   const course=conv.project_id?(await auth.supabase.from("projects").select("id,name").eq("id",conv.project_id).maybeSingle()).data:null;
-  return json({course,messages:(rows??[]).reverse().map(row=>({...row,attachments:((row.attachment_ids??[]) as string[]).map(fileId=>byId.get(fileId)).filter(Boolean)})),olderMessages:(rows?.length??0)>=ORBIT.contextRows,
+  // Identify the saved launch even when only the latest history window is loaded.
+  const firstUser=conv.mode==="quiz"&&conv.study_config
+    ? await auth.supabase.from("messages").select("id").eq("conversation_id",id).eq("role","user").order("seq").limit(1)
+    : {data:[],error:null};
+  if(firstUser.error)return dbError(firstUser.error,"load_failed");
+  const studyLaunchId=firstUser.data?.[0]?.id;
+  return json({course,messages:(rows??[]).reverse().map(row=>({...row,studyLaunch:row.id===studyLaunchId,attachments:((row.attachment_ids??[]) as string[]).map(fileId=>byId.get(fileId)).filter(Boolean)})),olderMessages:(rows?.length??0)>=ORBIT.contextRows,
     quizStartReady:conv.mode==="quiz"&&(conv.study_config as {start_state?:string}|null)?.start_state==="ready"});
 }
 
