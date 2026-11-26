@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 26, 2026 — advertised pricing updated and live
+
+Student is now C$25/month and Regular C$30/month, with existing 10% annual discount preserved (C$270/C$324 per year). Vercel Production `dpl_2exzeYnGLUSUDgBoCVXbPDFdXJ4j` is READY on `orbit-ai-sand.vercel.app` at source `f6ec0058d2cb6bf4c2650c4af94c80db5081ba2f`; live public Pricing markup was verified to show both requested monthly prices. Shared configuration also updates Settings Billing. Usage budgets, provider costs, trials and disabled payments are unchanged. [Price-change evidence](handoffs/2026-11-26-plan-prices.md).
+
 ## November 26, 2026 — account reset and labeled demo usage deployed
 
 At Noah's explicit request and reset-scope confirmation, the owner-selected account's app content and Storage were deleted, its quota charges were waived with prior values recorded, and zero charged/held usage was verified in all rolling windows. Login and historical provider-cost records remain. A server-only account flag enables a clearly labeled Demo usage display with an Actual usage toggle; real spending enforcement remains unchanged. Production deployment `dpl_6kSSdLrZcc4wE17RX39UpgsgSknC` is READY on `orbit-ai-sand.vercel.app` at tested source `f0c1786bc11ba830d3f5ebe942f8076536b673a7`; 976 offline tests, lint, TypeScript and production build passed. [Reset/release evidence and limits](handoffs/2026-11-26-account-demo-reset.md). PR #89 still follows the existing GitHub approval rule; Vercel deployment is separate.
