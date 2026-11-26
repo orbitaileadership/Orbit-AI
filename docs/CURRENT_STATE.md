@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 26, 2026 — account reset and labeled demo usage deployed
+
+At Noah's explicit request and reset-scope confirmation, the owner-selected account's app content and Storage were deleted, its quota charges were waived with prior values recorded, and zero charged/held usage was verified in all rolling windows. Login and historical provider-cost records remain. A server-only account flag enables a clearly labeled Demo usage display with an Actual usage toggle; real spending enforcement remains unchanged. Production deployment `dpl_6kSSdLrZcc4wE17RX39UpgsgSknC` is READY on `orbit-ai-sand.vercel.app` at tested source `f0c1786bc11ba830d3f5ebe942f8076536b673a7`; 976 offline tests, lint, TypeScript and production build passed. [Reset/release evidence and limits](handoffs/2026-11-26-account-demo-reset.md). PR #89 still follows the existing GitHub approval rule; Vercel deployment is separate.
+
 ## November 26, 2026 — demo changes deployed to Production
 
 At Noah's explicit deployment request, Vercel Production deployment `dpl_2uKXWhGKwtqZBtXLKmsTWdD9gNkG` rebuilt reviewed commit `af68c1a249430c23c5b8612e8662fde55e675cc1` from `codex/demo-polish-followup`. Vercel reports READY and a fresh lookup confirms `orbit-ai-sand.vercel.app` points to that exact deployment and commit. Public home/login returned 200; anonymous Orbit/Usage APIs returned 401. This releases screenshot attachment handling, automatic course practice launches and streamlined Orbit/Usage/plugin copy. No migration or paid provider test was performed. Signed-in live features remain unverified. [PR #89](https://github.com/orbitaileadership/Orbit-AI/pull/89) still needs GitHub's required approval from a collaborator other than the last pusher; deployment does not imply main was merged. See [release evidence and rollback](handoffs/2026-11-26-demo-production-deployment.md).
