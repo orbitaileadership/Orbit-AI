@@ -1,5 +1,9 @@
 # Orbit AI — current state
 
+## November 26, 2026 — demo changes deployed to Production
+
+At Noah's explicit deployment request, Vercel Production deployment `dpl_2uKXWhGKwtqZBtXLKmsTWdD9gNkG` rebuilt reviewed commit `af68c1a249430c23c5b8612e8662fde55e675cc1` from `codex/demo-polish-followup`. Vercel reports READY and a fresh lookup confirms `orbit-ai-sand.vercel.app` points to that exact deployment and commit. Public home/login returned 200; anonymous Orbit/Usage APIs returned 401. This releases screenshot attachment handling, automatic course practice launches and streamlined Orbit/Usage/plugin copy. No migration or paid provider test was performed. Signed-in live features remain unverified. [PR #89](https://github.com/orbitaileadership/Orbit-AI/pull/89) still needs GitHub's required approval from a collaborator other than the last pusher; deployment does not imply main was merged. See [release evidence and rollback](handoffs/2026-11-26-demo-production-deployment.md).
+
 ## November 8, 2026 — main integration prepared
 
 Noah requested that the reviewed changes already deployed from `codex/pdf-only-production` be merged into `main` before the next feedback loop. A separate integration worktree combines that branch with `main`'s document and course work; loop 8 and its heartbeat remain paused while the integration is checked. Vercel still tracks `codex/pdf-only-production`, so the `main` merge does not itself redeploy the site. The continuous run's release grant still names the pinned production branch and must not be rewritten. See [integration handoff](handoffs/2026-11-08-main-feedback-integration.md).
