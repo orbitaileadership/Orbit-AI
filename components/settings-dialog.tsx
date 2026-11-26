@@ -365,11 +365,11 @@ export function SettingsDialog({ open, tab: initialTab, onClose, email, appName,
 
             {tab === "usage" && (
               <section>
-                {heading("Usage", "Every answer uses part of your allowance. Cheaper models stretch it further.")}
+                {heading("Usage")}
                 {usage === null && <p className="py-5 text-sm text-ink-subtle">Loading…</p>}
                 {usage === "error" && <p role="alert" className="py-5 text-sm text-ink-muted">Couldn&apos;t load your usage. <button className="underline" onClick={() => { setUsage(null); setUsageRefresh(v => v + 1); }}>Try again</button></p>}
                 {usage && usage !== "error" && <div className="mt-4"><UsageMeter usage={usage} size="large">
-                  <details className="mt-4 text-xs text-ink-muted">
+                  <details className="mt-4 text-sm text-ink-muted">
                     <summary className="cursor-pointer select-none hover:text-ink">How your budget works</summary>
                     <ul className="mt-2 list-disc space-y-2 pl-4 leading-relaxed">
                       <li>Each answer uses allowance based on the chat, files, model and answer length. Larger models and longer chats can cost more.</li>

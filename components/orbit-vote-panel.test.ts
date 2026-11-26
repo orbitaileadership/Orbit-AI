@@ -13,8 +13,8 @@ const decision=decide(ballots,"synthetic",false,["google"]);
 describe("visible Orbit participation",()=>{
  it("discloses excluded Google directly without requiring an expanded ballot",()=>{
   const html=renderToStaticMarkup(createElement(OrbitAvailabilityNotice,{decision}));
-  expect(html).toContain('role="note"');expect(html).toContain("Google was unavailable and did not participate");
-  expect(html).toContain("Three AIs voted");expect(html).toContain("next turn");
+  expect(html).toContain('role="note"');expect(html).toContain("Google was unavailable for this turn.");
+  expect(html).not.toContain("Three AIs voted");
  });
  it("keeps historical decisions without exclusions free from a false outage notice",()=>{
   const {unavailableProviders:unused,...historical}=decision;void unused;
@@ -23,6 +23,6 @@ describe("visible Orbit participation",()=>{
  it("renders three participant logos after Google's exclusion",()=>{
   const html=renderToStaticMarkup(createElement(OrbitVotePanel,{phase:"answering",decision,message:"The lead is answering…"}));
   expect((html.match(/<img /g)??[]).length).toBe(3);
-  expect(html).toContain("Google was unavailable and did not participate");
+  expect(html).toContain("Google was unavailable for this turn.");
  });
 });

@@ -13,6 +13,7 @@ export const ORBIT = {
   inputTokens: 8_000,
   contextRows: 100,
   maxAttachments: 3,
+  screenshotBytes: 4.5 * 1024 * 1024,
   attachmentTokens: 2_000, // total file excerpts per turn; shared by all four voters, specialist and lead
   collaborationVotes: 3,
   helperBudgetMicros: 150_000,

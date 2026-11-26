@@ -20,6 +20,21 @@ import { updateSummary } from "@/lib/chat/summary";
 const req=(body:object)=>new Request("http://x/api/orbit",{method:"POST",body:JSON.stringify(body)});
 
 describe("question attribution route",()=>{
+ it("marks the actual quiz launch rather than a later user message in a truncated history",async()=>{
+  const from=s.fake!.client.from.bind(s.fake!.client);
+  vi.spyOn(s.fake!.client,"from").mockImplementation(table=>{const query=from(table);Reflect.set(query,"limit",(count:number)=>query.range(0,count-1));return query;});
+  const id=crypto.randomUUID();
+  s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,mode:"quiz",study_config:{start_state:"started"}});
+  s.fake!.db.messages.push({id:"launch",conversation_id:id,seq:1,role:"user",content:"Create synthetic flashcards"});
+  for(let i=2;i<=ORBIT.contextRows+3;i++)s.fake!.db.messages.push({id:`message-${i}`,conversation_id:id,seq:i,role:i%2?"user":"assistant",content:"Synthetic follow-up"});
+  const out=await(await GET(new Request(`http://x/api/orbit?conversationId=${id}`))).json();
+  expect(out.olderMessages).toBe(true);
+  expect(out.messages).toHaveLength(ORBIT.contextRows);
+  expect(out.messages.every((m:{studyLaunch:boolean})=>!m.studyLaunch)).toBe(true);
+  s.fake!.db.messages=s.fake!.db.messages.slice(0,3);
+  const short=await(await GET(new Request(`http://x/api/orbit?conversationId=${id}`))).json();
+  expect(short.messages.map((m:{studyLaunch:boolean})=>m.studyLaunch)).toEqual([true,false,false]);
+ });
  it("uses the saved server question ID rather than a client field and isolates the next turn",async()=>{
   const first=await(await POST(req({content:"Synthetic first question",userMessageId:"forged-client-question"}))).text();
   expect(first).toContain('"t":"done"');
@@ -65,6 +80,19 @@ beforeEach(()=>{vi.clearAllMocks();ORBIT.voteRetryDelayMs=0;s.attach.mockResolve
  });});
 afterEach(()=>{vi.unstubAllEnvs();ORBIT.voteRetryDelayMs=retryDelay;ORBIT.helperBudgetMicros=helperCap;});
 describe("Orbit endpoint",()=>{
+ it("rejects screenshot plus summary overflow before paid voting while the same text-only request fits",async()=>{
+   const run=async(withImage:boolean)=>{
+     const id=crypto.randomUUID(),fid=crypto.randomUUID();
+     s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:"s".repeat(18000),summary_upto:1});
+     s.attach.mockResolvedValue({block:"",fileIds:withImage?[fid]:[],names:withImage?["shot.png"]:[],images:withImage?[{mime:"image/png",data:"synthetic-image"}]:[]});
+     return (await POST(req({content:"Explain the evidence",conversationId:id,...(withImage?{attachmentIds:[fid]}:{})}))).text();
+   };
+   expect(await run(true)).toContain('"code":"context_too_large"');
+   expect(s.call).not.toHaveBeenCalled();
+   expect(updateSummary).not.toHaveBeenCalled();
+   expect(await run(false)).toContain('"t":"done"');
+   expect(s.call).toHaveBeenCalledTimes(5);
+ });
  it("rejects an oversized existing lead summary before buying any routing calls",async()=>{
    const id=crypto.randomUUID();
    s.fake!.db.conversations.push({id,user_id:"u",orbit_mode:true,summary:"Synthetic summary. ".repeat(300),summary_upto:2});
@@ -282,6 +310,15 @@ describe("Orbit endpoint",()=>{
    for(const [o] of s.call.mock.calls.filter(([o])=>o.operation==="orbit_vote"))expect(JSON.stringify(o.history)).toContain("Midterm 30%");
    expect(s.call.mock.calls.find(([o])=>o.operation==="orbit_answer")![0].system).toContain("Midterm 30%");
    expect(s.fake!.db.messages.find(m=>m.role==="user")).toMatchObject({attachment_ids:[fid]});
+ });
+ it("sends screenshot bytes only to the final answering model",async()=>{
+   const fid=crypto.randomUUID(), images=[{mime:"image/png",data:"synthetic-image"}];
+   s.attach.mockResolvedValue({block:"",fileIds:[fid],names:["shot.png"],images});
+   const text=await(await POST(req({content:"Read this screenshot",attachmentIds:[fid]}))).text();
+   expect(text).toContain('"t":"done"');
+   const calls=s.call.mock.calls.map(([args])=>args);
+   expect(calls.find(args=>args.operation==="orbit_answer")?.history.at(-1)?.images).toEqual(images);
+   expect(calls.filter(args=>args.operation!=="orbit_answer").every(args=>!args.history.some((turn:{ images?: unknown })=>turn.images))).toBe(true);
  });
  it("rejects unavailable attachments before any provider call and releases the lease",async()=>{
    s.attach.mockRejectedValue(new AttachmentError("unavailable"));

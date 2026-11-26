@@ -26,7 +26,7 @@ const SECTIONS: { title: string; filter: (p: PluginInfo) => boolean }[] = [
 ];
 const SHOWN = new Set(["Popular", "Research", "Developer", "Files", "Mail & calendar", "Notes & library"]);
 
-export function PluginsPage({ ext, appName, onTry, initialTab = "plugins", isAdmin = false }: { ext: Ext; appName: string; isAdmin?: boolean; onTry: (prompt: string) => void; initialTab?: "plugins" | "skills" }) {
+export function PluginsPage({ ext, onTry, initialTab = "plugins", isAdmin = false }: { ext: Ext; appName: string; isAdmin?: boolean; onTry: (prompt: string) => void; initialTab?: "plugins" | "skills" }) {
   const [tab, setTab] = useState<"plugins" | "skills">(initialTab);
   const [scope, setScope] = useState<"public" | "personal">("public");
   const [q, setQ] = useState("");
@@ -92,9 +92,6 @@ export function PluginsPage({ ext, appName, onTry, initialTab = "plugins", isAdm
   }
 
   const title = tab === "plugins" ? "Plugins" : "Skills";
-  const subtitle = tab === "plugins"
-    ? `Connect plugins to let ${appName} work across your tools`
-    : `Teach ${appName} how you like things done. Skills are used automatically when they fit.`;
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -137,7 +134,6 @@ export function PluginsPage({ ext, appName, onTry, initialTab = "plugins", isAdm
           </button>
         ) : null}
         <h1 className="mt-4 text-[32px] font-semibold tracking-tight">{view.kind === "section" ? view.title : title}</h1>
-        {view.kind === "home" && <p className="mt-2 text-[17px] text-ink-muted">{subtitle}</p>}
 
         <label className="mt-7 flex items-center gap-3 rounded-full border border-line-strong bg-surface-000 px-5 py-3 focus-within:border-ink-subtle">
           <SearchIcon />
@@ -161,7 +157,7 @@ export function PluginsPage({ ext, appName, onTry, initialTab = "plugins", isAdm
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-ink-subtle">Nothing installed yet. Tap + on a plugin below.</p>
+                  <p className="mt-4 text-sm text-ink-subtle">No plugins installed.</p>
                 )}
                 <Scope scope={scope} setScope={setScope} />
               </>

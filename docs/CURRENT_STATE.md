@@ -1,5 +1,17 @@
 # Orbit AI — current state
 
+## November 26, 2026 — advertised pricing updated and live
+
+Student is now C$25/month and Regular C$30/month, with existing 10% annual discount preserved (C$270/C$324 per year). Vercel Production `dpl_2exzeYnGLUSUDgBoCVXbPDFdXJ4j` is READY on `orbit-ai-sand.vercel.app` at source `f6ec0058d2cb6bf4c2650c4af94c80db5081ba2f`; live public Pricing markup was verified to show both requested monthly prices. Shared configuration also updates Settings Billing. Usage budgets, provider costs, trials and disabled payments are unchanged. [Price-change evidence](handoffs/2026-11-26-plan-prices.md).
+
+## November 26, 2026 — account reset and labeled demo usage deployed
+
+At Noah's explicit request and reset-scope confirmation, the owner-selected account's app content and Storage were deleted, its quota charges were waived with prior values recorded, and zero charged/held usage was verified in all rolling windows. Login and historical provider-cost records remain. A server-only account flag enables a clearly labeled Demo usage display with an Actual usage toggle; real spending enforcement remains unchanged. Production deployment `dpl_6kSSdLrZcc4wE17RX39UpgsgSknC` is READY on `orbit-ai-sand.vercel.app` at tested source `f0c1786bc11ba830d3f5ebe942f8076536b673a7`; 976 offline tests, lint, TypeScript and production build passed. [Reset/release evidence and limits](handoffs/2026-11-26-account-demo-reset.md). PR #89 still follows the existing GitHub approval rule; Vercel deployment is separate.
+
+## November 26, 2026 — demo changes deployed to Production
+
+At Noah's explicit deployment request, Vercel Production deployment `dpl_2uKXWhGKwtqZBtXLKmsTWdD9gNkG` rebuilt reviewed commit `af68c1a249430c23c5b8612e8662fde55e675cc1` from `codex/demo-polish-followup`. Vercel reports READY and a fresh lookup confirms `orbit-ai-sand.vercel.app` points to that exact deployment and commit. Public home/login returned 200; anonymous Orbit/Usage APIs returned 401. This releases screenshot attachment handling, automatic course practice launches and streamlined Orbit/Usage/plugin copy. No migration or paid provider test was performed. Signed-in live features remain unverified. [PR #89](https://github.com/orbitaileadership/Orbit-AI/pull/89) still needs GitHub's required approval from a collaborator other than the last pusher; deployment does not imply main was merged. See [release evidence and rollback](handoffs/2026-11-26-demo-production-deployment.md).
+
 ## November 8, 2026 — main integration prepared
 
 Noah requested that the reviewed changes already deployed from `codex/pdf-only-production` be merged into `main` before the next feedback loop. A separate integration worktree combines that branch with `main`'s document and course work; loop 8 and its heartbeat remain paused while the integration is checked. Vercel still tracks `codex/pdf-only-production`, so the `main` merge does not itself redeploy the site. The continuous run's release grant still names the pinned production branch and must not be rewritten. See [integration handoff](handoffs/2026-11-08-main-feedback-integration.md).

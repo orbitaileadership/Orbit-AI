@@ -69,3 +69,18 @@ it('exposes a prepared quiz start only while its first turn is ready', async () 
   (conversation.study_config as { start_state: string }).start_state = 'started';
   expect((await (await request()).json()).quizStartReady).toBe(false);
 });
+
+it('marks only a saved course quiz launch while preserving its request and later messages', async () => {
+  Object.assign(state.db!.db.conversations[0], { mode: 'quiz', study_config: { start_state: 'started' } });
+  state.db!.db.messages.push(
+    { id: 'launch', conversation_id: chatId, role: 'user', content: 'Create 10 flashcards for Synthetic Accounting.', seq: 1 },
+    { id: 'answer', conversation_id: chatId, role: 'assistant', content: 'Synthetic cards', seq: 2 },
+    { id: 'followup', conversation_id: chatId, role: 'user', content: 'Explain card two', seq: 3 },
+  );
+  const request = () => GET(new Request(`http://localhost/api/conversations/${chatId}`), { params: Promise.resolve({ id: chatId }) } as never);
+  const saved = await (await request()).json();
+  expect(saved.messages.map((m: { studyLaunch: boolean }) => m.studyLaunch)).toEqual([true, false, false]);
+  expect(saved.messages[0].content).toBe('Create 10 flashcards for Synthetic Accounting.');
+  state.db!.db.conversations[0].study_config = null;
+  expect((await (await request()).json()).messages.every((m: { studyLaunch: boolean }) => !m.studyLaunch)).toBe(true);
+});

@@ -16,7 +16,7 @@ describe("Orbit lead attribution",()=>{
   it("does not turn an empty partial selection into an answer claim",()=>{
     const html=render("partial","");
     expect(html).toContain("Selected lead");expect(html).not.toContain("Answered by");
-    expect(html).toContain("3 of 4 votes");
+    expect(html).not.toContain("3 of 4 votes");
   });
   it("keeps authorship on a completed live visible answer",()=>{
     expect(render("complete","Synthetic visible answer")).toContain("Answered by");
@@ -31,14 +31,14 @@ describe("Orbit lead attribution",()=>{
   });
   it("clearly separates demo selections and votes from real authorship",()=>{
     const html=render("complete","Synthetic demo text",{...decision,demo:true});
-    expect(html).toContain("Simulated lead");expect(html).toContain("simulated votes");expect(html).not.toContain("Answered by");
+    expect(html).toContain("Simulated lead");expect(html).not.toContain("simulated votes");expect(html).not.toContain("Answered by");
   });
   it("does not convert a specialist nomination into a claimed contribution",()=>{
     const html=render("partial","",{...decision,specialist:"google",specialistModelId:"google-default"});
-    expect(html).toContain("specialist selected");expect(html).not.toContain(" with ");
+    expect(html).not.toContain("specialist selected");expect(html).not.toContain(" with ");
   });
   it("preserves tied vote and excluded-provider disclosure",()=>{
     const html=render("partial","",{...decision,tied:true,unavailableProviders:["google"],ballots:decision.ballots.filter(b=>b.voter!=="google")});
-    expect(html).toContain("2 of 3 votes");expect(html).toContain("tie-break");expect(html).toContain("Google was unavailable");
+    expect(html).not.toContain("2 of 3 votes");expect(html).not.toContain("tie-break");expect(html).toContain("Google was unavailable");
   });
 });

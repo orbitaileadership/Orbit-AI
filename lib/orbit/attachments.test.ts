@@ -13,6 +13,10 @@ function db(opts: { files?: object[]; chunks?: object[]; head?: object[] } = {})
       for (const m of ["eq", "is"]) { const orig = q[m]; q[m] = (...a: unknown[]) => { calls.filters.push(`${t}.${m}:${a.join("=")}`); return orig(...a); }; }
       return q;
     }),
+    storage: { from: vi.fn(() => ({
+      info: vi.fn(async () => ({ data: { size: 11 }, error: null })),
+      download: vi.fn(async () => ({ data: new Blob([Uint8Array.from([137,80,78,71,13,10,26,10,1,2,3])]), error: null })),
+    })) },
     rpc: vi.fn(async () => ({ data: opts.chunks ?? [], error: null })),
   };
   void filesQ;
@@ -23,19 +27,35 @@ const file = (id: string, extra = {}) => ({ id, name: `${id.slice(0, 4)}.pdf`, k
 describe("Orbit attachment context", () => {
   it("does nothing without attachments", async () => {
     const d = db();
-    expect(await attachmentContext(d.client, "u", [], "q")).toEqual({ block: "", fileIds: [], names: [] });
+    expect(await attachmentContext(d.client, "u", [], "q")).toEqual({ block: "", fileIds: [], names: [], images: [] });
     expect(d.raw.from).not.toHaveBeenCalled();
   });
   it("limits the number of files", async () => {
     const ids = Array.from({ length: ORBIT.maxAttachments + 1 }, () => crypto.randomUUID());
     await expect(attachmentContext(db().client, "u", ids, "q")).rejects.toBeInstanceOf(AttachmentError);
   });
-  it("scopes to the owner's unused files and rejects missing, scanned, image or failed ones", async () => {
+  it("scopes to the owner's unused files and rejects missing, scanned or failed ones", async () => {
     const d = db({ files: [file(A)] });
     await expect(attachmentContext(d.client, "u", [A, B], "q")).rejects.toThrow("unavailable");
     expect(d.calls.filters).toContain("files.eq:user_id=u");
-    for (const bad of [{ status: "needs_ocr" }, { kind: "image" }, { status: "failed" }])
+    for (const bad of [{ status: "needs_ocr" }, { status: "failed" }])
       await expect(attachmentContext(db({ files: [file(A, bad)] }).client, "u", [A], "q")).rejects.toThrow("unavailable");
+  });
+  it("loads one owned unused PNG without adding image data to text context", async () => {
+    const d = db({ files: [file(A, { kind: "image", mime: "image/png", storage_path: "u/" + A + "/shot.png" })] });
+    const result = await attachmentContext(d.client, "u", [A], "read the screenshot");
+    expect(result).toMatchObject({ block: "", fileIds: [A], images: [{ mime: "image/png", data: "iVBORw0KGgoBAgM=" }] });
+    expect(d.raw.rpc).not.toHaveBeenCalled();
+  });
+  it("rejects another owner's storage path before download", async () => {
+    const d = db({ files: [file(A, { kind: "image", mime: "image/png", storage_path: "other/" + A + "/shot.png" })] });
+    await expect(attachmentContext(d.client, "u", [A], "q")).rejects.toThrow("screenshot_invalid");
+    expect(d.raw.storage.from).not.toHaveBeenCalled();
+  });
+  it("rejects a second screenshot before any download", async () => {
+    const d = db({ files: [file(A, { kind: "image" }), file(B, { kind: "image" })] });
+    await expect(attachmentContext(d.client, "u", [A,B], "q")).rejects.toThrow("screenshot_limit");
+    expect(d.raw.storage.from).not.toHaveBeenCalled();
   });
   it("labels excerpts untrusted and bounds them to the token budget", async () => {
     const big = "synthetic words ".repeat(900);

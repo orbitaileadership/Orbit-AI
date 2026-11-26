@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FOLDER_ACCESS, IMAGE_MODELS, MENU_MAIN, PROVIDERS, defaultModelFor, getModel, modelsFor, type ProviderId } from "@/config/models";
 import { THEMES } from "@/config/themes";
 import { missedConcepts, type QuizState } from "@/lib/chat/quiz";
 import { STUDY_WIDGET_ERROR_TEXT } from "@/lib/courses/quiz-output";
-import { answersLeft, answersText, isLow, timesCheaper, typicalAnswerMicros } from "@/lib/billing/estimate";
+import { typicalAnswerMicros } from "@/lib/billing/estimate";
 import { signOut } from "../login/actions";
 import { ProviderLogo } from "@/components/provider-logo";
 import { OrbitChat } from "@/components/orbit-chat";
@@ -66,6 +66,7 @@ type Message = {
   role: "user" | "assistant";
   kind: "text" | "image";
   content: string;
+  studyLaunch?: boolean;
   imageUrl?: string | null;
   modelId?: string;
   finishReason?: string;
@@ -239,6 +240,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
   const visibleConvs = (appConvs ?? []).filter(c => !courseIds.has(c.projectId ?? '') && (!filter || courseFilter || c.projectId === filter));
   const activeId = activeIds[provider];
   const active = appConvs?.find((c) => c.id === activeId) ?? null;
+  const autoQuizKey = useRef<number | null>(null);
   const openedChatRef = useRef<string | null>(null);
   useEffect(() => { openedChatRef.current = active?.id ?? null; }, [active?.id]);
   const msgKey = active ? active.id : `${DRAFT}:${provider}`;
@@ -391,7 +393,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       setProvider(p);setOrbitMode(false);setPage("chat");setImageMode(false);setPending([]);
       setProjectFilter(prev=>({...prev,[p]:(courseLaunch.folder?.id ?? courseLaunch.course.id)}));setActiveIds(prev=>({...prev,[p]:courseLaunch.conversationId??null}));
       if (courseLaunch.conversationId) setQuizReadyIds(previous => { const next = new Set(previous); if (courseLaunch.startQuiz) next.add(courseLaunch.conversationId!); else next.delete(courseLaunch.conversationId!); return next; });
-      setInput(courseLaunch.prompt+(courseLaunch.startQuiz?"":courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
+      setInput(courseLaunch.autoStartQuiz ? "" : courseLaunch.prompt+(courseLaunch.startQuiz?"":courseLaunch.item?`\n\nAssignment: ${courseLaunch.item.title}\nDue: ${courseLaunch.item.due??"unconfirmed"}\n${courseLaunch.item.details}`:""));
     }).catch(()=>alertLine("Could not open the course chat. Please try again."));
     return()=>{cancelled=true;};
   },[courseLaunch,ready]);
@@ -437,7 +439,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       if (!res || handleAuth(res) || !res.ok) return;
       const out = (await res.json()) as { messages: Message[]; mode?: StudyMode; courseOnly?: boolean; summarized?: boolean; summaryIncomplete?: boolean; quiz?: QuizState | null; quizStartReady?: boolean };
       setQuizReadyIds(previous => { const next = new Set(previous); if (out.quizStartReady) next.add(id); else next.delete(id); return next; });
-      if (out.quizStartReady) {
+      if (out.quizStartReady && !(courseLaunch?.autoStartQuiz && courseLaunch.conversationId === id)) {
         if (active.projectId) void fetch(`/api/courses/${active.projectId}/quiz?conversationId=${id}`)
           .then(r => r.ok ? r.json() : null).then(data => { if (data?.prompt && openedChatRef.current === id) setInput(current => current || data.prompt); }).catch(() => {});
       }
@@ -447,7 +449,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       setMessages((prev) => (prev[id] ? prev : { ...prev, [id]: withActivity }));
       setSettings((prev) => (prev[id] ? prev : { ...prev, [id]: { mode: out.mode ?? "chat", courseOnly: Boolean(out.courseOnly), summarized: out.summarized, summaryIncomplete:out.summaryIncomplete, quiz: out.quiz } }));
     })();
-  }, [active, messages, handleAuth]);
+  }, [active, messages, handleAuth, courseLaunch]);
 
   // Follow the reply while the student is at the bottom; if they scroll up to read, stay put and show a ↓ button.
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -744,7 +746,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     const attachmentIds = readyQuizRetry ? (priorQuestion?.attachments ?? []).map(a => a.id) : retry || imageMode ? [] : ready.map((p) => p.file!.id);
     if (!retry) {
       const attachments = imageMode ? [] : ready.map((p) => ({ id: p.file!.id, name: p.file!.name, kind: p.file!.kind, status: p.file!.status, error: p.file!.error }));
-      patchMessages(key, (m) => [...m, { id: tmpId(), role: "user", kind: "text", content, status: "complete", attachments }]);
+      patchMessages(key, (m) => [...m, { id: tmpId(), role: "user", kind: "text", content, status: "complete", attachments, studyLaunch: Boolean(active?.id && quizReadyIds.has(active.id)) }]);
       setInput("");
       setMentions([]);
       setMention(null);
@@ -893,6 +895,15 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       loadUsage();
     }
   }
+
+  const sendCourseQuiz = useEffectEvent((prompt: string) => { void send(prompt); });
+  useEffect(() => {
+    if (!courseLaunch?.autoStartQuiz || courseLaunch.provider !== provider || !courseLaunch.prompt.trim() ||
+        !active || active.id !== courseLaunch.conversationId || !messages[active.id] ||
+        !quizReadyIds.has(active.id) || run !== null || archiving !== null || autoQuizKey.current === courseLaunch.key) return;
+    autoQuizKey.current = courseLaunch.key;
+    sendCourseQuiz(courseLaunch.prompt);
+  }, [courseLaunch, provider, active, messages, quizReadyIds, run, archiving]);
 
   // Run the model's file actions on the connected folder. Reads run straight away; changes are checked
   // first (dry run), then wait for the student's Apply / Skip.
@@ -1138,31 +1149,11 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
     </button>
   );
 
-  // Warn while there's still room to finish the session, in answers rather than dollars, and offer the cheapest model.
   const remainingNow = usage?.live ? (usage.available ?? usage.allowance - usage.spent - usage.reserved) : Infinity;
-  const cheapest = modelsFor(generationProvider).filter((m) => MENU_MAIN[generationProvider].includes(m.id)).sort((a, b) => typicalAnswerMicros(a, usage?.typical) - typicalAnswerMicros(b, usage?.typical))[0];
-  const perAnswer = currentModel ? typicalAnswerMicros(currentModel, usage?.typical) : 0;
-  const cheapPerAnswer = cheapest ? typicalAnswerMicros(cheapest, usage?.typical) : 0;
-  const offerCheaper = cheapest && cheapest.id !== modelId && remainingNow >= cheapPerAnswer;
-  const lowBalance = usage?.live && currentModel && isLow(remainingNow, usage.allowance, perAnswer) && (
-    <div role="status" className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 rounded-2xl border border-line bg-surface-200 px-4 py-2.5 text-sm">
-      <span className="min-w-0 flex-1">
-        {remainingNow < perAnswer
-          ? `Not enough budget left for a ${currentModel.short} answer.`
-          : `Running low: ${answersText(answersLeft(remainingNow, currentModel, usage.typical))} with ${currentModel.short}.`}{" "}
-        {offerCheaper && (
-          <span className="text-ink-muted">
-            {cheapest.short} is {timesCheaper(perAnswer, cheapPerAnswer) > 1 ? `about ${timesCheaper(perAnswer, cheapPerAnswer)}× cheaper` : "cheaper"} ({answersText(answersLeft(remainingNow, cheapest, usage.typical))}).
-          </span>
-        )}
-      </span>
-      {offerCheaper && (
-        <button type="button" onClick={() => setModel(cheapest.id)} className="rounded-full bg-brand px-3 py-1 text-xs font-medium text-on-brand">
-          Switch to {cheapest.short}
-        </button>
-      )}
-    </div>
-  );
+  const cheapest = modelsFor(generationProvider).filter(m => MENU_MAIN[generationProvider].includes(m.id)).sort((a,b) => typicalAnswerMicros(a, usage?.typical) - typicalAnswerMicros(b, usage?.typical))[0];
+  const offerCheaper = cheapest && currentModel && cheapest.id !== modelId &&
+    typicalAnswerMicros(cheapest, usage?.typical) < typicalAnswerMicros(currentModel, usage?.typical) &&
+    remainingNow >= typicalAnswerMicros(cheapest, usage?.typical);
 
   // Quiz progress for this chat: score kept by the server, and the concepts to come back to.
   const quiz = chatSettings.mode === "quiz" ? chatSettings.quiz : null;
@@ -1316,7 +1307,6 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
       onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files.length) attachFiles(Array.from(e.dataTransfer.files)); }}
       onPaste={(e) => { const imgs = Array.from(e.clipboardData.files); if (imgs.length) { e.preventDefault(); attachFiles(imgs); } }}>
       <input ref={fileInput} type="file" multiple accept={ACCEPT_ATTR} hidden onChange={(e) => { attachFiles(Array.from(e.target.files ?? [])); e.target.value = ""; }} />
-      {lowBalance}
       {quizPanel}
       {theme.inlineComposer ? (
         <div className={`chat-column relative mx-auto max-w-3xl py-2.5 pl-3 pr-3 transition ${theme.composerClass}`}>
@@ -1540,19 +1530,13 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                 <div className="flex flex-wrap items-center gap-2">
                   <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden className="shrink-0 text-ink-muted"><path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h3l1.5 1.5h4.5A1.5 1.5 0 0 1 14 6v5.5a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 11.5z" fill="none" stroke="currentColor" strokeWidth="1.3" /></svg>
                   <span className="font-medium">{activeProject.name}</span>
-                  <span className="text-xs text-ink-subtle">
+                  <span className="text-sm text-ink-subtle">
                     {courseFiles[activeProject.id] ? `${courseFiles[activeProject.id].length} ${activeProjectIsFolder ? "folder" : "course"} file${courseFiles[activeProject.id].length === 1 ? "" : "s"}` : "Loading files…"}
-                    {activeProject.instructions.trim() ? " · has instructions" : ""}
                   </span>
                   <button onClick={() => openCourse(activeProject)} className="ml-auto rounded-full border border-line-strong px-3 py-1 text-xs font-medium hover:bg-surface-300">
                     {!activeProjectIsFolder ? "Open course workspace" : courseFiles[activeProject.id]?.length ? "Manage files" : "Add folder files"}
                   </button>
                 </div>
-                {courseFiles[activeProject.id]?.length ? (
-                  <p className="mt-1.5 truncate text-xs text-ink-subtle">Answers can cite: {courseFiles[activeProject.id].map((f) => f.name).join(", ")}</p>
-                ) : (
-                  <p className="mt-1.5 text-xs text-ink-subtle">Add lecture slides, readings or assignment specs and every chat in this {activeProjectIsFolder ? "folder" : "course"} can quote them by page.</p>
-                )}
               </div>
             )}
             <h1 className={`mb-8 flex items-center justify-center gap-3 text-center ${theme.greetingClass}`}>
@@ -1586,10 +1570,10 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             <div ref={scrollRef} onScroll={onThreadScroll} className="relative flex-1 overflow-y-auto">
               <div className="chat-column chat-transcript mx-auto max-w-3xl px-4 py-6">
                 {active && (dropped[active.id] || chatSettings.summarized) && (
-                  <p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-xs text-ink-muted">
-                    {chatSettings.summaryIncomplete ? "Some earlier messages have not been summarized yet. Full history is saved; ask again or restate any important details." : chatSettings.summarized
-                      ? `This chat is long: ${currentModel?.label ?? "the model"} gets a summary of older messages plus the recent ones.`
-                      : `Older messages not included — this chat is longer than ${currentModel?.label ?? "the model"} is sent at once.`}
+                  <p className="mb-6 rounded-xl bg-surface-200 px-4 py-2.5 text-center text-sm text-ink-muted">
+                    {chatSettings.summaryIncomplete ? "Some earlier context is missing. Restate key details." : chatSettings.summarized
+                      ? "Using recent messages and a summary of older context."
+                      : "Older messages are outside the current context."}
                   </p>
                 )}
                 <ul className="space-y-8">
@@ -1599,6 +1583,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
                     const prevReply = thread.slice(0, idx).reverse().find((x) => x.role === "assistant" && x.kind === "text" && x.modelId);
                     const switched = m.role === "assistant" && m.kind === "text" && model && prevReply?.modelId && prevReply.modelId !== m.modelId;
                     if (m.role === "user") {
+                      if (m.studyLaunch) return null;
                       return (
                         <li key={m.id} className="group flex flex-col items-end gap-2">
                           {m.attachments && m.attachments.length > 0 && (
@@ -1741,10 +1726,7 @@ export function ChatApp({ email, userId, isAdmin = false, onCourses, courseLaunc
             </div>
           </>
         )}
-        <p className="px-4 pb-3 pt-2 text-center text-xs text-ink-muted">
-          {theme.disclaimer}
-          {usage && !usage.liveProviders?.includes(generationProvider) && <span className="text-ink-subtle"> Demo mode: {currentModel?.providerLabel} replies are fake until its API key is added.</span>}
-        </p>
+        {usage && !usage.liveProviders?.includes(generationProvider) && <p role="status" className="px-4 pb-3 pt-2 text-center text-sm text-ink-muted">Demo · Sample answers</p>}
         </>)}
       </main>
 
