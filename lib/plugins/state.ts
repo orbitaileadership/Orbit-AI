@@ -59,7 +59,7 @@ export function useExtensions() {
     setExt(local); // eslint-disable-line react-hooks/set-state-in-effect -- browser storage is only readable after mount
     fetch("/api/extensions")
       .then((r) => (r.ok ? r.json() : null))
-      .then((j: { ready?: boolean; plugins?: InstalledPlugin[]; skills?: (InstalledSkill & Partial<Skill>)[] } | null) => {
+      .then((j: { ready?: boolean; resetAt?: string; plugins?: InstalledPlugin[]; skills?: (InstalledSkill & Partial<Skill>)[] } | null) => {
         if (!j?.ready) return;
         setSynced(true);
         const fromServer: Extensions = {
@@ -70,7 +70,7 @@ export function useExtensions() {
         };
         // First time on the account: carry over what was installed in this browser.
         const empty = !fromServer.plugins.length && !fromServer.skills.length;
-        if (empty && (local.plugins.length || local.skills.length)) {
+        if (empty && !j.resetAt && (local.plugins.length || local.skills.length)) {
           local.plugins.forEach((p) => void put({ kind: "plugin", id: p.id, installed: true, enabled: p.enabled }));
           local.skills.forEach((s) => void put({ kind: "skill", id: s.id, installed: true, enabled: s.enabled, skill: local.personal.find((x) => x.id === s.id) }));
           return;

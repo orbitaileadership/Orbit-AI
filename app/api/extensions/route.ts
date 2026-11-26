@@ -18,6 +18,7 @@ export async function GET() {
   const rows = (data ?? []) as { kind: string; ext_id: string; enabled: boolean; data: Record<string, unknown> }[];
   return json({
     ready: true,
+    resetAt: typeof auth.user.app_metadata?.orbit_account_reset_at === 'string' ? auth.user.app_metadata.orbit_account_reset_at : undefined,
     plugins: rows.filter((r) => r.kind === "plugin" && isPluginId(r.ext_id)).map((r) => ({ id: r.ext_id, enabled: r.enabled })),
     skills: rows.filter((r) => r.kind === "skill").map((r) => ({
       id: r.ext_id, enabled: r.enabled,

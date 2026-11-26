@@ -4,6 +4,7 @@ import { isLive, liveProviders } from "@/lib/providers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAnalyticsAdmin } from "@/lib/analytics/admin";
 import { parseUsageWindows, presentUsageWindows } from "@/lib/billing/usage-windows";
+import { demoUsageScaleFor } from "@/config/demo-usage";
 
 // GET /api/usage → { live, allowance, spent, reserved, typical } in micros (millionths of $).
 // typical = this student's average cost per answer by model (for "about N more answers").
@@ -18,6 +19,6 @@ export async function GET() {
     const canViewCosts = isAnalyticsAdmin(auth.user.email);
     const expired = Boolean(usage.expiresAt && Date.parse(usage.expiresAt) <= Date.now());
     const available = expired ? 0 : Math.max(0, Math.min(usage.allowance - usage.spent - usage.reserved, ...windows.map(w => w.limit_micros - w.spent_micros - w.reserved_micros)));
-    return json({ live: true, liveProviders: liveProviders(), ...usage, typical, available, expired, canViewCosts, windows: presentUsageWindows(windows, canViewCosts) });
+    return json({ live: true, liveProviders: liveProviders(), ...usage, typical, available, expired, canViewCosts, windows: presentUsageWindows(windows, canViewCosts), demoUsageScale: demoUsageScaleFor(auth.user.id) });
   } catch { return json({ error: "load_failed" }, 500); }
 }

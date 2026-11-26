@@ -7,6 +7,7 @@ vi.mock('@/lib/supabase/admin', () => ({ createAdminClient: () => ({ rpc: state.
 import { GET } from './route';
 beforeEach(() => {
   vi.stubEnv('ANALYTICS_ADMIN_EMAILS', 'admin@example.com');
+  vi.stubEnv('DEMO_USAGE_USER_IDS', '');
   state.email = 'student@example.com'; state.live = true;
   state.usage.mockReset(); state.rpc.mockReset();
   state.usage.mockResolvedValue({ allowance: 10000, spent: 0, reserved: 0 });
@@ -39,4 +40,11 @@ it('keeps demo mode explicit without live accounting calls', async () => {
   state.live = false;
   expect(await (await GET()).json()).toMatchObject({ live: false });
   expect(state.rpc).not.toHaveBeenCalled();
+});
+it('marks only configured accounts for a simulated display without altering real accounting', async () => {
+  vi.stubEnv('DEMO_USAGE_USER_IDS', ' owner ,other-demo');
+  const demo = await (await GET()).json();
+  expect(demo).toMatchObject({ demoUsageScale: 100, available: 500, spent: 0, windows: [{ remainingPercent: 50, heldPercent: 20 }, {}, {}] });
+  vi.stubEnv('DEMO_USAGE_USER_IDS', 'different-owner');
+  expect(await (await GET()).json()).not.toHaveProperty('demoUsageScale');
 });

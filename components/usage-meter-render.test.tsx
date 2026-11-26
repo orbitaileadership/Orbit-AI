@@ -25,3 +25,16 @@ it('explains entitlement exhaustion and unavailable limits instead of showing fa
   expect(render({ ...usage, spent: 1000 })).toContain('Account limit reached.');
   expect(render({ ...usage, windows: undefined })).toContain('temporarily unavailable');
 });
+it('labels simulated usage, offers actual readings and preserves real exhaustion notices', () => {
+  const demo: UsageData = { ...usage, demoUsageScale: 100 };
+  const before = JSON.stringify(demo);
+  const html = renderToStaticMarkup(createElement(UsageMeter, { usage: demo, size: 'large' }));
+  expect(html).toContain('Demo usage');
+  expect(html).toContain('Actual usage');
+  expect(html).toContain('99.8% left');
+  expect(html).toContain('simulated remaining');
+  expect(JSON.stringify(demo)).toBe(before);
+  const exhausted = renderToStaticMarkup(createElement(UsageMeter, { usage: { ...demo, spent: 1000, windows: [{ ...demo.windows![0], remainingPercent: 0 }] } }));
+  expect(exhausted).toContain('Account limit reached.');
+  expect(exhausted).toContain('Real limit reached');
+});

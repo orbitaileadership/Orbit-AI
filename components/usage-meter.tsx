@@ -1,4 +1,5 @@
 "use client";
+import { useState } from 'react';
 import type { UsageWindow } from '@/lib/billing/usage-windows';
 
 // Shared rolling-window meter for Settings. Students see percentages only.
@@ -12,6 +13,7 @@ export type UsageData = {
   canViewCosts?: boolean;
   available?: number;
   expired?: boolean;
+  demoUsageScale?: 100;
 };
 
 /** Share of the allowance used (spent + held for running answers), 0–100. */
@@ -46,6 +48,7 @@ export function moneyFor(u: UsageData) {
 }
 
 export function UsageMeter({ usage, size = "compact", children }: { usage: UsageData | null; size?: "compact" | "large"; children?: React.ReactNode }) {
+  const [showActual, setShowActual] = useState(false);
   const large = size === "large";
   if (!usage) return <div className={`rounded-2xl border border-line bg-surface-100 ${large ? "p-5" : "p-3.5"} text-sm text-ink-subtle`}>Loading usage…</div>;
   if (!usage.live) {
@@ -58,32 +61,35 @@ export function UsageMeter({ usage, size = "compact", children }: { usage: Usage
   if (!usage.windows?.length) return <div role="status" className="rounded-2xl border border-line p-4 text-sm text-ink-muted">Usage limits are temporarily unavailable. Refresh to try again.</div>;
   const trial = Boolean(usage.expiresAt);
   const accountLeft = Math.max(0, 100 - usedPercent(usage));
+  const demo = usage.demoUsageScale === 100 && !showActual;
+  const displayPercent = (left: number) => demo ? 100 - (100 - left) / 100 : left;
+  const percentText = (left: number) => demo ? displayPercent(left).toFixed(1) : left > 0 && left < 1 ? '<1' : String(Math.floor(left));
   const labels = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly' };
   return <div className={`rounded-2xl border border-line bg-surface-100 ${large ? 'p-5' : 'p-3.5'}`}>
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <h3 className={`${large ? 'text-base' : 'text-sm'} font-medium`}>Usage limits</h3>
+      <h3 className={`${large ? 'text-base' : 'text-sm'} font-medium`}>{demo ? 'Demo usage' : 'Usage limits'}</h3>
+      {usage.demoUsageScale === 100 && <button type="button" onClick={() => setShowActual(current => !current)} className="text-sm text-ink-muted underline underline-offset-4">{demo ? 'Actual usage' : 'Demo usage'}</button>}
       {trial && <span className="rounded-full bg-surface-200 px-2 py-1 text-sm text-ink-muted">Free trial</span>}
     </div>
     {usage.expired ? <p role="status" className="mt-3 rounded-xl bg-danger-surface p-3 text-xs text-danger">Your trial has ended.</p> : accountLeft <= 0 ? <p role="status" className="mt-3 rounded-xl bg-danger-surface p-3 text-xs text-danger">Account limit reached.</p> : null}
     <div className={large ? 'mt-6 space-y-6' : 'mt-4 space-y-4'}>
       {usage.windows.map(window => {
-        const left = window.remainingPercent;
+        const left = displayPercent(window.remainingPercent);
         const tone = leftTone(100 - left);
-        const displayed = Math.floor(left);
         return <section key={window.key} aria-label={`${labels[window.key]} usage limit`}>
-          <div className="flex items-center justify-between gap-3 text-sm"><span className="font-medium">{labels[window.key]}</span><span className="tabular-nums font-medium">{left > 0 && left < 1 ? '<1' : displayed}% left</span></div>
-          <div role="meter" aria-label={`${labels[window.key]} allowance remaining`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={left} aria-valuetext={`${left.toFixed(1)}% remaining`}
+          <div className="flex items-center justify-between gap-3 text-sm"><span className="font-medium">{labels[window.key]}</span><span className="tabular-nums font-medium">{percentText(window.remainingPercent)}% left</span></div>
+          <div role="meter" aria-label={`${labels[window.key]} ${demo ? 'simulated' : 'allowance'} remaining`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={left} aria-valuetext={`${left.toFixed(1)}% ${demo ? 'simulated remaining' : 'remaining'}`}
             className={`mt-2 overflow-hidden rounded-full bg-surface-300 ${large ? 'h-2.5' : 'h-2'}`}>
             <div className="h-full rounded-full transition-[width,background-color] duration-500 motion-reduce:transition-none" style={{ width: `${left}%`, background: TONE[tone] }} />
           </div>
-          {left <= 0 && <p className="mt-1 text-xs text-danger">Limit reached{window.nextReleaseAt ? ` · Usage frees up ${new Date(window.nextReleaseAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>}
-          {large && usage.canViewCosts && window.costs && <details className="mt-2 text-sm text-ink-muted"><summary className="cursor-pointer">Cost details</summary>
+          {window.remainingPercent <= 0 && <p role="status" className="mt-1 text-sm text-danger">{demo ? 'Real limit reached' : 'Limit reached'}{window.nextReleaseAt ? ` · Usage frees up ${new Date(window.nextReleaseAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</p>}
+          {!demo && large && usage.canViewCosts && window.costs && <details className="mt-2 text-sm text-ink-muted"><summary className="cursor-pointer">Cost details</summary>
             <p>US${((window.costs.spent + window.costs.reserved) / 1e6).toFixed(2)} used or held of US${(window.costs.limit / 1e6).toFixed(2)}</p>
           </details>}
         </section>;
       })}
     </div>
-    <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted"><span>{trial ? 'Trial' : 'Account'}</span><span className="tabular-nums">{Math.floor(accountLeft)}% left</span></div>
+    <div className="mt-6 flex flex-wrap items-center justify-between gap-2 text-sm text-ink-muted"><span>{trial ? 'Trial' : 'Account'}</span><span className="tabular-nums">{percentText(accountLeft)}% left</span></div>
     {usage.expiresAt && <p className="mt-2 text-sm text-ink-muted">{endsLabel(usage.expiresAt)}</p>}
     {children}
   </div>;
