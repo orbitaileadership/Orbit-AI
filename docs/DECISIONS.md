@@ -1,5 +1,9 @@
 # Orbit AI — approved decisions register
 
+## November 26, 2026 — Student and Regular advertised prices
+
+Noah requested changing the two monthly prices to $25 and $30. Existing CAD plan order is retained: Student C$25/month and Regular C$30/month. The existing 10% annual discount gives C$270/year and C$324/year respectively. Public pricing and Settings Billing share `config/economics.ts`. Usage allowances, actual provider prices, trial rules and disabled payment activation are unchanged. This supersedes earlier advertised C$30 Student / C$40 Regular plan prices.
+
 ## November 8, 2026 — merge reviewed feedback changes into main
 
 Noah explicitly requested merging the reviewed production changes into `main` before loop 8. This authorizes a checked integration PR to `main`; it does not change Vercel's existing production branch or the immutable release grant of the paused loop. Future automatic releases need their target and deployment configuration aligned before resuming. This supersedes the earlier instruction to never merge the feedback work into `main`.
